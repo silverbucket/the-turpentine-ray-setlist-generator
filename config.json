@@ -9,6 +9,11 @@
             [ "cover", false ],
             [ "instrumental", false ]
         ],
+        "second": [
+            [ "energy", 2 ],
+            [ "cover", false ],
+            [ "instrumental", false ]
+        ],
         "penultimate": [
             [ "energy", [2, 3] ]
         ],

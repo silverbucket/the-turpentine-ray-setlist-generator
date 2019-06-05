@@ -1,322 +1,409 @@
 [
     {
+        "id": 1,
         "name": "Whiskey Flavored Man",
         "energy": 1,
-        "banjo": {
-            "capo": 2,
-            "tuning": "G",
-            "picking": true
-        },
-        "guitar": {
-            "capo": 2,
-            "tuning": "S"
+        "instruments": {
+            "banjo": {
+                "capo": 2,
+                "tuning": "G",
+                "picking": true
+            },
+            "guitar": {
+                "capo": 2,
+                "tuning": "S"
+            }
         }
     },
     {
+        "id": 2,
         "name": "Hoofprint on my Neck",
         "energy": 3,
-        "banjo": {
-            "tuning": "G",
-            "picking": true
-        },
-        "guitar": {
-            "capo": 3,
-            "tuning": "S"
+        "instruments": {
+            "banjo": {
+                "tuning": "G",
+                "picking": true
+            },
+            "guitar": {
+                "capo": 3,
+                "tuning": "S"
+            }
         }
     },
     {
+        "id": 3,
         "name": "Space Station Mir",
         "energy": 2,
-        "banjo": {
-            "tuning": "G"
-        },
-        "guiar": {
-            "tuning": ["D", "S"]
+        "instruments": {
+            "banjo": {
+                "tuning": "G"
+            },
+            "guiar": {
+                "tuning": ["D", "S"]
+            }
         }
     },
     {
+        "id": 4,
         "name": "Courtroom Sketch Artist",
         "energy": 3,
-        "banjo": {
-            "tuning": "G",
-            "picking": true
-        },
-        "guiar": {
-            "tuning": "S"
+        "instruments": {
+            "banjo": {
+                "tuning": "G",
+                "picking": true
+            },
+            "guiar": {
+                "tuning": "S"
+            }
         }
     },
     {
+        "id": 5,
         "name": "Don't You Die",
         "energy": 1,
-        "banjo": {
-            "tuning": "G",
-            "capo": 2,
-            "picking": true
-        },
-        "guiar": {
-            "tuning": "S",
-            "capo": 2
+        "instruments": {
+            "banjo": {
+                "tuning": "G",
+                "capo": 2,
+                "picking": true
+            },
+            "guiar": {
+                "tuning": "S",
+                "capo": 2
+            }
         }
     },
     {
+        "id": 6,
         "name": "To Rob A Bank",
         "energy": 1,
-        "banjo": {
-            "tuning": "G",
-            "capo": 3,
-            "picking": true
-        },
-        "guiar": {
-            "tuning": "S"
+        "instruments": {
+            "banjo": {
+                "tuning": "G",
+                "capo": 3,
+                "picking": true
+            },
+            "guiar": {
+                "tuning": "S"
+            }
         }
     },
     {
+        "id": 7,
         "name": "Euglena",
         "energy": 3,
-        "resonator": {
-            "tuning": "G"
-        },
-        "guiar": {
-            "tuning": "D"
+        "instruments": {
+            "resonator": {
+                "tuning": "G"
+            },
+            "guiar": {
+                "tuning": "D"
+            }
         }
     },
     {
+        "id": 8,
         "name": "Bottle of Soot",
         "energy": 1,
-        "resonator": {
-            "tuning": "G"
-        },
-        "guiar": {
-            "tuning": "D"
+        "instruments": {
+            "resonator": {
+                "tuning": "G"
+            },
+            "guiar": {
+                "tuning": "D"
+            }
         }
     },
     {
+        "id": 9,
         "name": "Farewell to Cheyenne",
         "instrumental": true,
         "cover": true,
         "energy": 1,
-        "banjo": {
-            "tuning": "G",
-            "picking": true
-        },
-        "resonator": {
-            "tuning": "G"
-        },
-        "guiar": {
-            "tuning": "D"
+        "instruments": {
+            "banjo": {
+                "tuning": "G",
+                "picking": true
+            },
+            "resonator": {
+                "tuning": "G"
+            },
+            "guiar": {
+                "tuning": "D"
+            }
         }
     },
     {
+        "id": 10,
         "name": "Turn on to the Sun",
         "energy": 2,
-        "banjo": {
-            "tuning": "D"
-        },
-        "guiar": {
-            "tuning": "D"
+        "instruments": {
+            "banjo": {
+                "tuning": "D"
+            },
+            "guiar": {
+                "tuning": "D"
+            }
         }
     },
     {
+        "id": 11,
         "name": "Bozo the Noise",
         "energy": 3,
-        "banjo": {
-            "tuning": "D"
-        },
-        "guiar": {
-            "tuning": "D"
+        "instruments": {
+            "banjo": {
+                "tuning": "D"
+            },
+            "guiar": {
+                "tuning": "D"
+            }
         }
     },
     {
+        "id": 12,
         "name": "All Built In",
         "energy": 3,
-        "banjo": {
-            "tuning": "D"
-        },
-        "guiar": {
-            "tuning": "D"
+        "instruments": {
+            "banjo": {
+                "tuning": "D"
+            },
+            "guiar": {
+                "tuning": "D"
+            }
         }
     },
     {
+        "id": 13,
         "name": "Jackass Travels",
         "energy": 2,
-        "banjo": {
-            "tuning": "G",
-            "capo": 2,
-            "picking": true
-        },
-        "guiar": {
-            "tuning": "D"
+        "instruments": {
+            "banjo": {
+                "tuning": "G",
+                "capo": 2,
+                "picking": true
+            },
+            "guiar": {
+                "tuning": "D"
+            }
         }
     },
     {
+        "id": 14,
         "name": "Trying to get to the Port",
         "energy": 2,
-        "banjo": {
-            "tuning": "G",
-            "picking": true
-        },
-        "guiar": {
-            "tuning": "D"
+        "instruments": {
+            "banjo": {
+                "tuning": "G",
+                "picking": true
+            },
+            "guiar": {
+                "tuning": "D"
+            }
         }
     },
     {
+        "id": 15,
         "name": "The Banks of the Maginot",
         "energy": 3,
-        "banjo": {
-            "tuning": "G"
-        },
-        "guiar": {
-            "tuning": "D"
+        "instruments": {
+            "banjo": {
+                "tuning": "G"
+            },
+            "guiar": {
+                "tuning": "D"
+            }
         }
     },
     {
+        "id": 16,
         "name": "Broken Chairs and Broken Hats",
         "energy": 3,
-        "banjo": {
-            "tuning": "G",
-            "capo": 4,
-            "picking": true
-        },
-        "guiar": {
-            "tuning": "D"
+        "instruments": {
+            "banjo": {
+                "tuning": "G",
+                "capo": 4,
+                "picking": true
+            },
+            "guiar": {
+                "tuning": "D"
+            }
         }
     },
     {
+        "id": 17,
         "name": "Burma Road",
         "energy": 3,
-        "resonator": {
-            "tuning": "G"
-        },
-        "guiar": {
-            "tuning": ["D", "S"]
+        "instruments": {
+            "resonator": {
+                "tuning": "G"
+            },
+            "guiar": {
+                "tuning": ["D", "S"]
+            }
         }
     },
     {
+        "id": 18,
         "name": "Ain't No Willow",
         "energy": 3,
-        "banjo": {
-            "tuning": "G"
-        },
-        "guiar": {
-            "tuning": ["D", "S"]
+        "instruments": {
+            "banjo": {
+                "tuning": "G"
+            },
+            "guiar": {
+                "tuning": ["D", "S"]
+            }
         }
     },
     {
+        "id": 19,
         "name": "In a Station Wagon",
         "energy": 2,
-        "banjo": {
-            "tuning": "G"
-        },
-        "guiar": {
-            "tuning": ["D", "S"]
+        "instruments": {
+            "banjo": {
+                "tuning": "G"
+            },
+            "guiar": {
+                "tuning": ["D", "S"]
+            }
         }
     },
     {
+        "id": 20,
         "name": "The Corporeal Races",
         "energy": 3,
-        "banjo": {
-            "tuning": "G"
-        },
-        "guiar": {
-            "tuning": "D"
+        "instruments": {
+            "banjo": {
+                "tuning": "G"
+            },
+            "guiar": {
+                "tuning": "D"
+            }
         }
     },
     {
+        "id": 21,
         "name": "A Toxic Waste",
         "energy": 2,
-        "banjo": {
-            "tuning": "G",
-            "capo": 2
-        },
-        "guiar": {
-            "tuning": "D"
+        "instruments": {
+            "banjo": {
+                "tuning": "G",
+                "capo": 2
+            },
+            "guiar": {
+                "tuning": "D"
+            }
         }
     },
     {
+        "id": 22,
         "name": "Lester Young",
         "energy": 1,
-        "resonator": {
-            "tuning": "G"
-        },
-        "guiar": {
-            "tuning": "D"
+        "instruments": {
+            "resonator": {
+                "tuning": "G"
+            },
+            "guiar": {
+                "tuning": "D"
+            }
         }
     },
     {
+        "id": 23,
         "name": "Every Pyro in the Class",
         "energy": 1,
-        "resonator": {
-            "tuning": "G"
-        },
-        "guiar": {
-            "tuning": "D"
+        "instruments": {
+            "resonator": {
+                "tuning": "G"
+            },
+            "guiar": {
+                "tuning": "D"
+            }
         }
     },
     {
+        "id": 24,
         "name": "O' the Topside",
         "energy": 1,
-        "resonator": {
-            "tuning": "G"
-        },
-        "guiar": {
-            "tuning": "D"
+        "instruments": {
+            "resonator": {
+                "tuning": "G"
+            },
+            "guiar": {
+                "tuning": "D"
+            }
         }
     },
     {
+        "id": 25,
         "name": "Tubsies Requiem",
         "instrumental": true,
         "energy": 3,
-        "banjo": {
-            "tuning": "G"
-        },
-        "guiar": {
-            "tuning": "D"
+        "instruments": {
+            "banjo": {
+                "tuning": "G"
+            },
+            "guiar": {
+                "tuning": "D"
+            }
         }
     },
     {
+        "id": 26,
         "name": "Redwing",
         "cover": true,
         "instrumental": true,
         "energy": 2,
-        "banjo": {
-            "tuning": "G"
-        },
-        "guiar": {
-            "tuning": "D"
+        "instruments": {
+            "banjo": {
+               "tuning": "G"
+           },
+           "guiar": {
+              "tuning": "D"
+          }
         }
     },
     {
+        "id": 27,
         "name": "Overcome by Emissions",
         "energy": 3,
-        "banjo": {
-            "tuning": "G"
-        },
-        "guiar": {
-            "tuning": "D"
+        "instruments": {
+            "banjo": {
+               "tuning": "G"
+            },
+            "guiar": {
+               "tuning": "D"
+            }
         }
     },
     {
+        "id": 28,
         "name": "Turning into a Tree",
         "energy": 1,
-        "banjo": {
-            "tuning": "G"
-        },
-        "guiar": {
-            "tuning": ["D", "S"]
+        "instruments": {
+            "banjo": {
+                "tuning": "G"
+            },
+            "guiar": {
+                "tuning": ["D", "S"]
+            }
         }
     },
     {
+        "id": 29,
         "name": "Folsom Prison",
         "cover": true,
         "energy": 3,
-        "banjo": {
-            "tuning": "G"
-        },
-        "resonator": {
-            "tuning": "G"
-        },
-        "guiar": {
-            "tuning": ["D", "S"]
+        "instruments": {
+            "banjo": {
+                "tuning": "G"
+            },
+            "resonator": {
+                "tuning": "G"
+            },
+            "guiar": {
+                "tuning": ["D", "S"]
+            }
         }
     }
 ]
