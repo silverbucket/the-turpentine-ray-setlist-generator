@@ -1,9 +1,15 @@
 #!/usr/bin/env node
 const Songs = require('./lib/songs.js');
+const Generator = require('./lib/generator.js');
 const songs = new Songs();
+const generator = new Generator();
+
 console.log(songs.listNames())
 console.log(songs.getCount() + " songs total.");
-console.log(songs.listNamesBy(["energy", 3]));
+// console.log(songs.listNamesBy(["energy", 3]));
 
-console.log(songs.removeBy(["energy", 2]));
-console.log(songs.getCount() + " songs remaining.");
+// console.log(songs.removeBy(["energy", 2]));
+// console.log(songs.getCount() + " songs remaining.");
+
+console.log("-- set list");
+console.log(generator.setList(8));

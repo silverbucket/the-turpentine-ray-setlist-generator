@@ -4,17 +4,17 @@
         "minSongs": 3
     },
     "order": {
-        "first": {
-            "energy": [1, 2],
-            "cover": false,
-            "instrumental": false
-        },
-        "penultimate": {
-            "energy": [2, 3]
-        },
-        "last": {
-            "energy": 3
-        }
+        "first": [
+            [ "energy", [1, 2] ],
+            [ "cover", false ],
+            [ "instrumental", false ]
+        ],
+        "penultimate": [
+            [ "energy", [2, 3] ]
+        ],
+        "last": [
+            [ "energy", 3 ]
+        ]
     },
     "instruments": {
         "mutuallyExclusive": [
