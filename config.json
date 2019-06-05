@@ -1,0 +1,30 @@
+{
+    "tuning": {
+        "maxBreaks": 2,
+        "minSongs": 3
+    },
+    "order": {
+        "first": {
+            "energy": [1, 2],
+            "cover": false,
+            "instrumental": false
+        },
+        "penultimate": {
+            "energy": [2, 3]
+        },
+        "last": {
+            "energy": 3
+        }
+    },
+    "instruments": {
+        "mutuallyExclusive": [
+            [ "banjo", "resonator" ]
+        ]
+    },
+    "weighting": {
+        "tuning": 5,
+        "capo": 2,
+        "instrument": 3,
+        "picking": 1
+    }
+}

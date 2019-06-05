@@ -1,0 +1,9 @@
+#!/usr/bin/env node
+const Songs = require('./lib/songs.js');
+const songs = new Songs();
+console.log(songs.listNames())
+console.log(songs.getCount() + " songs total.");
+console.log(songs.listNamesBy(["energy", 3]));
+
+console.log(songs.removeBy(["energy", 2]));
+console.log(songs.getCount() + " songs remaining.");

@@ -1,0 +1,322 @@
+[
+    {
+        "name": "Whiskey Flavored Man",
+        "energy": 1,
+        "banjo": {
+            "capo": 2,
+            "tuning": "G",
+            "picking": true
+        },
+        "guitar": {
+            "capo": 2,
+            "tuning": "S"
+        }
+    },
+    {
+        "name": "Hoofprint on my Neck",
+        "energy": 3,
+        "banjo": {
+            "tuning": "G",
+            "picking": true
+        },
+        "guitar": {
+            "capo": 3,
+            "tuning": "S"
+        }
+    },
+    {
+        "name": "Space Station Mir",
+        "energy": 2,
+        "banjo": {
+            "tuning": "G"
+        },
+        "guiar": {
+            "tuning": ["D", "S"]
+        }
+    },
+    {
+        "name": "Courtroom Sketch Artist",
+        "energy": 3,
+        "banjo": {
+            "tuning": "G",
+            "picking": true
+        },
+        "guiar": {
+            "tuning": "S"
+        }
+    },
+    {
+        "name": "Don't You Die",
+        "energy": 1,
+        "banjo": {
+            "tuning": "G",
+            "capo": 2,
+            "picking": true
+        },
+        "guiar": {
+            "tuning": "S",
+            "capo": 2
+        }
+    },
+    {
+        "name": "To Rob A Bank",
+        "energy": 1,
+        "banjo": {
+            "tuning": "G",
+            "capo": 3,
+            "picking": true
+        },
+        "guiar": {
+            "tuning": "S"
+        }
+    },
+    {
+        "name": "Euglena",
+        "energy": 3,
+        "resonator": {
+            "tuning": "G"
+        },
+        "guiar": {
+            "tuning": "D"
+        }
+    },
+    {
+        "name": "Bottle of Soot",
+        "energy": 1,
+        "resonator": {
+            "tuning": "G"
+        },
+        "guiar": {
+            "tuning": "D"
+        }
+    },
+    {
+        "name": "Farewell to Cheyenne",
+        "instrumental": true,
+        "cover": true,
+        "energy": 1,
+        "banjo": {
+            "tuning": "G",
+            "picking": true
+        },
+        "resonator": {
+            "tuning": "G"
+        },
+        "guiar": {
+            "tuning": "D"
+        }
+    },
+    {
+        "name": "Turn on to the Sun",
+        "energy": 2,
+        "banjo": {
+            "tuning": "D"
+        },
+        "guiar": {
+            "tuning": "D"
+        }
+    },
+    {
+        "name": "Bozo the Noise",
+        "energy": 3,
+        "banjo": {
+            "tuning": "D"
+        },
+        "guiar": {
+            "tuning": "D"
+        }
+    },
+    {
+        "name": "All Built In",
+        "energy": 3,
+        "banjo": {
+            "tuning": "D"
+        },
+        "guiar": {
+            "tuning": "D"
+        }
+    },
+    {
+        "name": "Jackass Travels",
+        "energy": 2,
+        "banjo": {
+            "tuning": "G",
+            "capo": 2,
+            "picking": true
+        },
+        "guiar": {
+            "tuning": "D"
+        }
+    },
+    {
+        "name": "Trying to get to the Port",
+        "energy": 2,
+        "banjo": {
+            "tuning": "G",
+            "picking": true
+        },
+        "guiar": {
+            "tuning": "D"
+        }
+    },
+    {
+        "name": "The Banks of the Maginot",
+        "energy": 3,
+        "banjo": {
+            "tuning": "G"
+        },
+        "guiar": {
+            "tuning": "D"
+        }
+    },
+    {
+        "name": "Broken Chairs and Broken Hats",
+        "energy": 3,
+        "banjo": {
+            "tuning": "G",
+            "capo": 4,
+            "picking": true
+        },
+        "guiar": {
+            "tuning": "D"
+        }
+    },
+    {
+        "name": "Burma Road",
+        "energy": 3,
+        "resonator": {
+            "tuning": "G"
+        },
+        "guiar": {
+            "tuning": ["D", "S"]
+        }
+    },
+    {
+        "name": "Ain't No Willow",
+        "energy": 3,
+        "banjo": {
+            "tuning": "G"
+        },
+        "guiar": {
+            "tuning": ["D", "S"]
+        }
+    },
+    {
+        "name": "In a Station Wagon",
+        "energy": 2,
+        "banjo": {
+            "tuning": "G"
+        },
+        "guiar": {
+            "tuning": ["D", "S"]
+        }
+    },
+    {
+        "name": "The Corporeal Races",
+        "energy": 3,
+        "banjo": {
+            "tuning": "G"
+        },
+        "guiar": {
+            "tuning": "D"
+        }
+    },
+    {
+        "name": "A Toxic Waste",
+        "energy": 2,
+        "banjo": {
+            "tuning": "G",
+            "capo": 2
+        },
+        "guiar": {
+            "tuning": "D"
+        }
+    },
+    {
+        "name": "Lester Young",
+        "energy": 1,
+        "resonator": {
+            "tuning": "G"
+        },
+        "guiar": {
+            "tuning": "D"
+        }
+    },
+    {
+        "name": "Every Pyro in the Class",
+        "energy": 1,
+        "resonator": {
+            "tuning": "G"
+        },
+        "guiar": {
+            "tuning": "D"
+        }
+    },
+    {
+        "name": "O' the Topside",
+        "energy": 1,
+        "resonator": {
+            "tuning": "G"
+        },
+        "guiar": {
+            "tuning": "D"
+        }
+    },
+    {
+        "name": "Tubsies Requiem",
+        "instrumental": true,
+        "energy": 3,
+        "banjo": {
+            "tuning": "G"
+        },
+        "guiar": {
+            "tuning": "D"
+        }
+    },
+    {
+        "name": "Redwing",
+        "cover": true,
+        "instrumental": true,
+        "energy": 2,
+        "banjo": {
+            "tuning": "G"
+        },
+        "guiar": {
+            "tuning": "D"
+        }
+    },
+    {
+        "name": "Overcome by Emissions",
+        "energy": 3,
+        "banjo": {
+            "tuning": "G"
+        },
+        "guiar": {
+            "tuning": "D"
+        }
+    },
+    {
+        "name": "Turning into a Tree",
+        "energy": 1,
+        "banjo": {
+            "tuning": "G"
+        },
+        "guiar": {
+            "tuning": ["D", "S"]
+        }
+    },
+    {
+        "name": "Folsom Prison",
+        "cover": true,
+        "energy": 3,
+        "banjo": {
+            "tuning": "G"
+        },
+        "resonator": {
+            "tuning": "G"
+        },
+        "guiar": {
+            "tuning": ["D", "S"]
+        }
+    }
+]
