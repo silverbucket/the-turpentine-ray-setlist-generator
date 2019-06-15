@@ -6,12 +6,12 @@
         "instruments": {
             "banjo": {
                 "capo": 2,
-                "tuning": "G",
+                "tuning": [ "G" ],
                 "picking": true
             },
             "guitar": {
                 "capo": 2,
-                "tuning": "S"
+                "tuning": [ "Standard" ]
             }
         }
     },
@@ -21,12 +21,12 @@
         "energy": 3,
         "instruments": {
             "banjo": {
-                "tuning": "G",
+                "tuning": [ "G" ],
                 "picking": true
             },
             "guitar": {
                 "capo": 3,
-                "tuning": "S"
+                "tuning": [ "Standard" ]
             }
         }
     },
@@ -36,10 +36,10 @@
         "energy": 2,
         "instruments": {
             "banjo": {
-                "tuning": "G"
+                "tuning": [ "G" ]
             },
-            "guiar": {
-                "tuning": ["D", "S"]
+            "guitar": {
+                "tuning": ["D", "Standard"]
             }
         }
     },
@@ -49,11 +49,11 @@
         "energy": 3,
         "instruments": {
             "banjo": {
-                "tuning": "G",
+                "tuning": [ "G" ],
                 "picking": true
             },
-            "guiar": {
-                "tuning": "S"
+            "guitar": {
+                "tuning": [ "Standard" ]
             }
         }
     },
@@ -63,12 +63,12 @@
         "energy": 1,
         "instruments": {
             "banjo": {
-                "tuning": "G",
+                "tuning": [ "G" ],
                 "capo": 2,
                 "picking": true
             },
-            "guiar": {
-                "tuning": "S",
+            "guitar": {
+                "tuning": [ "Standard" ],
                 "capo": 2
             }
         }
@@ -79,12 +79,12 @@
         "energy": 1,
         "instruments": {
             "banjo": {
-                "tuning": "G",
+                "tuning": [ "G" ],
                 "capo": 3,
                 "picking": true
             },
-            "guiar": {
-                "tuning": "S"
+            "guitar": {
+                "tuning": [ "Standard" ]
             }
         }
     },
@@ -94,10 +94,10 @@
         "energy": 3,
         "instruments": {
             "resonator": {
-                "tuning": "G"
+                "tuning": [ "G" ]
             },
-            "guiar": {
-                "tuning": "D"
+            "guitar": {
+                "tuning": [ "D" ]
             }
         }
     },
@@ -107,10 +107,10 @@
         "energy": 1,
         "instruments": {
             "resonator": {
-                "tuning": "G"
+                "tuning": [ "G" ]
             },
-            "guiar": {
-                "tuning": "D"
+            "guitar": {
+                "tuning": [ "D" ]
             }
         }
     },
@@ -122,14 +122,14 @@
         "energy": 1,
         "instruments": {
             "banjo": {
-                "tuning": "G",
+                "tuning": [ "G" ],
                 "picking": true
             },
             "resonator": {
-                "tuning": "G"
+                "tuning": [ "G" ]
             },
-            "guiar": {
-                "tuning": "D"
+            "guitar": {
+                "tuning": [ "D" ]
             }
         }
     },
@@ -139,10 +139,10 @@
         "energy": 2,
         "instruments": {
             "banjo": {
-                "tuning": "D"
+                "tuning": [ "D" ]
             },
-            "guiar": {
-                "tuning": "D"
+            "guitar": {
+                "tuning": [ "D" ]
             }
         }
     },
@@ -152,10 +152,10 @@
         "energy": 3,
         "instruments": {
             "banjo": {
-                "tuning": "D"
+                "tuning": [ "D" ]
             },
-            "guiar": {
-                "tuning": "D"
+            "guitar": {
+                "tuning": [ "D" ]
             }
         }
     },
@@ -165,10 +165,10 @@
         "energy": 3,
         "instruments": {
             "banjo": {
-                "tuning": "D"
+                "tuning": [ "D" ]
             },
-            "guiar": {
-                "tuning": "D"
+            "guitar": {
+                "tuning": [ "D" ]
             }
         }
     },
@@ -178,12 +178,12 @@
         "energy": 2,
         "instruments": {
             "banjo": {
-                "tuning": "G",
+                "tuning": [ "G" ],
                 "capo": 2,
                 "picking": true
             },
-            "guiar": {
-                "tuning": "D"
+            "guitar": {
+                "tuning": [ "D" ]
             }
         }
     },
@@ -193,11 +193,11 @@
         "energy": 2,
         "instruments": {
             "banjo": {
-                "tuning": "G",
+                "tuning": [ "G" ],
                 "picking": true
             },
-            "guiar": {
-                "tuning": "D"
+            "guitar": {
+                "tuning": [ "D" ]
             }
         }
     },
@@ -207,10 +207,10 @@
         "energy": 3,
         "instruments": {
             "banjo": {
-                "tuning": "G"
+                "tuning": [ "G" ]
             },
-            "guiar": {
-                "tuning": "D"
+            "guitar": {
+                "tuning": [ "D" ]
             }
         }
     },
@@ -220,12 +220,12 @@
         "energy": 3,
         "instruments": {
             "banjo": {
-                "tuning": "G",
+                "tuning": [ "G" ],
                 "capo": 4,
                 "picking": true
             },
-            "guiar": {
-                "tuning": "D"
+            "guitar": {
+                "tuning": [ "D" ]
             }
         }
     },
@@ -234,11 +234,14 @@
         "name": "Burma Road",
         "energy": 3,
         "instruments": {
-            "resonator": {
-                "tuning": "G"
+            "banjo": {
+                "tuning": [ "G" ]
             },
-            "guiar": {
-                "tuning": ["D", "S"]
+            "resonator": {
+                "tuning": [ "G" ]
+            },
+            "guitar": {
+                "tuning": ["D", "Standard"]
             }
         }
     },
@@ -248,10 +251,10 @@
         "energy": 3,
         "instruments": {
             "banjo": {
-                "tuning": "G"
+                "tuning": [ "G" ]
             },
-            "guiar": {
-                "tuning": ["D", "S"]
+            "guitar": {
+                "tuning": ["D", "Standard"]
             }
         }
     },
@@ -261,10 +264,10 @@
         "energy": 2,
         "instruments": {
             "banjo": {
-                "tuning": "G"
+                "tuning": [ "G" ]
             },
-            "guiar": {
-                "tuning": ["D", "S"]
+            "guitar": {
+                "tuning": ["D", "Standard"]
             }
         }
     },
@@ -274,10 +277,10 @@
         "energy": 3,
         "instruments": {
             "banjo": {
-                "tuning": "G"
+                "tuning": [ "G" ]
             },
-            "guiar": {
-                "tuning": "D"
+            "guitar": {
+                "tuning": [ "D" ]
             }
         }
     },
@@ -287,11 +290,11 @@
         "energy": 2,
         "instruments": {
             "banjo": {
-                "tuning": "G",
+                "tuning": [ "G" ],
                 "capo": 2
             },
-            "guiar": {
-                "tuning": "D"
+            "guitar": {
+                "tuning": [ "D" ]
             }
         }
     },
@@ -301,10 +304,10 @@
         "energy": 1,
         "instruments": {
             "resonator": {
-                "tuning": "G"
+                "tuning": [ "G" ]
             },
-            "guiar": {
-                "tuning": "D"
+            "guitar": {
+                "tuning": [ "D" ]
             }
         }
     },
@@ -314,10 +317,10 @@
         "energy": 1,
         "instruments": {
             "resonator": {
-                "tuning": "G"
+                "tuning": [ "G" ]
             },
-            "guiar": {
-                "tuning": "D"
+            "guitar": {
+                "tuning": [ "D" ]
             }
         }
     },
@@ -327,10 +330,10 @@
         "energy": 1,
         "instruments": {
             "resonator": {
-                "tuning": "G"
+                "tuning": [ "G" ]
             },
-            "guiar": {
-                "tuning": "D"
+            "guitar": {
+                "tuning": [ "D" ]
             }
         }
     },
@@ -341,10 +344,10 @@
         "energy": 3,
         "instruments": {
             "banjo": {
-                "tuning": "G"
+                "tuning": [ "G" ]
             },
-            "guiar": {
-                "tuning": "D"
+            "guitar": {
+                "tuning": [ "D" ]
             }
         }
     },
@@ -356,10 +359,10 @@
         "energy": 2,
         "instruments": {
             "banjo": {
-               "tuning": "G"
+               "tuning": [ "G" ]
            },
-           "guiar": {
-              "tuning": "D"
+           "guitar": {
+              "tuning": [ "D" ]
           }
         }
     },
@@ -369,10 +372,10 @@
         "energy": 3,
         "instruments": {
             "banjo": {
-               "tuning": "G"
+               "tuning": [ "G" ]
             },
-            "guiar": {
-               "tuning": "D"
+            "guitar": {
+               "tuning": [ "D" ]
             }
         }
     },
@@ -382,10 +385,10 @@
         "energy": 1,
         "instruments": {
             "banjo": {
-                "tuning": "G"
+                "tuning": [ "G" ]
             },
-            "guiar": {
-                "tuning": ["D", "S"]
+            "guitar": {
+                "tuning": [ "D", "Standard" ]
             }
         }
     },
@@ -396,13 +399,13 @@
         "energy": 3,
         "instruments": {
             "banjo": {
-                "tuning": "G"
+                "tuning": [ "G" ]
             },
             "resonator": {
-                "tuning": "G"
+                "tuning": [ "G" ]
             },
-            "guiar": {
-                "tuning": ["D", "S"]
+            "guitar": {
+                "tuning": [ "D", "Standard" ]
             }
         }
     }

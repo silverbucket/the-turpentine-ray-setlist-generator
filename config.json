@@ -1,35 +1,41 @@
 {
-    "tuning": {
-        "maxBreaks": 2,
-        "minSongs": 3
+    "general": {
+        "order": {
+            "first": [
+                [ "energy", [1, 2] ],
+                [ "cover", false ],
+                [ "instrumental", false ]
+            ],
+            "second": [
+                [ "energy", 2 ],
+                [ "cover", false ],
+                [ "instrumental", false ]
+            ],
+            "penultimate": [
+                [ "energy", [2, 3] ]
+            ],
+            "last": [
+                [ "energy", 3 ]
+            ]
+        },
+        "weighting": {
+            "tuning": 5,
+            "capo": 2,
+            "instrument": 3,
+            "picking": 1
+        }
     },
-    "order": {
-        "first": [
-            [ "energy", [1, 2] ],
-            [ "cover", false ],
-            [ "instrumental", false ]
-        ],
-        "second": [
-            [ "energy", 2 ],
-            [ "cover", false ],
-            [ "instrumental", false ]
-        ],
-        "penultimate": [
-            [ "energy", [2, 3] ]
-        ],
-        "last": [
-            [ "energy", 3 ]
-        ]
-    },
-    "instruments": {
-        "mutuallyExclusive": [
-            [ "banjo", "resonator" ]
-        ]
-    },
-    "weighting": {
-        "tuning": 5,
-        "capo": 2,
-        "instrument": 3,
-        "picking": 1
+    "props": {
+        "tuning": {
+            "maxChanges": 1,
+            "minStreak": 3
+        },
+        "instruments": {
+            "maxChanges": 2,
+            "minStreak": 2,
+            "mutuallyExclusive": [
+                [ "banjo", "resonator" ]
+            ]
+        }
     }
 }
