@@ -1,19 +1,159 @@
 #!/usr/bin/env node
-const Songs = require('./lib/songs.js');
-const SetList = require('./lib/setlist.js');
-const songs = new Songs();
+const SetList = require("./lib/setlist.js");
 
-console.log(songs.listNames())
-console.log(songs.getCount() + " songs total.");
-// console.log(songs.listNamesBy(["energy", 3]));
 
-// console.log(songs.removeBy(["energy", 2]));
-// console.log(songs.getCount() + " songs remaining.");
-const set = new SetList(15);
+function readValue(args, index) {
+    const current = args[index];
+    if (current.indexOf("=") >= 0) {
+        return current.split("=").slice(1).join("=");
+    }
+    return args[index + 1];
+}
 
-console.log();
-console.log('--')
-console.log("-- set list");
-console.log('--')
-set.print();
-console.log();
+
+function ensureShow(options) {
+    options.show = options.show || {};
+    options.show.members = options.show.members || {};
+    options.show.members.mark = options.show.members.mark || {};
+    options.show.members.mark.allowedTunings = options.show.members.mark.allowedTunings || {};
+}
+
+
+function ensureRandomness(options) {
+    options.randomness = options.randomness || {};
+}
+
+
+function parseArgs(argv) {
+    const options = {};
+
+    for (let index = 0; index < argv.length; index += 1) {
+        const arg = argv[index];
+
+        if (/^\d+$/.test(arg) && options.count === undefined) {
+            options.count = Number.parseInt(arg, 10);
+            continue;
+        }
+
+        if (arg === "--help" || arg === "-h") {
+            options.help = true;
+            continue;
+        }
+
+        if (arg === "--json") {
+            options.json = true;
+            continue;
+        }
+
+        if (arg === "--mark-no-d") {
+            ensureShow(options);
+            options.show.members.mark.allowedTunings.guitar = ["Standard"];
+            continue;
+        }
+
+        if (arg.startsWith("--seed")) {
+            options.seed = readValue(argv, index);
+            if (arg.indexOf("=") < 0) {
+                index += 1;
+            }
+            continue;
+        }
+
+        if (arg.startsWith("--temperature")) {
+            ensureRandomness(options);
+            options.randomness.temperature = readValue(argv, index);
+            if (arg.indexOf("=") < 0) {
+                index += 1;
+            }
+            continue;
+        }
+
+        if (arg.startsWith("--final-choice-pool")) {
+            ensureRandomness(options);
+            options.randomness.finalChoicePool = readValue(argv, index);
+            if (arg.indexOf("=") < 0) {
+                index += 1;
+            }
+            continue;
+        }
+
+        if (arg.startsWith("--count")) {
+            options.count = readValue(argv, index);
+            if (arg.indexOf("=") < 0) {
+                index += 1;
+            }
+            continue;
+        }
+
+        if (arg.startsWith("--beam-width")) {
+            options.beamWidth = readValue(argv, index);
+            if (arg.indexOf("=") < 0) {
+                index += 1;
+            }
+            continue;
+        }
+
+        if (arg.startsWith("--max-covers")) {
+            options.maxCovers = readValue(argv, index);
+            if (arg.indexOf("=") < 0) {
+                index += 1;
+            }
+            continue;
+        }
+
+        if (arg.startsWith("--mark-guitar-tunings")) {
+            const value = readValue(argv, index);
+            ensureShow(options);
+            options.show.members.mark.allowedTunings.guitar = String(value)
+                .split(",")
+                .map((entry) => entry.trim())
+                .filter(Boolean);
+            if (arg.indexOf("=") < 0) {
+                index += 1;
+            }
+            continue;
+        }
+
+        if (arg.startsWith("--max-instrumentals")) {
+            options.maxInstrumentals = readValue(argv, index);
+            if (arg.indexOf("=") < 0) {
+                index += 1;
+            }
+        }
+    }
+
+    return options;
+}
+
+
+function printHelp() {
+    console.log("Usage: tray [count] [--count N] [--beam-width N] [--max-covers N] [--max-instrumentals N] [--mark-no-d] [--mark-guitar-tunings LIST] [--seed VALUE] [--temperature N] [--final-choice-pool N] [--json]");
+    console.log();
+    console.log("Examples:");
+    console.log("  tray");
+    console.log("  tray 12");
+    console.log("  tray --count 15 --max-covers 1 --beam-width 80");
+    console.log("  tray --mark-no-d");
+    console.log("  tray --mark-guitar-tunings Standard");
+    console.log("  tray --mark-no-d --max-covers 0 --seed 42");
+    console.log("  tray --mark-no-d --max-covers 0 --temperature 1.4 --final-choice-pool 20");
+}
+
+
+const options = parseArgs(process.argv.slice(2));
+
+if (options.help) {
+    printHelp();
+    process.exit(0);
+}
+
+const setlist = new SetList(options);
+
+if (options.json) {
+    console.log(JSON.stringify(setlist.toJSON(), null, 2));
+} else {
+    console.log("--");
+    console.log("-- set list");
+    console.log("--");
+    setlist.print();
+}

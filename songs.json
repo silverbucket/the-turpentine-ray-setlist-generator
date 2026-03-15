@@ -3,15 +3,29 @@
         "id": 1,
         "name": "Whiskey Flavored Man",
         "energy": 1,
-        "instruments": {
-            "banjo": {
-                "capo": 2,
-                "tuning": [ "G" ],
-                "picking": true
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ],
+                        "capo": 2,
+                        "picking": true
+                    }
+                ]
             },
-            "guitar": {
-                "capo": 2,
-                "tuning": [ "Standard" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "Standard"
+                        ],
+                        "capo": 2
+                    }
+                ]
             }
         }
     },
@@ -19,14 +33,28 @@
         "id": 2,
         "name": "Hoofprint on my Neck",
         "energy": 3,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "G" ],
-                "picking": true
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ],
+                        "picking": true
+                    }
+                ]
             },
-            "guitar": {
-                "capo": 3,
-                "tuning": [ "Standard" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "Standard"
+                        ],
+                        "capo": 3
+                    }
+                ]
             }
         }
     },
@@ -34,12 +62,27 @@
         "id": 3,
         "name": "Space Station Mir",
         "energy": 2,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "G" ]
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ]
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": ["D", "Standard"]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D",
+                            "Standard"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -47,13 +90,27 @@
         "id": 4,
         "name": "Courtroom Sketch Artist",
         "energy": 3,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "G" ],
-                "picking": true
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ],
+                        "picking": true
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "Standard" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "Standard"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -61,15 +118,29 @@
         "id": 5,
         "name": "Don't You Die",
         "energy": 1,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "G" ],
-                "capo": 2,
-                "picking": true
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ],
+                        "capo": 2,
+                        "picking": true
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "Standard" ],
-                "capo": 2
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "Standard"
+                        ],
+                        "capo": 2
+                    }
+                ]
             }
         }
     },
@@ -77,14 +148,28 @@
         "id": 6,
         "name": "To Rob A Bank",
         "energy": 1,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "G" ],
-                "capo": 3,
-                "picking": true
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ],
+                        "capo": 3,
+                        "picking": true
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "Standard" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "Standard"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -92,12 +177,26 @@
         "id": 7,
         "name": "Euglena",
         "energy": 3,
-        "instruments": {
-            "resonator": {
-                "tuning": [ "G" ]
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "resonator",
+                        "tuning": [
+                            "G"
+                        ]
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "D" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -105,31 +204,62 @@
         "id": 8,
         "name": "Bottle of Soot",
         "energy": 1,
-        "instruments": {
-            "resonator": {
-                "tuning": [ "G" ]
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "resonator",
+                        "tuning": [
+                            "G"
+                        ]
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "D" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             }
         }
     },
     {
         "id": 9,
         "name": "Farewell to Cheyenne",
-        "instrumental": true,
         "cover": true,
+        "instrumental": true,
         "energy": 1,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "G" ],
-                "picking": true
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ],
+                        "picking": true
+                    },
+                    {
+                        "name": "resonator",
+                        "tuning": [
+                            "G"
+                        ]
+                    }
+                ]
             },
-            "resonator": {
-                "tuning": [ "G" ]
-            },
-            "guitar": {
-                "tuning": [ "D" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -137,12 +267,26 @@
         "id": 10,
         "name": "Turn on to the Sun",
         "energy": 2,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "D" ]
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "D" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -150,12 +294,26 @@
         "id": 11,
         "name": "Bozo the Noise",
         "energy": 3,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "D" ]
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "D" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -163,12 +321,26 @@
         "id": 12,
         "name": "All Built In",
         "energy": 3,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "D" ]
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "D" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -176,14 +348,28 @@
         "id": 13,
         "name": "Jackass Travels",
         "energy": 2,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "G" ],
-                "capo": 2,
-                "picking": true
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ],
+                        "capo": 2,
+                        "picking": true
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "D" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -191,13 +377,27 @@
         "id": 14,
         "name": "Trying to get to the Port",
         "energy": 2,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "G" ],
-                "picking": true
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ],
+                        "picking": true
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "D" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -205,12 +405,26 @@
         "id": 15,
         "name": "The Banks of the Maginot",
         "energy": 3,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "G" ]
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ]
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "D" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -218,14 +432,28 @@
         "id": 16,
         "name": "Broken Chairs and Broken Hats",
         "energy": 3,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "G" ],
-                "capo": 4,
-                "picking": true
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ],
+                        "capo": 4,
+                        "picking": true
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "D" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -233,15 +461,33 @@
         "id": 17,
         "name": "Burma Road",
         "energy": 3,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "G" ]
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ]
+                    },
+                    {
+                        "name": "resonator",
+                        "tuning": [
+                            "G"
+                        ]
+                    }
+                ]
             },
-            "resonator": {
-                "tuning": [ "G" ]
-            },
-            "guitar": {
-                "tuning": ["D", "Standard"]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D",
+                            "Standard"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -249,12 +495,27 @@
         "id": 18,
         "name": "Ain't No Willow",
         "energy": 3,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "G" ]
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ]
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": ["D", "Standard"]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D",
+                            "Standard"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -262,12 +523,27 @@
         "id": 19,
         "name": "In a Station Wagon",
         "energy": 2,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "G" ]
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ]
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": ["D", "Standard"]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D",
+                            "Standard"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -275,12 +551,26 @@
         "id": 20,
         "name": "The Corporeal Races",
         "energy": 3,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "G" ]
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ]
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "D" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -288,13 +578,27 @@
         "id": 21,
         "name": "A Toxic Waste",
         "energy": 2,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "G" ],
-                "capo": 2
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ],
+                        "capo": 2
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "D" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -302,12 +606,26 @@
         "id": 22,
         "name": "Lester Young",
         "energy": 1,
-        "instruments": {
-            "resonator": {
-                "tuning": [ "G" ]
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "resonator",
+                        "tuning": [
+                            "G"
+                        ]
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "D" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -315,12 +633,26 @@
         "id": 23,
         "name": "Every Pyro in the Class",
         "energy": 1,
-        "instruments": {
-            "resonator": {
-                "tuning": [ "G" ]
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "resonator",
+                        "tuning": [
+                            "G"
+                        ]
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "D" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -328,12 +660,26 @@
         "id": 24,
         "name": "O' the Topside",
         "energy": 1,
-        "instruments": {
-            "resonator": {
-                "tuning": [ "G" ]
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "resonator",
+                        "tuning": [
+                            "G"
+                        ]
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "D" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -342,12 +688,26 @@
         "name": "Tubsies Requiem",
         "instrumental": true,
         "energy": 3,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "G" ]
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ]
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "D" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -357,25 +717,53 @@
         "cover": true,
         "instrumental": true,
         "energy": 2,
-        "instruments": {
-            "banjo": {
-               "tuning": [ "G" ]
-           },
-           "guitar": {
-              "tuning": [ "D" ]
-          }
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ]
+                    }
+                ]
+            },
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
+            }
         }
     },
     {
         "id": 27,
         "name": "Overcome by Emissions",
         "energy": 3,
-        "instruments": {
-            "banjo": {
-               "tuning": [ "G" ]
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ]
+                    }
+                ]
             },
-            "guitar": {
-               "tuning": [ "D" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -383,12 +771,27 @@
         "id": 28,
         "name": "Turning into a Tree",
         "energy": 1,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "G" ]
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ]
+                    }
+                ]
             },
-            "guitar": {
-                "tuning": [ "D", "Standard" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D",
+                            "Standard"
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -397,15 +800,33 @@
         "name": "Folsom Prison",
         "cover": true,
         "energy": 3,
-        "instruments": {
-            "banjo": {
-                "tuning": [ "G" ]
+        "members": {
+            "nick": {
+                "instruments": [
+                    {
+                        "name": "banjo",
+                        "tuning": [
+                            "G"
+                        ]
+                    },
+                    {
+                        "name": "resonator",
+                        "tuning": [
+                            "G"
+                        ]
+                    }
+                ]
             },
-            "resonator": {
-                "tuning": [ "G" ]
-            },
-            "guitar": {
-                "tuning": [ "D", "Standard" ]
+            "mark": {
+                "instruments": [
+                    {
+                        "name": "guitar",
+                        "tuning": [
+                            "D",
+                            "Standard"
+                        ]
+                    }
+                ]
             }
         }
     }

@@ -1,5 +1,11 @@
 {
     "general": {
+        "count": 15,
+        "beamWidth": 512,
+        "limits": {
+            "covers": 2,
+            "instrumentals": 2
+        },
         "order": {
             "first": [
                 [ "energy", [1, 2] ],
@@ -22,20 +28,75 @@
             "tuning": 5,
             "capo": 2,
             "instrument": 3,
-            "picking": 1
+            "picking": 1,
+            "positionMiss": 8,
+            "energyTarget": 3,
+            "repeatEnergy": 2,
+            "energyStreak": 4,
+            "bigEnergyJump": 3,
+            "earlyCover": 6,
+            "earlyInstrumental": 4
+        },
+        "randomness": {
+            "variantJitter": 1.5,
+            "stateJitter": 1,
+            "finalChoicePool": 12,
+            "temperature": 0.85,
+            "shuffleCatalog": true
+        }
+    },
+    "show": {
+        "members": {
+            "nick": {
+                "allowedInstruments": [
+                    "banjo",
+                    "resonator"
+                ]
+            },
+            "mark": {
+                "allowedInstruments": [
+                    "guitar"
+                ],
+                "allowedTunings": {
+                    "guitar": [
+                        "D",
+                        "Standard"
+                    ]
+                }
+            }
         }
     },
     "props": {
         "tuning": {
-            "maxChanges": 1,
-            "minStreak": 3
+            "kind": "instrumentField",
+            "field": "tuning",
+            "summaryLabel": "tuning changes",
+            "minStreak": 3,
+            "allowChangeOnLastSong": true
+        },
+        "capo": {
+            "kind": "instrumentDelta",
+            "field": "capo",
+            "summaryLabel": "capo steps",
+            "minStreak": 2,
+            "allowChangeOnLastSong": true
         },
         "instruments": {
-            "maxChanges": 2,
+            "kind": "instrumentSet",
+            "weightKey": "instrument",
+            "summaryLabel": "instrument swaps",
             "minStreak": 2,
+            "allowChangeOnLastSong": true,
             "mutuallyExclusive": [
                 [ "banjo", "resonator" ]
             ]
+        },
+        "picking": {
+            "kind": "instrumentBoolean",
+            "field": "picking",
+            "summaryLabel": "picking changes",
+            "minStreak": 2,
+            "allowChangeOnLastSong": true
         }
     }
 }
