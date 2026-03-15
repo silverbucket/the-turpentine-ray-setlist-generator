@@ -1,0 +1,19 @@
+{
+  "name": "the-turpentine-ray-setlist-generator",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "remotestoragejs": "^2.0.0-beta.8",
+    "svelte": "^5.28.2"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "vite": "^6.2.4"
+  }
+}

@@ -1,0 +1,65 @@
+:root {
+    font-family: "Avenir Next", "Helvetica Neue", "Segoe UI", sans-serif;
+    line-height: 1.45;
+    font-weight: 400;
+    color: #182230;
+    background:
+        radial-gradient(circle at top left, rgba(244, 113, 76, 0.16), transparent 28%),
+        radial-gradient(circle at 85% 12%, rgba(76, 117, 244, 0.12), transparent 24%),
+        linear-gradient(180deg, #f7f8fc 0%, #f0f3f9 52%, #e9eef6 100%);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    --paper: rgba(255, 255, 255, 0.82);
+    --paper-strong: rgba(255, 255, 255, 0.96);
+    --paper-soft: rgba(247, 249, 253, 0.92);
+    --ink: #182230;
+    --muted: #617086;
+    --accent: #e15b37;
+    --accent-strong: #c64724;
+    --accent-soft: rgba(225, 91, 55, 0.12);
+    --accent-line: rgba(225, 91, 55, 0.24);
+    --line: rgba(27, 49, 80, 0.12);
+    --line-strong: rgba(27, 49, 80, 0.2);
+    --shadow: 0 24px 60px rgba(27, 39, 58, 0.12);
+    --shadow-soft: 0 14px 32px rgba(27, 39, 58, 0.08);
+    --success: #1f8f61;
+    --danger: #992f20;
+    --radius-xl: 26px;
+    --radius-lg: 20px;
+    --radius-md: 16px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+    margin: 0;
+    min-height: 100%;
+}
+
+body {
+    min-width: 320px;
+    color: var(--ink);
+    background-attachment: fixed;
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
+}
+
+button {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+a {
+    color: inherit;
+}

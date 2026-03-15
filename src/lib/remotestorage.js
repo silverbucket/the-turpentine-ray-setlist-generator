@@ -1,0 +1,172 @@
+import RemoteStorage from "remotestoragejs";
+import {
+    blankPreset,
+    createDefaultAppConfig,
+    normalizeAppConfig,
+    normalizePresetRecord,
+    normalizeSongRecord,
+    sortSongs
+} from "./defaults.js";
+import { clone, nowIso } from "./utils.js";
+
+const APP_SCOPE = "setlist-generator";
+const TYPES = {
+    song: "setlist-song",
+    preset: "setlist-preset",
+    config: "setlist-config",
+    meta: "setlist-meta"
+};
+
+const OBJECT_SCHEMA = {
+    type: "object",
+    additionalProperties: true
+};
+
+
+export function createRemoteStorageRepository() {
+    const remoteStorage = new RemoteStorage({
+        changeEvents: {
+            local: true,
+            remote: true,
+            conflict: true,
+            window: false
+        },
+        logging: false
+    });
+
+    remoteStorage.access.claim(APP_SCOPE, "rw");
+    remoteStorage.caching.enable(`/${APP_SCOPE}/`);
+
+    const client = remoteStorage.scope(`/${APP_SCOPE}/`);
+    client.declareType(TYPES.song, OBJECT_SCHEMA);
+    client.declareType(TYPES.preset, OBJECT_SCHEMA);
+    client.declareType(TYPES.config, OBJECT_SCHEMA);
+    client.declareType(TYPES.meta, OBJECT_SCHEMA);
+
+    return {
+        remoteStorage,
+        client,
+
+        connect(userAddress) {
+            remoteStorage.connect(userAddress);
+        },
+
+        disconnect() {
+            remoteStorage.disconnect();
+        },
+
+        async sync() {
+            if (!remoteStorage.connected) {
+                return;
+            }
+            await remoteStorage.startSync();
+        },
+
+        on(eventName, handler) {
+            remoteStorage.on(eventName, handler);
+            return () => remoteStorage.removeEventListener(eventName, handler);
+        },
+
+        onChange(handler) {
+            client.on("change", handler);
+            return () => client.removeEventListener("change", handler);
+        },
+
+        isConnected() {
+            return remoteStorage.connected;
+        },
+
+        getUserAddress() {
+            return remoteStorage.remote?.userAddress || "";
+        },
+
+        async loadAll() {
+            const [songs, presets, config, bootstrap] = await Promise.all([
+                this.listSongs(),
+                this.listPresets(),
+                this.getConfig(),
+                this.getBootstrapMeta()
+            ]);
+
+            return { songs, presets, config, bootstrap };
+        },
+
+        async listSongs() {
+            const items = await client.getAll("songs/", false);
+            return sortSongs(Object.values(items || {}).map((song) => normalizeSongRecord(song)));
+        },
+
+        async putSong(song) {
+            const normalized = normalizeSongRecord({
+                ...clone(song),
+                updatedAt: nowIso()
+            });
+            await client.storeObject(TYPES.song, `songs/${normalized.id}`, normalized);
+            return normalized;
+        },
+
+        async deleteSong(songId) {
+            await client.remove(`songs/${songId}`);
+        },
+
+        async listPresets() {
+            const items = await client.getAll("presets/", false);
+            return Object.values(items || {})
+                .map((preset) => normalizePresetRecord(preset))
+                .sort((left, right) => left.name.localeCompare(right.name));
+        },
+
+        async putPreset(preset) {
+            const normalized = normalizePresetRecord({
+                ...blankPreset(),
+                ...clone(preset),
+                updatedAt: nowIso()
+            });
+            await client.storeObject(TYPES.preset, `presets/${normalized.id}`, normalized);
+            return normalized;
+        },
+
+        async deletePreset(presetId) {
+            await client.remove(`presets/${presetId}`);
+        },
+
+        async getConfig() {
+            const result = await client.getObject("settings/app-config");
+            return normalizeAppConfig(result);
+        },
+
+        async ensureConfig(bandName) {
+            const existing = await this.getConfig();
+            if (existing) {
+                return existing;
+            }
+
+            const config = createDefaultAppConfig({ bandName });
+            await this.putConfig(config);
+            return config;
+        },
+
+        async putConfig(config) {
+            const normalized = normalizeAppConfig({
+                ...clone(config),
+                updatedAt: nowIso()
+            });
+            await client.storeObject(TYPES.config, "settings/app-config", normalized);
+            return normalized;
+        },
+
+        async getBootstrapMeta() {
+            const result = await client.getObject("meta/bootstrap");
+            return result || null;
+        },
+
+        async putBootstrapMeta(meta) {
+            const nextMeta = {
+                ...clone(meta),
+                updatedAt: nowIso()
+            };
+            await client.storeObject(TYPES.meta, "meta/bootstrap", nextMeta);
+            return nextMeta;
+        }
+    };
+}
