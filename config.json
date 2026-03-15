@@ -42,7 +42,12 @@
             "stateJitter": 1,
             "finalChoicePool": 12,
             "temperature": 0.85,
-            "shuffleCatalog": true
+            "shuffleCatalog": true,
+            "songBias": 3,
+            "beamChoicePoolMultiplier": 6,
+            "beamTemperature": 1.1,
+            "maxStatesPerLastSong": 24,
+            "blockShuffleTemperature": 1.4
         }
     },
     "show": {
