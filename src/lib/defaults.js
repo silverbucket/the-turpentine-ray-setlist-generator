@@ -1,5 +1,3 @@
-import bundledConfig from "../../config.json";
-import bundledSongs from "../../songs.json";
 import { clone, deepMerge, nowIso, sortByName, uid } from "./utils.js";
 
 export const SCHEMA_VERSION = 1;
@@ -14,32 +12,25 @@ const DEFAULT_CONFIG_TEMPLATE = {
         },
         order: {
             first: [
-                ["energy", [1, 2]],
+                ["notGoodOpener", false],
                 ["cover", false],
                 ["instrumental", false]
             ],
             second: [
-                ["energy", 2],
                 ["cover", false],
                 ["instrumental", false]
             ],
-            penultimate: [
-                ["energy", [2, 3]]
-            ],
+            penultimate: [],
             last: [
-                ["energy", 3]
+                ["notGoodCloser", false]
             ]
         },
         weighting: {
             tuning: 5,
             capo: 2,
             instrument: 3,
-            picking: 1,
+            technique: 1,
             positionMiss: 8,
-            energyTarget: 3,
-            repeatEnergy: 2,
-            energyStreak: 4,
-            bigEnergyJump: 3,
             earlyCover: 6,
             earlyInstrumental: 4
         },
@@ -83,9 +74,10 @@ const DEFAULT_CONFIG_TEMPLATE = {
             mutuallyExclusive: []
         },
         picking: {
-            kind: "instrumentBoolean",
+            kind: "instrumentField",
             field: "picking",
-            summaryLabel: "picking changes",
+            weightKey: "technique",
+            summaryLabel: "technique changes",
             minStreak: 2,
             allowChangeOnLastSong: true
         }
@@ -99,11 +91,6 @@ const DEFAULT_CONFIG_TEMPLATE = {
     }
 };
 
-export const BUNDLED_SONGS = bundledSongs.map((song) => normalizeSongRecord(song));
-export const BUNDLED_CONFIG = createDefaultAppConfig({
-    bandName: "",
-    seedConfig: bundledConfig
-});
 export const DEFAULT_APP_CONFIG = createDefaultAppConfig();
 
 function normalizeCatalogConfig(seedConfig = {}) {
@@ -123,7 +110,9 @@ function normalizeBandMembers(seedMembers = {}) {
                     return {
                         name: instrument,
                         tunings: [],
-                        defaultTuning: ""
+                        defaultTuning: "",
+                        techniques: [],
+                        defaultTechnique: ""
                     };
                 }
 
@@ -132,13 +121,18 @@ function normalizeBandMembers(seedMembers = {}) {
                     tunings: Array.isArray(instrument?.tunings)
                         ? instrument.tunings.filter(Boolean)
                         : [],
-                    defaultTuning: instrument?.defaultTuning || ""
+                    defaultTuning: instrument?.defaultTuning || "",
+                    techniques: Array.isArray(instrument?.techniques)
+                        ? instrument.techniques.filter(Boolean)
+                        : [],
+                    defaultTechnique: instrument?.defaultTechnique || ""
                 };
             }).filter((instrument) => instrument.name)
             : [];
 
         result[memberName] = {
-            instruments
+            instruments,
+            defaultInstrument: memberConfig?.defaultInstrument || ""
         };
         return result;
     }, {});
@@ -169,29 +163,16 @@ export function blankSong() {
     return {
         id: uid("song"),
         name: "",
-        energy: 2,
         cover: false,
         instrumental: false,
+        notGoodOpener: false,
+        notGoodCloser: false,
+        unpracticed: false,
         key: "",
         schemaVersion: SCHEMA_VERSION,
         createdAt: timestamp,
         updatedAt: timestamp,
         members: {}
-    };
-}
-
-
-export function blankPreset(currentOptions = {}) {
-    const timestamp = nowIso();
-    return {
-        id: uid("preset"),
-        name: "",
-        notes: "",
-        tags: [],
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        schemaVersion: SCHEMA_VERSION,
-        options: clone(currentOptions)
     };
 }
 
@@ -204,27 +185,29 @@ export function normalizeSongRecord(song) {
         energy: Number(song.energy || 2),
         cover: Boolean(song.cover),
         instrumental: Boolean(song.instrumental),
+        notGoodOpener: Boolean(song.notGoodOpener),
+        notGoodCloser: Boolean(song.notGoodCloser),
+        unpracticed: Boolean(song.unpracticed),
         key: song.key || "",
         schemaVersion: song.schemaVersion || SCHEMA_VERSION,
         createdAt: song.createdAt || timestamp,
         updatedAt: song.updatedAt || timestamp,
-        members: clone(song.members || {})
+        members: migrateSongMembers(song.members || {})
     };
 }
 
-
-export function normalizePresetRecord(preset) {
-    const timestamp = preset.createdAt || nowIso();
-    return {
-        id: String(preset.id || uid("preset")),
-        name: preset.name || "",
-        notes: preset.notes || "",
-        tags: Array.isArray(preset.tags) ? preset.tags.slice() : [],
-        options: clone(preset.options || {}),
-        schemaVersion: preset.schemaVersion || SCHEMA_VERSION,
-        createdAt: preset.createdAt || timestamp,
-        updatedAt: preset.updatedAt || timestamp
-    };
+function migrateSongMembers(members) {
+    const result = clone(members);
+    Object.values(result).forEach((memberSetup) => {
+        (memberSetup.instruments || []).forEach((inst) => {
+            if (typeof inst.picking === "boolean" || typeof inst.picking === "string") {
+                inst.picking = [];
+            } else if (!Array.isArray(inst.picking)) {
+                inst.picking = [];
+            }
+        });
+    });
+    return result;
 }
 
 

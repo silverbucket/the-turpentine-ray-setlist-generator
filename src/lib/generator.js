@@ -111,7 +111,7 @@ class SongsCatalog {
                     instrument: instrumentSetup.name || instrumentSetup.instrument,
                     tuning,
                     capo: instrumentSetup.capo || 0,
-                    picking: Boolean(instrumentSetup.picking)
+                    picking: instrumentSetup.picking || []
                 }));
             });
         });
@@ -186,6 +186,8 @@ class SongsCatalog {
             energy: song.energy || 2,
             cover: Boolean(song.cover),
             instrumental: Boolean(song.instrumental),
+            notGoodOpener: Boolean(song.notGoodOpener),
+            notGoodCloser: Boolean(song.notGoodCloser),
             key: song.key || null,
             performance
         };
@@ -497,7 +499,7 @@ class SetList {
                 setup.instrument || "",
                 setup.tuning || "",
                 String(setup.capo || 0),
-                String(Boolean(setup.picking))
+                String(setup.picking || "")
             ].join("|");
         }).join("::");
     }
@@ -953,7 +955,7 @@ class SetList {
                 setup.instrument || "",
                 setup.tuning || "",
                 String(setup.capo || 0),
-                String(Boolean(setup.picking))
+                String(setup.picking || "")
             ].join("|"));
         });
         return parts.join("|");
@@ -997,4 +999,176 @@ const DEFAULT_RANDOMNESS = {
 export function generateSetlist(songs, config, options = {}) {
     const generator = new SetList(songs, config, options);
     return generator.toJSON();
+}
+
+export function scoreFixedOrder(fixedSongs, config) {
+    const weights = Object.assign({}, DEFAULT_WEIGHTS, config?.general?.weighting || {});
+    const propNames = Object.keys(config?.props || {});
+    const propConfig = config?.props || {};
+
+    function getPropWeight(propName) {
+        const rule = propConfig[propName] || {};
+        const weightKey = rule.weightKey || propName;
+        return weights[weightKey] || 0;
+    }
+
+    function normalizeValue(value) {
+        if (value === undefined || value === null) return "";
+        return String(value);
+    }
+
+    function displayValue(value) {
+        if (value === undefined || value === null || value === "") return "default";
+        return String(value);
+    }
+
+    function detectInstrumentSetChange(prevItem, nextVariant) {
+        const members = new Set([
+            ...Object.keys(prevItem.performance || {}),
+            ...Object.keys(nextVariant.performance || {})
+        ]);
+        const notes = [];
+        let magnitude = 0;
+        Array.from(members).sort().forEach((member) => {
+            const previous = (prevItem.performance || {})[member];
+            const next = (nextVariant.performance || {})[member];
+            if (!previous || !next) { magnitude += 1; notes.push(`${member} instrument on/off`); return; }
+            if (previous.instrument !== next.instrument) { magnitude += 1; notes.push(`${member} instrument ${previous.instrument} -> ${next.instrument}`); }
+        });
+        return { changed: magnitude > 0, magnitude, notes };
+    }
+
+    function detectInstrumentValueChange(prevItem, nextVariant, rule, scaleByDelta, coerceBoolean) {
+        const field = rule.field;
+        const notes = [];
+        let magnitude = 0;
+        const sharedMembers = Object.keys(prevItem.performance || {}).filter((m) => Object.prototype.hasOwnProperty.call(nextVariant.performance || {}, m)).sort();
+        sharedMembers.forEach((member) => {
+            const prevValue = (prevItem.performance || {})[member]?.[field];
+            const nextValue = (nextVariant.performance || {})[member]?.[field];
+            const left = coerceBoolean ? Boolean(prevValue) : normalizeValue(prevValue);
+            const right = coerceBoolean ? Boolean(nextValue) : normalizeValue(nextValue);
+            if (left === right) return;
+            const amount = scaleByDelta ? Math.abs((prevValue || 0) - (nextValue || 0)) : 1;
+            if (!amount) return;
+            magnitude += amount;
+            notes.push(`${member} ${field} ${displayValue(prevValue)} -> ${displayValue(nextValue)}`);
+        });
+        return { changed: magnitude > 0, magnitude, notes };
+    }
+
+    function inferPropKind(propName) {
+        if (propName === "instruments") return "instrumentSet";
+        if (propName === "capo") return "instrumentDelta";
+        if (propName === "picking") return "instrumentBoolean";
+        return "instrumentField";
+    }
+
+    function detectPropChange(prevItem, nextVariant, propName, rule) {
+        if (!prevItem) return { changed: false, magnitude: 0, notes: [] };
+        const kind = rule.kind || inferPropKind(propName);
+        if (kind === "instrumentSet") return detectInstrumentSetChange(prevItem, nextVariant);
+        if (kind === "instrumentDelta") return detectInstrumentValueChange(prevItem, nextVariant, rule, true, false);
+        if (kind === "instrumentBoolean") return detectInstrumentValueChange(prevItem, nextVariant, rule, false, true);
+        return detectInstrumentValueChange(prevItem, nextVariant, rule, false, false);
+    }
+
+    function scoreConfiguredProps(prevItem, nextVariant) {
+        const changes = {};
+        const notes = [];
+        let score = 0;
+        propNames.forEach((propName) => {
+            const change = detectPropChange(prevItem, nextVariant, propName, propConfig[propName]);
+            changes[propName] = change;
+            if (change.changed) {
+                score += change.magnitude * getPropWeight(propName);
+                Array.prototype.push.apply(notes, change.notes);
+            }
+        });
+        return { score, notes, changes };
+    }
+
+    function targetEnergy(position, count) {
+        const ratio = position / count;
+        if (ratio <= 0.2) return 1.5;
+        if (ratio <= 0.5) return 2;
+        if (ratio <= 0.75) return 2.5;
+        return 3;
+    }
+
+    function scoreEnergyJump(prevItem, nextVariant) {
+        if (!prevItem) return 0;
+        if (Math.abs(prevItem.energy - nextVariant.energy) > 1) return weights.bigEnergyJump;
+        return 0;
+    }
+
+    function energyJumpNotes(prevItem, nextVariant) {
+        if (!prevItem) return [];
+        if (Math.abs(prevItem.energy - nextVariant.energy) > 1) return [`energy jump ${prevItem.energy} -> ${nextVariant.energy}`];
+        return [];
+    }
+
+    const count = fixedSongs.length;
+    const items = [];
+    let totalScore = 0;
+    let coverCount = 0;
+    let instrumentalCount = 0;
+    let lastEnergy = null;
+    let energyStreak = 0;
+
+    fixedSongs.forEach((song, index) => {
+        const position = index + 1;
+        const prevItem = items[items.length - 1] || null;
+        const propTransition = scoreConfiguredProps(prevItem, song);
+        const ejScore = scoreEnergyJump(prevItem, song);
+        const te = targetEnergy(position, count);
+        const posScore = Math.abs(song.energy - te) * weights.energyTarget;
+        const posNotes = posScore > 0 ? [`energy target ${te.toFixed(1)}`] : [];
+
+        let contextScore = 0;
+        const contextNotes = [];
+        let newStreak = 1;
+        if (lastEnergy === song.energy) {
+            contextScore += weights.repeatEnergy;
+            newStreak = energyStreak + 1;
+            contextNotes.push(`repeat energy ${song.energy}`);
+        }
+        if (newStreak >= 3) {
+            contextScore += (newStreak - 2) * weights.energyStreak;
+            contextNotes.push(`energy streak ${newStreak}`);
+        }
+
+        const incrementalScore = propTransition.score + ejScore + posScore + contextScore;
+        totalScore += incrementalScore;
+        coverCount += Number(Boolean(song.cover));
+        instrumentalCount += Number(Boolean(song.instrumental));
+        lastEnergy = song.energy;
+        energyStreak = newStreak;
+
+        items.push({
+            id: song.id,
+            name: song.name,
+            energy: song.energy,
+            cover: song.cover,
+            instrumental: song.instrumental,
+            key: song.key,
+            performance: song.performance,
+            position,
+            incrementalScore,
+            cumulativeScore: totalScore,
+            transitionNotes: propTransition.notes.concat(energyJumpNotes(prevItem, song)),
+            positionNotes: posNotes,
+            contextNotes,
+            propChanges: propTransition.changes
+        });
+    });
+
+    return {
+        songs: items,
+        summary: {
+            score: totalScore,
+            covers: coverCount,
+            instrumentals: instrumentalCount
+        }
+    };
 }
