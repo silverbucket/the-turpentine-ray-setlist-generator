@@ -39,6 +39,7 @@ export function createAppStore(repo) {
     // ---- song editor ----
     let editorSong = $state(null);
     let selectedSongId = $state("");
+    let editReturnView = $state("");
     let songSearch = $state("");
     let songFilter = $state("all");
 
@@ -457,8 +458,11 @@ export function createAppStore(repo) {
     }
 
     function closeEditor() {
+        const returnTo = editReturnView;
         editorSong = null;
         selectedSongId = "";
+        editReturnView = "";
+        if (returnTo) navigate(returnTo);
     }
 
     function updateEditor(mutator) {
@@ -1082,6 +1086,8 @@ export function createAppStore(repo) {
         openNewSong,
         openSong,
         closeEditor,
+        get editReturnView() { return editReturnView; },
+        set editReturnView(v) { editReturnView = v; },
         updateSongField,
         renameMember,
         addMember,

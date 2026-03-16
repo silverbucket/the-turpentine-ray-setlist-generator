@@ -52,6 +52,7 @@
   function handleEditSong(songId) {
     const catalogSong = store.songs.find((s) => s.id === songId);
     if (catalogSong) {
+      store.editReturnView = "roll";
       store.openSong(catalogSong);
       store.navigate("songs");
     }

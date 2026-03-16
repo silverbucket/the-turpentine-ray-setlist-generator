@@ -69,9 +69,9 @@
     right: 0;
     height: 48px;
     padding-top: env(safe-area-inset-top, 0px);
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: space-between;
     padding-left: 16px;
     padding-right: 8px;
     background: var(--paper);
@@ -82,18 +82,21 @@
   }
 
   .band-name {
+    grid-column: 2;
     font-size: 16px;
     font-weight: 700;
     color: var(--ink);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 50vw;
+    text-align: center;
   }
 
   .right {
+    grid-column: 3;
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 8px;
   }
 
