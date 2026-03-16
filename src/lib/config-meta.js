@@ -2,245 +2,58 @@ export const CONFIG_SECTIONS = [
     {
         id: "identity",
         title: "Band Identity",
-        intro: "This is the bit that makes the app feel like yours instead of a suspiciously generic band gadget.",
         fields: [
             {
                 path: "bandName",
                 label: "Band name",
                 type: "text",
-                description: "Changes the app title to '[band name] Setlist Generator'."
-            }
-        ]
-    },
-    {
-        id: "generator",
-        title: "Generator Defaults",
-        intro: "These are the polite suggestions the generator starts with before your presets bully it around.",
-        fields: [
-            {
-                path: "general.count",
-                label: "Default song count",
-                type: "number",
-                min: 1,
-                max: 60,
-                description: "How many songs the generator should aim for when no preset overrides it."
-            },
-            {
-                path: "general.beamWidth",
-                label: "Beam width",
-                type: "number",
-                min: 1,
-                max: 2048,
-                description: "How many candidate setlists stay alive during search. Higher means smarter but slower."
-            },
-            {
-                path: "general.limits.covers",
-                label: "Default max covers",
-                type: "number",
-                min: 0,
-                max: 20,
-                description: "Default cap on cover songs in a generated set."
-            },
-            {
-                path: "general.limits.instrumentals",
-                label: "Default max instrumentals",
-                type: "number",
-                min: 0,
-                max: 20,
-                description: "Default cap on instrumentals in a generated set."
+                description: "Shown in the app header."
             }
         ]
     },
     {
         id: "weights",
-        title: "Scoring Weights",
-        intro: "Bigger numbers mean the generator winces harder when that thing happens.",
+        title: "Transition Costs",
+        intro: "Higher values make the generator try harder to avoid that kind of change between songs.",
         fields: [
             {
                 path: "general.weighting.tuning",
-                label: "Tuning change cost",
+                label: "Tuning change",
                 type: "number",
                 min: 0,
                 max: 50,
-                description: "Penalty for changing tuning between songs."
+                description: "How much to avoid switching tunings. At 0 the generator doesn't care; at 10+ it will group songs by tuning aggressively."
             },
             {
                 path: "general.weighting.capo",
-                label: "Capo movement cost",
+                label: "Capo movement",
                 type: "number",
                 min: 0,
                 max: 50,
-                description: "Penalty per capo step between songs."
+                description: "Cost per capo step moved. A jump from capo 0 to capo 3 costs 3× this value."
             },
             {
                 path: "general.weighting.instrument",
-                label: "Instrument swap cost",
+                label: "Instrument swap",
                 type: "number",
                 min: 0,
                 max: 50,
-                description: "Penalty for switching instruments between songs."
+                description: "How much to avoid making someone put down one instrument and pick up another between songs."
             },
             {
-                path: "general.weighting.picking",
-                label: "Picking change cost",
+                path: "general.weighting.technique",
+                label: "Technique change",
                 type: "number",
                 min: 0,
                 max: 50,
-                description: "Penalty for flipping between picked and not-picked setups."
-            },
-            {
-                path: "general.weighting.positionMiss",
-                label: "Position miss cost",
-                type: "number",
-                min: 0,
-                max: 50,
-                description: "Penalty when a song ignores the opener/closer slot rules."
-            },
-            {
-                path: "general.weighting.energyTarget",
-                label: "Energy target cost",
-                type: "number",
-                min: 0,
-                max: 50,
-                description: "Penalty for landing far from the target energy curve."
-            },
-            {
-                path: "general.weighting.repeatEnergy",
-                label: "Repeat energy cost",
-                type: "number",
-                min: 0,
-                max: 50,
-                description: "Penalty for repeating the same energy level back-to-back."
-            },
-            {
-                path: "general.weighting.energyStreak",
-                label: "Energy streak cost",
-                type: "number",
-                min: 0,
-                max: 50,
-                description: "Extra penalty when the same energy level just keeps happening."
-            },
-            {
-                path: "general.weighting.bigEnergyJump",
-                label: "Big energy jump cost",
-                type: "number",
-                min: 0,
-                max: 50,
-                description: "Penalty for jumping more than one energy level between songs."
-            },
-            {
-                path: "general.weighting.earlyCover",
-                label: "Early cover cost",
-                type: "number",
-                min: 0,
-                max: 50,
-                description: "Penalty for sneaking a cover into the opener slots."
-            },
-            {
-                path: "general.weighting.earlyInstrumental",
-                label: "Early instrumental cost",
-                type: "number",
-                min: 0,
-                max: 50,
-                description: "Penalty for opening too early with an instrumental."
-            }
-        ]
-    },
-    {
-        id: "randomness",
-        title: "Chaos Knobs",
-        intro: "This is where you decide whether the generator is a thoughtful bandmate or a mildly caffeinated raccoon.",
-        fields: [
-            {
-                path: "general.randomness.variantJitter",
-                label: "Variant jitter",
-                type: "number",
-                min: 0,
-                max: 10,
-                step: 0.1,
-                description: "Small randomness when choosing among different playable variants of the same song."
-            },
-            {
-                path: "general.randomness.stateJitter",
-                label: "State jitter",
-                type: "number",
-                min: 0,
-                max: 10,
-                step: 0.1,
-                description: "Small randomness applied to candidate setlists during search."
-            },
-            {
-                path: "general.randomness.finalChoicePool",
-                label: "Final choice pool",
-                type: "number",
-                min: 1,
-                max: 100,
-                description: "How many strong final candidates are kept before one is chosen."
-            },
-            {
-                path: "general.randomness.temperature",
-                label: "Final temperature",
-                type: "number",
-                min: 0.01,
-                max: 10,
-                step: 0.05,
-                description: "Higher values make the final choice wander further from the absolute lowest score."
-            },
-            {
-                path: "general.randomness.shuffleCatalog",
-                label: "Shuffle catalog",
-                type: "boolean",
-                description: "Randomizes the song exploration order before search starts."
-            },
-            {
-                path: "general.randomness.songBias",
-                label: "Song bias spread",
-                type: "number",
-                min: 0,
-                max: 20,
-                step: 0.1,
-                description: "Assigns each song a small run-specific bias so the same favorites do not dominate every time."
-            },
-            {
-                path: "general.randomness.beamChoicePoolMultiplier",
-                label: "Beam pool multiplier",
-                type: "number",
-                min: 1,
-                max: 20,
-                description: "How wide the candidate pool gets before beam pruning picks survivors."
-            },
-            {
-                path: "general.randomness.beamTemperature",
-                label: "Beam temperature",
-                type: "number",
-                min: 0.01,
-                max: 10,
-                step: 0.05,
-                description: "Higher values keep more eccentric candidate branches alive during the search."
-            },
-            {
-                path: "general.randomness.maxStatesPerLastSong",
-                label: "Max states per last song",
-                type: "number",
-                min: 1,
-                max: 200,
-                description: "Stops the beam from filling up with ten near-identical branches ending on the same song."
-            },
-            {
-                path: "general.randomness.blockShuffleTemperature",
-                label: "Block shuffle temperature",
-                type: "number",
-                min: 0.01,
-                max: 10,
-                step: 0.05,
-                description: "How freely the generator shuffles songs inside the same compatible setup block."
+                description: "How much to avoid switching playing technique (e.g. fingerpicks to clawhammer) between songs."
             }
         ]
     },
     {
         id: "props",
         title: "Transition Rules",
-        intro: "These tell the generator when a change is fine, when it should wait a few songs, and when it should stop being dramatic.",
+        intro: "Hard limits on how quickly changes can happen. Unlike costs (which are preferences), these are enforced strictly.",
         fields: [
             {
                 path: "props.tuning.minStreak",
@@ -248,13 +61,13 @@ export const CONFIG_SECTIONS = [
                 type: "number",
                 min: 0,
                 max: 20,
-                description: "Minimum number of songs to stay in a tuning setup before changing again."
+                description: "Once a tuning is set, the generator must play at least this many songs before switching. Set to 0 to allow changes at any time."
             },
             {
                 path: "props.tuning.allowChangeOnLastSong",
-                label: "Tuning can change on last song",
+                label: "Tuning can change on closer",
                 type: "boolean",
-                description: "Lets the closer break the streak rule for tuning changes."
+                description: "Let the closing song break the tuning streak rule. Useful so the closer isn't locked out of a great song."
             },
             {
                 path: "props.capo.minStreak",
@@ -262,13 +75,13 @@ export const CONFIG_SECTIONS = [
                 type: "number",
                 min: 0,
                 max: 20,
-                description: "Minimum number of songs to keep capo positions steady before changing them."
+                description: "Minimum songs to stay at a capo position before moving it."
             },
             {
                 path: "props.capo.allowChangeOnLastSong",
-                label: "Capo can change on last song",
+                label: "Capo can change on closer",
                 type: "boolean",
-                description: "Lets the final song ignore the usual capo streak rule."
+                description: "Let the closing song ignore the capo streak rule."
             },
             {
                 path: "props.instruments.minStreak",
@@ -276,27 +89,27 @@ export const CONFIG_SECTIONS = [
                 type: "number",
                 min: 0,
                 max: 20,
-                description: "Minimum number of songs before another instrument swap is allowed."
+                description: "Minimum songs before a member can swap to a different instrument."
             },
             {
                 path: "props.instruments.allowChangeOnLastSong",
-                label: "Instrument swap on last song",
+                label: "Instrument swap on closer",
                 type: "boolean",
-                description: "Lets the closer change instruments even if the streak is short."
+                description: "Let the closing song break the instrument streak rule."
             },
             {
                 path: "props.picking.minStreak",
-                label: "Picking min streak",
+                label: "Technique min streak",
                 type: "number",
                 min: 0,
                 max: 20,
-                description: "Minimum number of songs before another picking-style change is allowed."
+                description: "Minimum songs before a playing technique change is allowed."
             },
             {
                 path: "props.picking.allowChangeOnLastSong",
-                label: "Picking can change on last song",
+                label: "Technique can change on closer",
                 type: "boolean",
-                description: "Lets the final song ignore the picking streak rule."
+                description: "Let the closing song ignore the technique streak rule."
             }
         ]
     }

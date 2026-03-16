@@ -1,9 +1,7 @@
 import RemoteStorage from "remotestoragejs";
 import {
-    blankPreset,
     createDefaultAppConfig,
     normalizeAppConfig,
-    normalizePresetRecord,
     normalizeSongRecord,
     sortSongs
 } from "./defaults.js";
@@ -81,14 +79,13 @@ export function createRemoteStorageRepository() {
         },
 
         async loadAll() {
-            const [songs, presets, config, bootstrap] = await Promise.all([
+            const [songs, config, bootstrap] = await Promise.all([
                 this.listSongs(),
-                this.listPresets(),
                 this.getConfig(),
                 this.getBootstrapMeta()
             ]);
 
-            return { songs, presets, config, bootstrap };
+            return { songs, config, bootstrap };
         },
 
         async listSongs() {
@@ -107,27 +104,6 @@ export function createRemoteStorageRepository() {
 
         async deleteSong(songId) {
             await client.remove(`songs/${songId}`);
-        },
-
-        async listPresets() {
-            const items = await client.getAll("presets/", false);
-            return Object.values(items || {})
-                .map((preset) => normalizePresetRecord(preset))
-                .sort((left, right) => left.name.localeCompare(right.name));
-        },
-
-        async putPreset(preset) {
-            const normalized = normalizePresetRecord({
-                ...blankPreset(),
-                ...clone(preset),
-                updatedAt: nowIso()
-            });
-            await client.storeObject(TYPES.preset, `presets/${normalized.id}`, normalized);
-            return normalized;
-        },
-
-        async deletePreset(presetId) {
-            await client.remove(`presets/${presetId}`);
         },
 
         async getConfig() {
