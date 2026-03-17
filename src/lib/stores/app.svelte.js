@@ -646,6 +646,7 @@ export function createAppStore(repo) {
         }
         const rescored = scoreFixedOrder(songList, appConfig);
         generatedSetlist = { ...generatedSetlist, songs: rescored.songs, summary: rescored.summary };
+        setlistSaved = false;
         persistCurrentSetlist();
     }
 
@@ -672,6 +673,7 @@ export function createAppStore(repo) {
         });
         const rescored = scoreFixedOrder(songList, appConfig);
         generatedSetlist = { ...generatedSetlist, songs: rescored.songs, summary: rescored.summary };
+        setlistSaved = false;
         persistCurrentSetlist();
     }
 
