@@ -12,7 +12,9 @@ const TYPES = {
     song: "setlist-roller-song",
     preset: "setlist-roller-preset",
     config: "setlist-roller-config",
-    meta: "setlist-roller-meta"
+    meta: "setlist-roller-meta",
+    setlist: "setlist-roller-setlist",
+    member: "setlist-roller-member"
 };
 
 const OBJECT_SCHEMA = {
@@ -40,6 +42,8 @@ export function createRemoteStorageRepository() {
     client.declareType(TYPES.preset, OBJECT_SCHEMA);
     client.declareType(TYPES.config, OBJECT_SCHEMA);
     client.declareType(TYPES.meta, OBJECT_SCHEMA);
+    client.declareType(TYPES.setlist, OBJECT_SCHEMA);
+    client.declareType(TYPES.member, OBJECT_SCHEMA);
 
     return {
         remoteStorage,
@@ -83,13 +87,15 @@ export function createRemoteStorageRepository() {
         },
 
         async loadAll() {
-            const [songs, config, bootstrap] = await Promise.all([
+            const [songs, config, bootstrap, setlists, members] = await Promise.all([
                 this.listSongs(),
                 this.getConfig(),
-                this.getBootstrapMeta()
+                this.getBootstrapMeta(),
+                this.listSetlists(),
+                this.listMembers()
             ]);
 
-            return { songs, config, bootstrap };
+            return { songs, config, bootstrap, setlists, members };
         },
 
         async listSongs() {
@@ -117,6 +123,10 @@ export function createRemoteStorageRepository() {
         async getConfig() {
             const result = await client.getObject("settings/app-config");
             return normalizeAppConfig(result);
+        },
+
+        async getRawConfig() {
+            return await client.getObject("settings/app-config");
         },
 
         async ensureConfig(bandName) {
@@ -151,6 +161,43 @@ export function createRemoteStorageRepository() {
             };
             await client.storeObject(TYPES.meta, "meta/bootstrap", nextMeta);
             return nextMeta;
+        },
+
+        // ---- setlists ----
+        async listSetlists() {
+            const items = await client.getAll("setlists/", false);
+            return Object.values(items || {})
+                .sort((a, b) => (b.savedAt || "").localeCompare(a.savedAt || ""));
+        },
+
+        async putSetlist(setlist) {
+            const doc = { ...clone(setlist), updatedAt: nowIso() };
+            await client.storeObject(TYPES.setlist, `setlists/${doc.id}`, doc);
+            return doc;
+        },
+
+        async deleteSetlist(setlistId) {
+            await client.remove(`setlists/${setlistId}`);
+        },
+
+        // ---- members ----
+        async listMembers() {
+            const items = await client.getAll("members/", false);
+            const result = {};
+            for (const [key, value] of Object.entries(items || {})) {
+                result[value.name || key] = value;
+            }
+            return result;
+        },
+
+        async putMember(name, data) {
+            const doc = { ...clone(data), name, updatedAt: nowIso() };
+            await client.storeObject(TYPES.member, `members/${name}`, doc);
+            return doc;
+        },
+
+        async deleteMember(name) {
+            await client.remove(`members/${name}`);
         }
     };
 }

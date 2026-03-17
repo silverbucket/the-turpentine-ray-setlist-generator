@@ -1,4 +1,5 @@
-import { DEFAULT_APP_CONFIG, blankSong, normalizeAppConfig, normalizeSongRecord } from "../defaults.js";
+import { DEFAULT_APP_CONFIG, blankSong, normalizeAppConfig, normalizeMemberRecord, normalizeSongRecord } from "../defaults.js";
+import { migrator } from "../migrations.js";
 import { CONFIG_SECTIONS } from "../config-meta.js";
 import { scoreFixedOrder, buildDefaultPerformance } from "../generator.js";
 import { clone, deepMerge, formatDelimitedList, getByPath, nowIso, parseDelimitedList, setByPath, titleForBand, tryParseJson, uid } from "../utils.js";
@@ -37,6 +38,7 @@ export function createAppStore(repo) {
     let setlistSaved = $state(false);
     let pendingRollConfirm = $state(false);
     let savedSetlists = $state([]);
+    let bandMembers = $state({});
 
     // ---- connection ----
     let connectionStatus = $state("disconnected");
@@ -86,7 +88,7 @@ export function createAppStore(repo) {
     let appTitle = $derived(titleForBand(appConfig?.bandName));
     let emptyCatalog = $derived(connectionStatus === "connected" && songs.length === 0);
     let bandMemberEntries = $derived(
-        Object.entries(appConfig?.band?.members || {}).sort(([a], [b]) => a.localeCompare(b))
+        Object.entries(bandMembers || {}).sort(([a], [b]) => a.localeCompare(b))
     );
     let availableMemberNames = $derived(buildAvailableMemberNames());
     let memberInstrumentChoicesByMember = $derived(buildMemberInstrumentChoicesByMember());
@@ -118,7 +120,7 @@ export function createAppStore(repo) {
 
     function buildAvailableMemberNames() {
         const names = new Set([
-            ...Object.keys(appConfig?.band?.members || {}),
+            ...Object.keys(bandMembers || {}),
             ...Object.keys(generationOptions.show?.members || {}),
             ...songs.flatMap((song) => Object.keys(song.members || {}))
         ]);
@@ -131,7 +133,7 @@ export function createAppStore(repo) {
                 (song.members?.[memberName]?.instruments || []).map((o) => o.name)
             );
             const fromConfig = generationOptions.show?.members?.[memberName]?.allowedInstruments || [];
-            const fromBand = (appConfig?.band?.members?.[memberName]?.instruments || []).map((i) => i.name);
+            const fromBand = (bandMembers?.[memberName]?.instruments || []).map((i) => i.name);
             result[memberName] = Array.from(new Set([...fromBand, ...fromSongs, ...fromConfig].filter(Boolean))).sort();
             return result;
         }, {});
@@ -140,7 +142,7 @@ export function createAppStore(repo) {
     function buildMemberTuningChoicesByMember() {
         return availableMemberNames.reduce((result, memberName) => {
             result[memberName] = (memberInstrumentChoicesByMember[memberName] || []).reduce((ir, instrumentName) => {
-                const fromBand = (appConfig?.band?.members?.[memberName]?.instruments || [])
+                const fromBand = (bandMembers?.[memberName]?.instruments || [])
                     .find((i) => i.name === instrumentName)?.tunings || [];
                 const fromConfig = generationOptions.show?.members?.[memberName]?.allowedTunings?.[instrumentName] || [];
                 ir[instrumentName] = Array.from(new Set([...fromBand, ...fromConfig].filter(Boolean))).sort();
@@ -152,7 +154,7 @@ export function createAppStore(repo) {
 
     function buildDefaultTuningByMemberInstrument() {
         return availableMemberNames.reduce((result, memberName) => {
-            result[memberName] = (appConfig?.band?.members?.[memberName]?.instruments || []).reduce((ir, instrument) => {
+            result[memberName] = (bandMembers?.[memberName]?.instruments || []).reduce((ir, instrument) => {
                 ir[instrument.name] = instrument.defaultTuning || "";
                 return ir;
             }, {});
@@ -169,8 +171,8 @@ export function createAppStore(repo) {
     }
 
     function songIncompleteReasons(song) {
-        const bandMembers = appConfig?.band?.members || {};
-        const memberNames = Object.keys(bandMembers);
+        const members = bandMembers || {};
+        const memberNames = Object.keys(members);
         if (memberNames.length === 0) return [];
         const songMembers = song.members || {};
         const reasons = [];
@@ -181,7 +183,7 @@ export function createAppStore(repo) {
             if (instruments.length === 0) { reasons.push(`${name}: needs instrument`); continue; }
             for (const inst of instruments) {
                 if (!inst.name) { reasons.push(`${name}: instrument not selected`); continue; }
-                const bandInst = (bandMembers[name].instruments || []).find((i) => i.name === inst.name);
+                const bandInst = (members[name].instruments || []).find((i) => i.name === inst.name);
                 if (bandInst && (bandInst.techniques || []).length > 0 && (!Array.isArray(inst.picking) || inst.picking.length === 0)) {
                     reasons.push(`${name}: ${inst.name} needs technique`);
                 }
@@ -236,16 +238,6 @@ export function createAppStore(repo) {
         }));
     }
 
-    function loadSavedSetlists() {
-        if (typeof localStorage === "undefined") return [];
-        return stripEnergy(tryParseJson(localStorage.getItem(storageKey("saved-sets")), []) || []);
-    }
-
-    function persistSavedSetlists() {
-        if (typeof localStorage === "undefined") return;
-        localStorage.setItem(storageKey("saved-sets"), JSON.stringify(savedSetlists));
-    }
-
     function loadCurrentSetlist() {
         if (typeof localStorage === "undefined") return null;
         return tryParseJson(localStorage.getItem(storageKey("current-set")), null);
@@ -285,7 +277,6 @@ export function createAppStore(repo) {
     // Load all per-user localStorage data (called on connect when we know the user)
     function loadUserLocalData() {
         clearUnscopedLocalStorage();
-        savedSetlists = loadSavedSetlists();
         const current = loadCurrentSetlist();
         const locked = current?._locked || false;
         generatedSetlist = locked ? current : null;
@@ -370,6 +361,14 @@ export function createAppStore(repo) {
             songs = data.songs.map(normalizeSongRecord);
             bootstrapMeta = data.bootstrap;
             appConfig = data.config ? normalizeAppConfig(data.config) : null;
+            if (data.setlists) {
+                savedSetlists = stripEnergy(data.setlists).slice(0, MAX_SAVED_SETS);
+            }
+            if (data.members) {
+                bandMembers = Object.fromEntries(
+                    Object.entries(data.members).map(([name, data]) => [name, normalizeMemberRecord(data)])
+                );
+            }
 
             if (!appConfig) {
                 showFirstRunPrompt = true;
@@ -575,7 +574,7 @@ export function createAppStore(repo) {
         ]));
     }
 
-    function saveCurrentSetlist() {
+    async function saveCurrentSetlist() {
         if (!generatedSetlist) return;
         const currentSaved = savedSetlists || [];
         const songNames = generatedSetlist.songs.map(s => s.name || s.title || "?");
@@ -595,19 +594,26 @@ export function createAppStore(repo) {
             seed: generatedSetlist.seed,
             songCount: generatedSetlist.songs.length
         };
+        // Enforce limit: remove oldest if at max
+        if (currentSaved.length >= MAX_SAVED_SETS) {
+            await repo.deleteSetlist(currentSaved[currentSaved.length - 1].id);
+        }
+        await repo.putSetlist(entry);
         savedSetlists = [entry, ...currentSaved].slice(0, MAX_SAVED_SETS);
-        persistSavedSetlists();
         setlistSaved = true;
     }
 
-    function removeSavedSetlist(id) {
+    async function removeSavedSetlist(id) {
+        await repo.deleteSetlist(id);
         savedSetlists = savedSetlists.filter((s) => s.id !== id);
-        persistSavedSetlists();
     }
 
-    function updateSavedSetlist(id, fields) {
-        savedSetlists = savedSetlists.map((s) => s.id === id ? { ...s, ...fields } : s);
-        persistSavedSetlists();
+    async function updateSavedSetlist(id, fields) {
+        const existing = savedSetlists.find((s) => s.id === id);
+        if (!existing) return;
+        const merged = { ...existing, ...fields };
+        await repo.putSetlist(merged);
+        savedSetlists = savedSetlists.map((s) => s.id === id ? merged : s);
     }
 
     function loadSavedSetlist(id) {
@@ -710,8 +716,7 @@ export function createAppStore(repo) {
     // ---- song editor ----
     function openNewSong() {
         const song = blankSong();
-        const bandMembers = appConfig?.band?.members || {};
-        Object.entries(bandMembers).forEach(([name, config]) => {
+        Object.entries(bandMembers || {}).forEach(([name, config]) => {
             const defaultInstName = config.defaultInstrument || "";
             const defaultInst = (config.instruments || []).find((i) => i.name === defaultInstName);
             const inst = defaultInst
@@ -768,7 +773,7 @@ export function createAppStore(repo) {
             }
             if (song.members[name]) return; // already in this song
             // Seed instruments from band config if this member exists there
-            const bandMember = appConfig?.band?.members?.[name];
+            const bandMember = bandMembers?.[name];
             if (bandMember && (bandMember.instruments || []).length > 0) {
                 const defaultInst = bandMember.defaultInstrument || bandMember.instruments[0]?.name || "";
                 const inst = bandMember.instruments.find((i) => i.name === defaultInst) || bandMember.instruments[0];
@@ -805,7 +810,7 @@ export function createAppStore(repo) {
     }
 
     function instrumentConfigFor(memberName, instrumentName) {
-        return (appConfig?.band?.members?.[memberName]?.instruments || [])
+        return (bandMembers?.[memberName]?.instruments || [])
             .find((i) => i.name === instrumentName) || null;
     }
 
@@ -834,43 +839,42 @@ export function createAppStore(repo) {
             }));
             songs = songs.filter((s) => s.id !== saved.id).concat(saved).sort((a, b) => a.name.localeCompare(b.name));
 
-            // Sync member names and instruments from the song into band config
-            let configDirty = false;
-            let nextConfig = clone(appConfig) || { band: { members: {} } };
-            if (!nextConfig.band) nextConfig.band = {};
-            if (!nextConfig.band.members) nextConfig.band.members = {};
+            // Sync member names and instruments from the song into band members
+            const dirtyMembers = new Map();
 
             for (const [memberName, memberSetup] of Object.entries(saved.members || {})) {
-                if (!nextConfig.band.members[memberName]) {
-                    nextConfig.band.members[memberName] = { instruments: [] };
-                    configDirty = true;
+                let member = clone(bandMembers[memberName] || null);
+                let dirty = false;
+                if (!member) {
+                    member = { instruments: [] };
+                    dirty = true;
                 }
-                const bandMember = nextConfig.band.members[memberName];
-                if (!bandMember.instruments) bandMember.instruments = [];
+                if (!member.instruments) member.instruments = [];
                 for (const inst of (memberSetup.instruments || [])) {
                     if (!inst.name) continue;
-                    const existing = bandMember.instruments.find((i) => i.name === inst.name);
+                    const existing = member.instruments.find((i) => i.name === inst.name);
                     if (!existing) {
-                        bandMember.instruments.push({
+                        member.instruments.push({
                             name: inst.name, tunings: [], defaultTuning: "",
                             techniques: [], defaultTechnique: ""
                         });
-                        configDirty = true;
+                        dirty = true;
                     }
-                    // Sync tunings that appear in songs but not in band config
-                    const bandInst = bandMember.instruments.find((i) => i.name === inst.name);
+                    // Sync tunings that appear in songs but not in band members
+                    const bandInst = member.instruments.find((i) => i.name === inst.name);
                     for (const tuning of (inst.tuning || [])) {
                         if (tuning && !(bandInst.tunings || []).includes(tuning)) {
                             if (!bandInst.tunings) bandInst.tunings = [];
                             bandInst.tunings.push(tuning);
                             if (!bandInst.defaultTuning) bandInst.defaultTuning = tuning;
-                            configDirty = true;
+                            dirty = true;
                         }
                     }
                 }
+                if (dirty) dirtyMembers.set(memberName, member);
             }
-            if (configDirty) {
-                await persistConfigEdit(nextConfig);
+            for (const [memberName, memberData] of dirtyMembers) {
+                await persistMemberEdit(memberName, memberData);
             }
 
             closeEditor();
@@ -916,6 +920,14 @@ export function createAppStore(repo) {
             for (const song of songs) {
                 await repo.deleteSong(song.id);
             }
+            // Delete all setlists from RS
+            for (const setlist of savedSetlists) {
+                await repo.deleteSetlist(setlist.id);
+            }
+            // Delete all members from RS
+            for (const name of Object.keys(bandMembers)) {
+                await repo.deleteMember(name);
+            }
             // Delete config from RS so first-run triggers on reload
             await repo.deleteConfig();
             // Clear local state
@@ -925,7 +937,7 @@ export function createAppStore(repo) {
             setlistLocked = false;
             setlistSaved = false;
             savedSetlists = [];
-            persistSavedSetlists();
+            bandMembers = {};
             persistCurrentSetlist();
             if (editorSong) closeEditor();
             // Trigger first-run experience
@@ -995,12 +1007,23 @@ export function createAppStore(repo) {
     }
 
     // ---- band members ----
+    async function persistMemberEdit(memberName, data, errorMessage = "Could not save member.") {
+        const normalized = normalizeMemberRecord(data);
+        bandMembers = { ...bandMembers, [memberName]: normalized };
+        try {
+            await withSync("Saving member", () => repo.putMember(memberName, normalized));
+            return true;
+        } catch (error) {
+            addToast(error?.message || errorMessage, "danger");
+            return false;
+        }
+    }
+
     async function addBandMember() {
         const clean = newMemberName.trim();
         if (!clean) { addToast("Name the member first.", "danger"); return; }
         if (bandMemberEntries.some(([n]) => n === clean)) { addToast("Already exists.", "danger"); return; }
-        const nextConfig = setByPath(appConfig, `band.members.${clean}`, { instruments: [] });
-        if (await persistConfigEdit(nextConfig, "Could not add member.")) {
+        if (await persistMemberEdit(clean, { instruments: [] }, "Could not add member.")) {
             expandedBandMember = clean;
             newMemberName = "";
             addToast(`Added "${clean}".`);
@@ -1010,11 +1033,20 @@ export function createAppStore(repo) {
     async function renameBandMember(oldName, newName) {
         const clean = newName.trim();
         if (!clean || clean === oldName || bandMemberEntries.some(([n]) => n === clean)) return;
-        const rebuilt = {};
-        Object.entries(appConfig.band.members).forEach(([n, v]) => { rebuilt[n === oldName ? clean : n] = v; });
-        if (await persistConfigEdit(setByPath(appConfig, "band.members", rebuilt))) {
+        const data = bandMembers[oldName] || { instruments: [] };
+        try {
+            await withSync("Renaming member", async () => {
+                await repo.deleteMember(oldName);
+                await repo.putMember(clean, data);
+            });
+            const next = { ...bandMembers };
+            delete next[oldName];
+            next[clean] = data;
+            bandMembers = next;
             if (expandedBandMember === oldName) expandedBandMember = clean;
             addToast(`Renamed "${oldName}" to "${clean}".`);
+        } catch (error) {
+            addToast(error?.message || "Could not rename member.", "danger");
         }
     }
 
@@ -1055,21 +1087,26 @@ export function createAppStore(repo) {
         } else {
             if (!window.confirm(`Remove "${memberName}" from the band?`)) return;
         }
-        const rebuilt = clone(appConfig.band.members);
-        delete rebuilt[memberName];
-        if (await persistConfigEdit(setByPath(appConfig, "band.members", rebuilt))) {
+        try {
+            await withSync("Removing member", () => repo.deleteMember(memberName));
+            const next = { ...bandMembers };
+            delete next[memberName];
+            bandMembers = next;
             if (expandedBandMember === memberName) expandedBandMember = "";
             addToast(`Removed "${memberName}".`);
+        } catch (error) {
+            addToast(error?.message || "Could not remove member.", "danger");
         }
     }
 
     async function addBandMemberInstrument(memberName) {
         const draft = (newInstrumentByMember[memberName] || "").trim();
         if (!draft) { addToast("Type an instrument name first.", "danger"); return; }
-        const current = appConfig.band.members[memberName].instruments || [];
+        const member = bandMembers[memberName] || { instruments: [] };
+        const current = member.instruments || [];
         if (current.some((i) => i.name === draft)) { addToast("Already on this member.", "danger"); return; }
-        const next = setByPath(appConfig, `band.members.${memberName}.instruments`, current.concat({ name: draft, tunings: [], defaultTuning: "", techniques: [], defaultTechnique: "" }));
-        if (await persistConfigEdit(next)) {
+        const updated = { ...member, instruments: current.concat({ name: draft, tunings: [], defaultTuning: "", techniques: [], defaultTechnique: "" }) };
+        if (await persistMemberEdit(memberName, updated)) {
             newInstrumentByMember = { ...newInstrumentByMember, [memberName]: "" };
             addToast(`Added ${draft} for ${memberName}.`);
         }
@@ -1086,33 +1123,30 @@ export function createAppStore(repo) {
         } else {
             if (!window.confirm(`Remove "${instrumentName}" from ${memberName}?`)) return;
         }
-        const current = appConfig.band.members[memberName].instruments || [];
-        const next = setByPath(appConfig, `band.members.${memberName}.instruments`, current.filter((i) => i.name !== instrumentName));
-        if (await persistConfigEdit(next)) addToast(`Removed ${instrumentName} from ${memberName}.`);
+        const member = bandMembers[memberName] || { instruments: [] };
+        const updated = { ...member, instruments: (member.instruments || []).filter((i) => i.name !== instrumentName) };
+        if (await persistMemberEdit(memberName, updated)) addToast(`Removed ${instrumentName} from ${memberName}.`);
     }
 
     function tuningDraftKey(memberName, instrumentName) {
         return `${memberName}::${instrumentName}`;
     }
 
-    // Ensure a member and instrument exist in band config (creates them if missing)
+    // Ensure a member and instrument exist in band members (creates them if missing)
     async function ensureBandInstrument(memberName, instrumentName) {
-        if (!memberName || !instrumentName || !appConfig) return;
+        if (!memberName || !instrumentName) return;
         let dirty = false;
-        let next = clone(appConfig);
-        if (!next.band) next.band = {};
-        if (!next.band.members) next.band.members = {};
-        if (!next.band.members[memberName]) {
-            next.band.members[memberName] = { instruments: [] };
+        let member = clone(bandMembers[memberName] || null);
+        if (!member) {
+            member = { instruments: [] };
             dirty = true;
         }
-        const member = next.band.members[memberName];
         if (!member.instruments) member.instruments = [];
         if (!member.instruments.find((i) => i.name === instrumentName)) {
             member.instruments.push({ name: instrumentName, tunings: [], defaultTuning: "", techniques: [], defaultTechnique: "" });
             dirty = true;
         }
-        if (dirty) await persistConfigEdit(next);
+        if (dirty) await persistMemberEdit(memberName, member);
     }
 
     async function addTuningChoice(memberName, instrumentName) {
@@ -1120,13 +1154,12 @@ export function createAppStore(repo) {
         const clean = (newTuningByInstrument[draftKey] || "").trim();
         if (!clean) { addToast("Type a tuning name first.", "danger"); return; }
         await ensureBandInstrument(memberName, instrumentName);
-        const currentInstruments = appConfig.band.members?.[memberName]?.instruments || [];
+        const member = bandMembers[memberName] || { instruments: [] };
+        const currentInstruments = member.instruments || [];
         const current = currentInstruments.find((i) => i.name === instrumentName);
         if ((current?.tunings || []).includes(clean)) { addToast("Already exists.", "danger"); return; }
-        const next = setByPath(appConfig, `band.members.${memberName}.instruments`,
-            currentInstruments.map((i) => i.name !== instrumentName ? i : { ...i, tunings: (i.tunings || []).concat(clean) })
-        );
-        if (await persistConfigEdit(next)) {
+        const updated = { ...member, instruments: currentInstruments.map((i) => i.name !== instrumentName ? i : { ...i, tunings: (i.tunings || []).concat(clean) }) };
+        if (await persistMemberEdit(memberName, updated)) {
             newTuningByInstrument = { ...newTuningByInstrument, [draftKey]: "" };
             addToast(`Added "${clean}" to ${instrumentName}.`);
         }
@@ -1142,29 +1175,29 @@ export function createAppStore(repo) {
                 `"${tuning}" tuning for ${memberName}'s ${instrumentName} is used in ${usedIn.length} song${usedIn.length === 1 ? "" : "s"}: ${names}${extra}.\n\nRemoving it won't change existing songs, but the tuning won't appear as a choice for new songs.\n\nAre you sure?`
             )) return;
         }
-        const currentInstruments = appConfig.band.members?.[memberName]?.instruments || [];
-        const next = setByPath(appConfig, `band.members.${memberName}.instruments`,
-            currentInstruments.map((i) => i.name !== instrumentName ? i : {
-                ...i, tunings: (i.tunings || []).filter((t) => t !== tuning),
-                defaultTuning: i.defaultTuning === tuning ? "" : (i.defaultTuning || "")
-            })
-        );
-        if (await persistConfigEdit(next)) addToast(`Removed "${tuning}" from ${instrumentName}.`);
+        const member = bandMembers[memberName] || { instruments: [] };
+        const currentInstruments = member.instruments || [];
+        const updated = { ...member, instruments: currentInstruments.map((i) => i.name !== instrumentName ? i : {
+            ...i, tunings: (i.tunings || []).filter((t) => t !== tuning),
+            defaultTuning: i.defaultTuning === tuning ? "" : (i.defaultTuning || "")
+        }) };
+        if (await persistMemberEdit(memberName, updated)) addToast(`Removed "${tuning}" from ${instrumentName}.`);
     }
 
     async function setMemberDefaultInstrument(memberName, instrumentName) {
-        const next = setByPath(appConfig, `band.members.${memberName}.defaultInstrument`, instrumentName);
-        if (await persistConfigEdit(next)) {
+        const member = bandMembers[memberName];
+        if (!member) return;
+        const updated = { ...member, defaultInstrument: instrumentName };
+        if (await persistMemberEdit(memberName, updated)) {
             addToast(instrumentName ? `Default instrument set to "${instrumentName}".` : `Cleared default instrument.`);
         }
     }
 
     async function setInstrumentDefaultTuning(memberName, instrumentName, defaultTuning) {
-        const currentInstruments = appConfig.band.members?.[memberName]?.instruments || [];
-        const next = setByPath(appConfig, `band.members.${memberName}.instruments`,
-            currentInstruments.map((i) => i.name !== instrumentName ? i : { ...i, defaultTuning })
-        );
-        if (await persistConfigEdit(next)) {
+        const member = bandMembers[memberName] || { instruments: [] };
+        const currentInstruments = member.instruments || [];
+        const updated = { ...member, instruments: currentInstruments.map((i) => i.name !== instrumentName ? i : { ...i, defaultTuning }) };
+        if (await persistMemberEdit(memberName, updated)) {
             addToast(defaultTuning ? `Default set to "${defaultTuning}".` : `Cleared default tuning.`);
         }
     }
@@ -1178,13 +1211,12 @@ export function createAppStore(repo) {
         const clean = (newTechniqueByInstrument[draftKey] || "").trim();
         if (!clean) { addToast("Type a technique name first.", "danger"); return; }
         await ensureBandInstrument(memberName, instrumentName);
-        const currentInstruments = appConfig.band.members?.[memberName]?.instruments || [];
+        const member = bandMembers[memberName] || { instruments: [] };
+        const currentInstruments = member.instruments || [];
         const current = currentInstruments.find((i) => i.name === instrumentName);
         if ((current?.techniques || []).includes(clean)) { addToast("Already exists.", "danger"); return; }
-        const next = setByPath(appConfig, `band.members.${memberName}.instruments`,
-            currentInstruments.map((i) => i.name !== instrumentName ? i : { ...i, techniques: (i.techniques || []).concat(clean) })
-        );
-        if (await persistConfigEdit(next)) {
+        const updated = { ...member, instruments: currentInstruments.map((i) => i.name !== instrumentName ? i : { ...i, techniques: (i.techniques || []).concat(clean) }) };
+        if (await persistMemberEdit(memberName, updated)) {
             newTechniqueByInstrument = { ...newTechniqueByInstrument, [draftKey]: "" };
             addToast(`Added "${clean}" technique to ${instrumentName}.`);
         }
@@ -1200,22 +1232,20 @@ export function createAppStore(repo) {
                 `"${technique}" technique for ${memberName}'s ${instrumentName} is used in ${usedIn.length} song${usedIn.length === 1 ? "" : "s"}: ${names}${extra}.\n\nRemoving it won't change existing songs, but the technique won't appear as a choice for new songs.\n\nAre you sure?`
             )) return;
         }
-        const currentInstruments = appConfig.band.members?.[memberName]?.instruments || [];
-        const next = setByPath(appConfig, `band.members.${memberName}.instruments`,
-            currentInstruments.map((i) => i.name !== instrumentName ? i : {
-                ...i, techniques: (i.techniques || []).filter((t) => t !== technique),
-                defaultTechnique: i.defaultTechnique === technique ? "" : (i.defaultTechnique || "")
-            })
-        );
-        if (await persistConfigEdit(next)) addToast(`Removed "${technique}" technique from ${instrumentName}.`);
+        const member = bandMembers[memberName] || { instruments: [] };
+        const currentInstruments = member.instruments || [];
+        const updated = { ...member, instruments: currentInstruments.map((i) => i.name !== instrumentName ? i : {
+            ...i, techniques: (i.techniques || []).filter((t) => t !== technique),
+            defaultTechnique: i.defaultTechnique === technique ? "" : (i.defaultTechnique || "")
+        }) };
+        if (await persistMemberEdit(memberName, updated)) addToast(`Removed "${technique}" technique from ${instrumentName}.`);
     }
 
     async function setInstrumentDefaultTechnique(memberName, instrumentName, defaultTechnique) {
-        const currentInstruments = appConfig.band.members?.[memberName]?.instruments || [];
-        const next = setByPath(appConfig, `band.members.${memberName}.instruments`,
-            currentInstruments.map((i) => i.name !== instrumentName ? i : { ...i, defaultTechnique })
-        );
-        if (await persistConfigEdit(next)) {
+        const member = bandMembers[memberName] || { instruments: [] };
+        const currentInstruments = member.instruments || [];
+        const updated = { ...member, instruments: currentInstruments.map((i) => i.name !== instrumentName ? i : { ...i, defaultTechnique }) };
+        if (await persistMemberEdit(memberName, updated)) {
             addToast(defaultTechnique ? `Default technique set to "${defaultTechnique}".` : `Cleared default technique.`);
         }
     }
@@ -1253,6 +1283,7 @@ export function createAppStore(repo) {
             app: "setlist-roller", schemaVersion: 2, exportedAt: nowIso(),
             songs: songs.map(normalizeSongRecord),
             config: clone(appConfig),
+            bandMembers: clone(bandMembers),
             savedSetlists: stripEnergy(clone(currentSaved)),
             meta: {
                 bandName: appConfig?.bandName || "",
@@ -1279,22 +1310,33 @@ export function createAppStore(repo) {
 
     function normalizeImportPayload(payload) {
         if (Array.isArray(payload)) {
-            return { payloadType: "songs-array", songs: payload.map(normalizeSongRecord), config: null };
+            return { payloadType: "songs-array", songs: payload.map(normalizeSongRecord), config: null, bandMembers: null, savedSetlists: null };
         }
         if (payload && Array.isArray(payload.songs)) {
+            const config = payload.config ? normalizeAppConfig({
+                ...clone(payload.config), bandName: payload.config.bandName || appConfig?.bandName || "", updatedAt: nowIso()
+            }) : null;
+            // Handle old format: members inside config.band.members
+            let importedMembers = payload.bandMembers || null;
+            if (!importedMembers && config?.band?.members && Object.keys(config.band.members).length > 0) {
+                importedMembers = config.band.members;
+            }
+            // Run rs-migrate on config to strip members
+            const migratedConfig = config ? migrator.migrateDocument("config", config) : null;
             return {
                 payloadType: "full-export",
                 songs: payload.songs.map(normalizeSongRecord),
-                config: payload.config ? normalizeAppConfig({
-                    ...clone(payload.config), bandName: payload.config.bandName || appConfig?.bandName || "", updatedAt: nowIso()
-                }) : null,
+                config: migratedConfig,
+                bandMembers: importedMembers,
                 savedSetlists: Array.isArray(payload.savedSetlists) ? stripEnergy(payload.savedSetlists) : null,
             };
         }
         if (payload && payload.general && payload.show && payload.props) {
             return {
                 payloadType: "config-object", songs: [],
-                config: normalizeAppConfig({ ...clone(payload), bandName: payload.bandName || appConfig?.bandName || "", updatedAt: nowIso() })
+                config: normalizeAppConfig({ ...clone(payload), bandName: payload.bandName || appConfig?.bandName || "", updatedAt: nowIso() }),
+                bandMembers: null,
+                savedSetlists: null,
             };
         }
         throw new Error("Unsupported JSON format.");
@@ -1318,20 +1360,28 @@ export function createAppStore(repo) {
                 if (imported.config && (importMode === "overwrite" || !appConfig)) {
                     await repo.putConfig(imported.config);
                 }
+                // Import members
+                if (imported.bandMembers) {
+                    for (const [name, data] of Object.entries(imported.bandMembers)) {
+                        await repo.putMember(name, normalizeMemberRecord(data));
+                    }
+                }
+                // Import setlists
+                if (imported.savedSetlists && imported.savedSetlists.length > 0) {
+                    for (const entry of imported.savedSetlists.slice(0, MAX_SAVED_SETS)) {
+                        await repo.putSetlist(migrator.migrateDocument("setlists", entry));
+                    }
+                }
                 bootstrapMeta = await repo.putBootstrapMeta({
                     source: "uploaded-json", payloadType: imported.payloadType, mode: importMode,
                     fileName: importFile?.name || null, importedSongs: ws
                 });
             });
 
-            // Restore saved setlists and current setlist from full exports
-            if (imported.savedSetlists && imported.savedSetlists.length > 0) {
-                savedSetlists = imported.savedSetlists;
-                persistSavedSetlists();
-            }
             await reloadAll({ quiet: true });
             const parts = [`${ws} song${ws === 1 ? "" : "s"}`];
             if (imported.savedSetlists?.length) parts.push(`${imported.savedSetlists.length} saved setlist${imported.savedSetlists.length === 1 ? "" : "s"}`);
+            if (imported.bandMembers) parts.push(`${Object.keys(imported.bandMembers).length} member${Object.keys(imported.bandMembers).length === 1 ? "" : "s"}`);
             addToast(`Imported ${parts.join(", ")}.`);
         } catch (error) {
             addToast(error?.message || "Import failed.", "danger");
@@ -1354,6 +1404,54 @@ export function createAppStore(repo) {
         }).join(" | ");
     }
 
+    // ---- migrations ----
+    async function runMigrations() {
+        let needsReload = false;
+
+        // Migrate config: read raw config to check for band.members before normalization strips them
+        const rawConfig = await repo.getRawConfig();
+        if (rawConfig?.band?.members && Object.keys(rawConfig.band.members).length > 0) {
+            // Extract members from old config and write as individual files
+            if (Object.keys(bandMembers).length === 0) {
+                for (const [name, data] of Object.entries(rawConfig.band.members)) {
+                    await repo.putMember(name, normalizeMemberRecord(data));
+                }
+            }
+            // Run rs-migrate on the raw config to strip band.members, then save
+            const migratedConfig = migrator.migrateDocument("config", rawConfig);
+            if (migratedConfig !== rawConfig) {
+                await repo.putConfig(migratedConfig);
+            }
+            needsReload = true;
+        }
+
+        // Migrate localStorage setlists to remoteStorage
+        if (typeof localStorage !== "undefined") {
+            const localKey = storageKey("saved-sets");
+            const raw = localStorage.getItem(localKey);
+            if (raw) {
+                const localSets = stripEnergy(tryParseJson(raw, []) || []);
+                if (localSets.length > 0) {
+                    // Normalize via rs-migrate before uploading
+                    const remoteIds = new Set(savedSetlists.map((s) => s.id));
+                    const toMigrate = localSets
+                        .filter((s) => !remoteIds.has(s.id))
+                        .slice(0, MAX_SAVED_SETS - savedSetlists.length);
+                    for (const entry of toMigrate) {
+                        const normalized = migrator.migrateDocument("setlists", entry);
+                        await repo.putSetlist(normalized);
+                    }
+                    if (toMigrate.length > 0) needsReload = true;
+                }
+                localStorage.removeItem(localKey);
+            }
+        }
+
+        if (needsReload) {
+            await reloadAll({ quiet: true });
+        }
+    }
+
     // ---- init ----
     function init() {
         syncRouteFromHash();
@@ -1365,6 +1463,7 @@ export function createAppStore(repo) {
             currentUserAddress = connectAddress;
             loadUserLocalData();
             await reloadAll();
+            await runMigrations();
         });
 
         repo.on("disconnected", () => {
@@ -1380,6 +1479,7 @@ export function createAppStore(repo) {
             setlistLocked = false;
             setlistSaved = false;
             savedSetlists = [];
+            bandMembers = {};
             showFirstRunPrompt = false;
             selectedSongId = "";
             editorSong = null;
@@ -1413,6 +1513,7 @@ export function createAppStore(repo) {
 
 
         get appConfig() { return appConfig; },
+        get bandMembers() { return bandMembers; },
         get generatedSetlist() { return generatedSetlist; },
         get isGenerating() { return isGenerating; },
         get setlistLocked() { return setlistLocked; },

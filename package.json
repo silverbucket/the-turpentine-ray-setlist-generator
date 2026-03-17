@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "remotestoragejs": "^2.0.0-beta.8",
+    "rs-migrate": "^1.0.0",
     "svelte": "^5.28.2"
   },
   "devDependencies": {

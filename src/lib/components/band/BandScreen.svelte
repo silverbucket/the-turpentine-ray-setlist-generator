@@ -447,6 +447,12 @@
                 <p class="empty-sub">Not connected.</p>
             {/if}
         </div>
+
+        <footer class="app-footer">
+            <span class="app-footer-name">Setlist Roller v{__APP_VERSION__}</span>
+            <span class="app-footer-copy">&copy; Nick Jennings</span>
+            <a class="app-footer-link" href="https://github.com/silverbucket/setlist-roller" target="_blank" rel="noopener">GitHub</a>
+        </footer>
     {/if}
 </div>
 
@@ -1038,5 +1044,30 @@
         color: var(--muted, #617086);
         margin: 0;
         font-size: 0.88rem;
+    }
+
+    /* App footer */
+    .app-footer {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.2rem;
+        padding: 1.5rem 0 0.5rem;
+        font-size: 0.72rem;
+        color: var(--muted, #617086);
+    }
+
+    .app-footer-name {
+        font-weight: 700;
+    }
+
+    .app-footer-link {
+        color: var(--accent, #e15b37);
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .app-footer-link:hover {
+        text-decoration: underline;
     }
 </style>

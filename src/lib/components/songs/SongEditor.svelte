@@ -64,7 +64,7 @@
 
     function availableTechniques(memberName, option) {
         const instrumentName = option?.name || "";
-        const memberConfig = store.appConfig?.band?.members?.[memberName];
+        const memberConfig = store.bandMembers?.[memberName];
         const instConfig = (memberConfig?.instruments || []).find((i) => i.name === instrumentName);
         return instConfig?.techniques || [];
     }
@@ -109,19 +109,19 @@
     }
 
     function hasDefaultTechnique(memberName, instrumentName) {
-        const memberConfig = store.appConfig?.band?.members?.[memberName];
+        const memberConfig = store.bandMembers?.[memberName];
         const instConfig = (memberConfig?.instruments || []).find((i) => i.name === instrumentName);
         return !!(instConfig?.defaultTechnique);
     }
 
     function hasTechniques(memberName, instrumentName) {
-        const memberConfig = store.appConfig?.band?.members?.[memberName];
+        const memberConfig = store.bandMembers?.[memberName];
         const instConfig = (memberConfig?.instruments || []).find((i) => i.name === instrumentName);
         return (instConfig?.techniques || []).length > 0;
     }
 
     function hasDefaultTuning(memberName, instrumentName) {
-        const memberConfig = store.appConfig?.band?.members?.[memberName];
+        const memberConfig = store.bandMembers?.[memberName];
         const instConfig = (memberConfig?.instruments || []).find((i) => i.name === instrumentName);
         return !!(instConfig?.defaultTuning);
     }
@@ -163,7 +163,7 @@
         if (instruments.length === 0) return null; // no setups = member just listed, that's fine
         for (const inst of instruments) {
             if (!inst.name) return "Pick or type an instrument name";
-            const bandMembers = store.appConfig?.band?.members || {};
+            const bandMembers = store.bandMembers || {};
             const bandMember = bandMembers[memberName];
             if (bandMember) {
                 const bandInst = (bandMember.instruments || []).find((i) => i.name === inst.name);
