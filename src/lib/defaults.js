@@ -105,29 +105,17 @@ function normalizeCatalogConfig(seedConfig = {}) {
 function normalizeBandMembers(seedMembers = {}) {
     return Object.entries(seedMembers || {}).reduce((result, [memberName, memberConfig]) => {
         const instruments = Array.isArray(memberConfig?.instruments)
-            ? memberConfig.instruments.map((instrument) => {
-                if (typeof instrument === "string") {
-                    return {
-                        name: instrument,
-                        tunings: [],
-                        defaultTuning: "",
-                        techniques: [],
-                        defaultTechnique: ""
-                    };
-                }
-
-                return {
-                    name: instrument?.name || instrument?.instrument || "",
-                    tunings: Array.isArray(instrument?.tunings)
-                        ? instrument.tunings.filter(Boolean)
-                        : [],
-                    defaultTuning: instrument?.defaultTuning || "",
-                    techniques: Array.isArray(instrument?.techniques)
-                        ? instrument.techniques.filter(Boolean)
-                        : [],
-                    defaultTechnique: instrument?.defaultTechnique || ""
-                };
-            }).filter((instrument) => instrument.name)
+            ? memberConfig.instruments.map((instrument) => ({
+                name: instrument?.name || "",
+                tunings: Array.isArray(instrument?.tunings)
+                    ? instrument.tunings.filter(Boolean)
+                    : [],
+                defaultTuning: instrument?.defaultTuning || "",
+                techniques: Array.isArray(instrument?.techniques)
+                    ? instrument.techniques.filter(Boolean)
+                    : [],
+                defaultTechnique: instrument?.defaultTechnique || ""
+            })).filter((instrument) => instrument.name)
             : [];
 
         result[memberName] = {
@@ -191,22 +179,8 @@ export function normalizeSongRecord(song) {
         schemaVersion: song.schemaVersion || SCHEMA_VERSION,
         createdAt: song.createdAt || timestamp,
         updatedAt: song.updatedAt || timestamp,
-        members: migrateSongMembers(song.members || {})
+        members: song.members || {}
     };
-}
-
-function migrateSongMembers(members) {
-    const result = clone(members);
-    Object.values(result).forEach((memberSetup) => {
-        (memberSetup.instruments || []).forEach((inst) => {
-            if (typeof inst.picking === "boolean" || typeof inst.picking === "string") {
-                inst.picking = [];
-            } else if (!Array.isArray(inst.picking)) {
-                inst.picking = [];
-            }
-        });
-    });
-    return result;
 }
 
 
@@ -218,25 +192,6 @@ export function normalizeAppConfig(config) {
     const timestamp = config.createdAt || nowIso();
     const bandMembers = normalizeBandMembers(config.band?.members || {});
     const catalog = normalizeCatalogConfig(config);
-
-    // Strip deprecated "energy" rules from order constraints
-    const order = config.general?.order;
-    if (order) {
-        for (const slot of Object.keys(order)) {
-            if (Array.isArray(order[slot])) {
-                order[slot] = order[slot].filter(([name]) => name !== "energy");
-            }
-        }
-    }
-
-    // Strip deprecated energy-related weighting keys
-    const weighting = config.general?.weighting;
-    if (weighting) {
-        delete weighting.energyTarget;
-        delete weighting.repeatEnergy;
-        delete weighting.energyStreak;
-        delete weighting.bigEnergyJump;
-    }
 
     return deepMerge(createDefaultAppConfig({ bandName: config.bandName || "" }), {
         ...clone(config),

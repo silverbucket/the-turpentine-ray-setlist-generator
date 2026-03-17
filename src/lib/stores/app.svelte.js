@@ -31,6 +31,8 @@ export function createAppStore(repo) {
     let bootstrapMeta = $state(null);
     let generatedSetlist = $state(null);
     let isGenerating = $state(false);
+    let activeWorker = null;
+    let generationId = 0;
     let setlistLocked = $state(false);
     let setlistSaved = $state(false);
     let pendingRollConfirm = $state(false);
@@ -461,6 +463,13 @@ export function createAppStore(repo) {
         pendingRollConfirm = false;
     }
 
+    function terminateWorker() {
+        if (activeWorker) {
+            activeWorker.terminate();
+            activeWorker = null;
+        }
+    }
+
     function generate() {
         if (isGenerating) return;
         if (!songs.length) {
@@ -474,10 +483,13 @@ export function createAppStore(repo) {
             return;
         }
 
+        terminateWorker();
         isGenerating = true;
+        const thisGenId = ++generationId;
         const optionsList = [clone(generationOptions)];
 
         const worker = new GeneratorWorker();
+        activeWorker = worker;
         worker.postMessage({
             songs: clone(eligibleSongs),
             config: clone(appConfig || DEFAULT_APP_CONFIG),
@@ -487,6 +499,12 @@ export function createAppStore(repo) {
             const { type, result } = event.data;
             if (type !== "done") return;
             worker.terminate();
+            if (worker === activeWorker) activeWorker = null;
+            // Ignore stale results from a previous generation or disconnected session
+            if (thisGenId !== generationId || !currentUserAddress) {
+                isGenerating = false;
+                return;
+            }
             isGenerating = false;
             if (!result) {
                 addToast(randomFrom([
@@ -514,6 +532,7 @@ export function createAppStore(repo) {
         };
         worker.onerror = (err) => {
             worker.terminate();
+            if (worker === activeWorker) activeWorker = null;
             isGenerating = false;
             addToast(randomFrom([
                 "The generator tripped over a cable.",
@@ -1279,6 +1298,8 @@ export function createAppStore(repo) {
 
         repo.on("disconnected", () => {
             connectionStatus = "disconnected";
+            terminateWorker();
+            isGenerating = false;
             clearUserLocalStorage();
             clearUnscopedLocalStorage();
             currentUserAddress = "";
