@@ -41,7 +41,8 @@ export function createAppStore(repo) {
     let bandMembers = $state({});
 
     // ---- connection ----
-    let connectionStatus = $state("disconnected");
+    let connectionStatus = $state("pending");
+    console.log("[SR] store init — connectionStatus:", connectionStatus);
     let connectAddress = $state("");
 
     // ---- ui ----
@@ -50,6 +51,7 @@ export function createAppStore(repo) {
     let busyMessage = $state("");
     let toastMessages = $state([]);
     let showFirstRunPrompt = $state(false);
+    let initialSyncComplete = $state(false);
     let firstRunBandName = $state("");
 
     // ---- sync ----
@@ -387,6 +389,7 @@ export function createAppStore(repo) {
             addToast(loadError, "danger");
         } finally {
             busyMessage = "";
+            initialSyncComplete = true;
         }
     }
 
@@ -579,14 +582,22 @@ export function createAppStore(repo) {
         const currentSaved = savedSetlists || [];
         const songNames = generatedSetlist.songs.map(s => s.name || s.title || "?");
         const funNames = [
-            "The Unhinged Encore", "Chaos Theory Vol. " + (currentSaved.length + 1),
+            "The Unhinged Encore", "Chaos Theory",
             "No Refunds", "The One That Slaps", "Certified Banger",
             "Tuesday Night Special", "Blame the Dice", "Accidentally Perfect",
-            "The Hot Mess Express", "Trust the Process"
+            "The Hot Mess Express", "Trust the Process", "Vibe Check",
+            "Sound & Fury", "The Audacity", "Full Send",
+            "Controlled Chaos", "Plot Twist", "The Good Stuff",
+            "Questionable Choices", "Send It", "No Notes",
         ];
+        // Pick a random name, avoid recently used names
+        const usedNames = new Set(currentSaved.slice(0, 5).map(s => s.name));
+        const available = funNames.filter(n => !usedNames.has(n));
+        const pool = available.length > 0 ? available : funNames;
+        const randomName = pool[Math.floor(Math.random() * pool.length)];
         const entry = {
             id: uid("set"),
-            name: funNames[currentSaved.length % funNames.length],
+            name: randomName,
             savedAt: nowIso(),
             summary: clone(generatedSetlist.summary),
             songs: clone(generatedSetlist.songs),
@@ -1468,15 +1479,28 @@ export function createAppStore(repo) {
 
     // ---- init ----
     function init() {
+        console.log("[SR] init() called — connectionStatus:", connectionStatus);
         syncRouteFromHash();
         window.addEventListener("hashchange", syncRouteFromHash);
 
+        // If RS doesn't fire "connected" quickly, we're not auto-reconnecting — show login
+        const pendingTimer = setTimeout(() => {
+            if (connectionStatus === "pending") {
+                console.log("[SR] pending timeout — showing login");
+                connectionStatus = "disconnected";
+            }
+        }, 800);
+
         repo.on("connected", async () => {
+            console.log("[SR] event: connected");
+            clearTimeout(pendingTimer);
             connectionStatus = "connected";
             connectAddress = repo.getUserAddress() || connectAddress;
             currentUserAddress = connectAddress;
             loadUserLocalData();
+            console.log("[SR] starting reloadAll...");
             await reloadAll();
+            console.log("[SR] reloadAll done — initialSyncComplete:", initialSyncComplete);
             try {
                 await runMigrations();
             } catch (err) {
@@ -1486,6 +1510,7 @@ export function createAppStore(repo) {
         });
 
         repo.on("disconnected", () => {
+            console.log("[SR] event: disconnected");
             connectionStatus = "disconnected";
             terminateWorker();
             isGenerating = false;
@@ -1500,11 +1525,13 @@ export function createAppStore(repo) {
             savedSetlists = [];
             bandMembers = {};
             showFirstRunPrompt = false;
+            initialSyncComplete = false;
             selectedSongId = "";
             editorSong = null;
         });
 
         repo.on("error", (error) => {
+            console.log("[SR] event: error", error);
             loadError = error?.message || "remoteStorage error.";
             addToast(loadError, "danger");
             // Fully disconnect so the RS instance resets its auth state,
@@ -1513,6 +1540,7 @@ export function createAppStore(repo) {
         });
 
         repo.onChange(async (event) => {
+            console.log("[SR] event: change — origin:", event?.origin, "connectionStatus:", connectionStatus);
             if (connectionStatus === "connected" && event?.origin !== "window") {
                 beginSync(event?.origin === "remote" ? "Pulling remote changes" : "Syncing");
                 try { await reloadAll({ quiet: true }); }
@@ -1547,6 +1575,7 @@ export function createAppStore(repo) {
         get busyMessage() { return busyMessage; },
         get toastMessages() { return toastMessages; },
         get showFirstRunPrompt() { return showFirstRunPrompt; },
+        get initialSyncComplete() { return initialSyncComplete; },
         get firstRunBandName() { return firstRunBandName; },
         set firstRunBandName(v) { firstRunBandName = v; },
         get syncIndicatorVisible() { return syncIndicatorVisible; },

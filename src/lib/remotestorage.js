@@ -82,6 +82,13 @@ export function createRemoteStorageRepository() {
             return remoteStorage.connected;
         },
 
+        hasStoredCredentials() {
+            const token = remoteStorage.remote?.token;
+            const connected = remoteStorage.connected;
+            console.log("[SR] hasStoredCredentials — token:", !!token, "connected:", connected, "remote:", remoteStorage.remote);
+            return !!token || connected;
+        },
+
         getUserAddress() {
             return remoteStorage.remote?.userAddress || "";
         },
