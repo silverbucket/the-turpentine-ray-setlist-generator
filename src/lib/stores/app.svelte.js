@@ -42,7 +42,6 @@ export function createAppStore(repo) {
 
     // ---- connection ----
     let connectionStatus = $state("pending");
-    console.log("[SR] store init — connectionStatus:", connectionStatus);
     let connectAddress = $state("");
 
     // ---- ui ----
@@ -1479,28 +1478,23 @@ export function createAppStore(repo) {
 
     // ---- init ----
     function init() {
-        console.log("[SR] init() called — connectionStatus:", connectionStatus);
         syncRouteFromHash();
         window.addEventListener("hashchange", syncRouteFromHash);
 
         // If RS doesn't fire "connected" quickly, we're not auto-reconnecting — show login
         const pendingTimer = setTimeout(() => {
             if (connectionStatus === "pending") {
-                console.log("[SR] pending timeout — showing login");
                 connectionStatus = "disconnected";
             }
         }, 800);
 
         repo.on("connected", async () => {
-            console.log("[SR] event: connected");
             clearTimeout(pendingTimer);
             connectionStatus = "connected";
             connectAddress = repo.getUserAddress() || connectAddress;
             currentUserAddress = connectAddress;
             loadUserLocalData();
-            console.log("[SR] starting reloadAll...");
             await reloadAll();
-            console.log("[SR] reloadAll done — initialSyncComplete:", initialSyncComplete);
             try {
                 await runMigrations();
             } catch (err) {
@@ -1510,7 +1504,6 @@ export function createAppStore(repo) {
         });
 
         repo.on("disconnected", () => {
-            console.log("[SR] event: disconnected");
             connectionStatus = "disconnected";
             terminateWorker();
             isGenerating = false;
@@ -1531,7 +1524,6 @@ export function createAppStore(repo) {
         });
 
         repo.on("error", (error) => {
-            console.log("[SR] event: error", error);
             loadError = error?.message || "remoteStorage error.";
             addToast(loadError, "danger");
             // Fully disconnect so the RS instance resets its auth state,
@@ -1540,7 +1532,6 @@ export function createAppStore(repo) {
         });
 
         repo.onChange(async (event) => {
-            console.log("[SR] event: change — origin:", event?.origin, "connectionStatus:", connectionStatus);
             if (connectionStatus === "connected" && event?.origin !== "window") {
                 beginSync(event?.origin === "remote" ? "Pulling remote changes" : "Syncing");
                 try { await reloadAll({ quiet: true }); }
@@ -1550,6 +1541,7 @@ export function createAppStore(repo) {
 
         return () => {
             window.removeEventListener("hashchange", syncRouteFromHash);
+            clearTimeout(pendingTimer);
             if (syncIndicatorTimer) clearTimeout(syncIndicatorTimer);
         };
     }

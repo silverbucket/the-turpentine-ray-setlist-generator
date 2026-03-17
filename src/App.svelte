@@ -16,12 +16,7 @@
     setContext("app", store);
 
     onMount(() => {
-        console.log("[SR] App onMount — connectionStatus:", store.connectionStatus, "initialSyncComplete:", store.initialSyncComplete);
         return store.init();
-    });
-
-    $effect(() => {
-        console.log("[SR] App render branch — connectionStatus:", store.connectionStatus, "initialSyncComplete:", store.initialSyncComplete);
     });
 </script>
 
