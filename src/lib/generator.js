@@ -216,11 +216,17 @@ class SetList {
         this._rng = createRng(this._seed);
         this._randomness = merge(DEFAULT_RANDOMNESS, this._config.general?.randomness || {});
         this._randomness = merge(this._randomness, this._options.randomness || {});
-        this._catalog = this._songs.all().filter((song) => {
-            return this._songs.expandVariants(song, this._show).length > 0;
-        });
+        if (this._options.fixedSongIds) {
+            const idSet = new Set(this._options.fixedSongIds);
+            this._catalog = this._songs.all().filter(s => idSet.has(s.id));
+            this._count = this._catalog.length;
+        } else {
+            this._catalog = this._songs.all().filter((song) => {
+                return this._songs.expandVariants(song, this._show).length > 0;
+            });
+            this._count = Math.min(this._options.count, this._catalog.length);
+        }
         this._songBiasById = this._buildSongBiases(this._catalog);
-        this._count = Math.min(this._options.count, this._catalog.length);
         this._minConstraints = this._buildMinConstraints();
         this._list = [];
         this._summary = {
@@ -1114,4 +1120,11 @@ export function scoreFixedOrder(fixedSongs, config) {
             anxiety
         }
     };
+}
+
+export function buildDefaultPerformance(song, showConstraints = {}) {
+    const catalog = new SongsCatalog([song]);
+    const variants = catalog.expandVariants(song, showConstraints);
+    if (!variants.length) return {};
+    return variants[0].performance || {};
 }

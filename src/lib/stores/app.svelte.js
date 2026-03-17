@@ -1,6 +1,6 @@
 import { DEFAULT_APP_CONFIG, blankSong, normalizeAppConfig, normalizeSongRecord } from "../defaults.js";
 import { CONFIG_SECTIONS } from "../config-meta.js";
-import { scoreFixedOrder } from "../generator.js";
+import { scoreFixedOrder, buildDefaultPerformance } from "../generator.js";
 import { clone, deepMerge, formatDelimitedList, getByPath, nowIso, parseDelimitedList, setByPath, titleForBand, tryParseJson, uid } from "../utils.js";
 import GeneratorWorker from "../generator.worker.js?worker";
 
@@ -453,10 +453,25 @@ export function createAppStore(repo) {
         generate();
     }
 
-    function confirmRoll() {
+    function confirmFreshRoll() {
         pendingRollConfirm = false;
         setlistLocked = false;
         generate();
+    }
+
+    function confirmOptimizeOrder() {
+        if (!generatedSetlist) return;
+        pendingRollConfirm = false;
+        const currentSongs = generatedSetlist.songs;
+        const currentCovers = currentSongs.filter(s => s.cover).length;
+        const currentInstrumentals = currentSongs.filter(s => s.instrumental).length;
+        generate({
+            fixedSongIds: currentSongs.map(s => s.id),
+            count: currentSongs.length,
+            maxCovers: Math.max(currentCovers, generationOptions.maxCovers),
+            maxInstrumentals: Math.max(currentInstrumentals, generationOptions.maxInstrumentals),
+            _keepLock: true,
+        });
     }
 
     function cancelRoll() {
@@ -470,7 +485,7 @@ export function createAppStore(repo) {
         }
     }
 
-    function generate() {
+    function generate(overrideOptions = {}) {
         if (isGenerating) return;
         if (!songs.length) {
             addToast("Can't roll with no songs! Add a few first.", "danger");
@@ -486,7 +501,9 @@ export function createAppStore(repo) {
         terminateWorker();
         isGenerating = true;
         const thisGenId = ++generationId;
-        const optionsList = [clone(generationOptions)];
+        const opts = clone(generationOptions);
+        Object.assign(opts, overrideOptions);
+        const optionsList = [opts];
 
         const worker = new GeneratorWorker();
         activeWorker = worker;
@@ -515,8 +532,12 @@ export function createAppStore(repo) {
                 return;
             }
             generatedSetlist = result;
-            setlistLocked = false;
-            setlistSaved = false;
+            if (opts._keepLock) {
+                setlistSaved = false;
+            } else {
+                setlistLocked = false;
+                setlistSaved = false;
+            }
             persistCurrentSetlist();
             if (!validateConstraintMinimums(result)) {
                 addToast("Close enough! Some constraints bent but didn't break.", "warning");
@@ -611,6 +632,56 @@ export function createAppStore(repo) {
         generatedSetlist = { ...generatedSetlist, songs: rescored.songs, summary: rescored.summary, _reordered: true };
         persistCurrentSetlist();
     }
+
+    function removeSetlistSong(index) {
+        if (!generatedSetlist) return;
+        const songList = clone(generatedSetlist.songs);
+        songList.splice(index, 1);
+        if (!songList.length) {
+            generatedSetlist = null;
+            setlistLocked = false;
+            setlistSaved = false;
+            persistCurrentSetlist();
+            return;
+        }
+        const rescored = scoreFixedOrder(songList, appConfig);
+        generatedSetlist = { ...generatedSetlist, songs: rescored.songs, summary: rescored.summary };
+        setlistSaved = false;
+        persistCurrentSetlist();
+    }
+
+    function addSetlistSong(songId) {
+        if (!generatedSetlist) return;
+        if (generatedSetlist.songs.some((s) => s.id === songId)) return;
+        const song = songs.find((s) => s.id === songId);
+        if (!song) return;
+        const performance = buildDefaultPerformance(song, generationOptions?.show || {});
+        const songList = clone(generatedSetlist.songs);
+        songList.push({
+            id: song.id,
+            name: song.name,
+            cover: song.cover || false,
+            instrumental: song.instrumental || false,
+            key: song.key || "",
+            performance,
+            position: songList.length + 1,
+            incrementalScore: 0,
+            cumulativeScore: 0,
+            transitionNotes: [],
+            positionNotes: [],
+            contextNotes: [],
+        });
+        const rescored = scoreFixedOrder(songList, appConfig);
+        generatedSetlist = { ...generatedSetlist, songs: rescored.songs, summary: rescored.summary };
+        setlistSaved = false;
+        persistCurrentSetlist();
+    }
+
+    let songsNotInSetlist = $derived.by(() => {
+        if (!generatedSetlist?.songs) return songs.filter((s) => !s.unpracticed);
+        const usedIds = new Set(generatedSetlist.songs.map((s) => s.id));
+        return songs.filter((s) => !s.unpracticed && !usedIds.has(s.id));
+    });
 
     // ---- generation options ----
     function updateGenerationField(path, value) {
@@ -1315,9 +1386,11 @@ export function createAppStore(repo) {
         });
 
         repo.on("error", (error) => {
-            connectionStatus = "disconnected";
             loadError = error?.message || "remoteStorage error.";
             addToast(loadError, "danger");
+            // Fully disconnect so the RS instance resets its auth state,
+            // allowing the user to reconnect from the login screen.
+            repo.disconnect();
         });
 
         repo.onChange(async (event) => {
@@ -1410,7 +1483,8 @@ export function createAppStore(repo) {
         disconnectStorage,
         finishFirstRun,
         requestRoll,
-        confirmRoll,
+        confirmFreshRoll,
+        confirmOptimizeOrder,
         cancelRoll,
         lockSetlist,
         saveCurrentSetlist,
@@ -1418,6 +1492,9 @@ export function createAppStore(repo) {
         updateSavedSetlist,
         loadSavedSetlist,
         reorderSetlistSong,
+        removeSetlistSong,
+        addSetlistSong,
+        get songsNotInSetlist() { return songsNotInSetlist; },
         updateGenerationField,
         toggleListValue,
         ensureMemberShowConfig,

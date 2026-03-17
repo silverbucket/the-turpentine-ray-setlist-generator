@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateSetlist, scoreFixedOrder } from "./generator.js";
+import { generateSetlist, scoreFixedOrder, buildDefaultPerformance } from "./generator.js";
 
 
 // ---------------------------------------------------------------------------
@@ -707,5 +707,80 @@ describe("generateSetlist — edge cases", () => {
         ];
         const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 3 }));
         expect(result.songs).toHaveLength(3);
+    });
+});
+
+
+// ---------------------------------------------------------------------------
+// fixedSongIds
+// ---------------------------------------------------------------------------
+
+describe("generateSetlist — fixedSongIds", () => {
+    const catalog = Array.from({ length: 10 }, (_, i) => makeSong(`Song ${i + 1}`));
+
+    it("restricts output to exactly the fixed song IDs", () => {
+        const fixedIds = ["song-2", "song-5", "song-7"];
+        const result = generateSetlist(catalog, makeConfig(), deterministicOptions({
+            count: 3,
+            fixedSongIds: fixedIds,
+        }));
+        expect(result.songs).toHaveLength(3);
+        const resultIds = result.songs.map(s => s.id).sort();
+        expect(resultIds).toEqual([...fixedIds].sort());
+    });
+
+    it("ignores count option and uses all fixed songs", () => {
+        const fixedIds = ["song-1", "song-3", "song-4", "song-6"];
+        const result = generateSetlist(catalog, makeConfig(), deterministicOptions({
+            count: 2,
+            fixedSongIds: fixedIds,
+        }));
+        expect(result.songs).toHaveLength(4);
+    });
+
+    it("includes songs that would be filtered without fixedSongIds", () => {
+        // Without fixedSongIds, song-8 through song-10 would be in the pool.
+        // With fixedSongIds, only the specified subset is used.
+        const fixedIds = ["song-1", "song-2"];
+        const result = generateSetlist(catalog, makeConfig(), deterministicOptions({
+            count: 10,
+            fixedSongIds: fixedIds,
+        }));
+        expect(result.songs).toHaveLength(2);
+        const resultIds = result.songs.map(s => s.id).sort();
+        expect(resultIds).toEqual([...fixedIds].sort());
+    });
+});
+
+
+// ---------------------------------------------------------------------------
+// buildDefaultPerformance
+// ---------------------------------------------------------------------------
+
+describe("buildDefaultPerformance", () => {
+    it("returns performance for a song with members", () => {
+        const song = makeSong("Tune", {
+            members: {
+                nick: { instruments: [{ name: "guitar", tuning: ["Standard"], capo: 0, picking: ["pick"] }] }
+            }
+        });
+        const perf = buildDefaultPerformance(song);
+        expect(perf).toHaveProperty("nick");
+        expect(perf.nick.instrument).toBe("guitar");
+        expect(perf.nick.tuning).toBe("Standard");
+    });
+
+    it("returns empty object for song with no members", () => {
+        const song = makeSong("Simple");
+        const perf = buildDefaultPerformance(song);
+        expect(perf).toEqual({});
+    });
+
+    it("returns empty object when show constraints filter all instruments", () => {
+        const song = makeSong("Filtered", {
+            members: { nick: { instruments: [{ name: "banjo", tuning: ["Open G"], capo: 0, picking: [] }] } }
+        });
+        const perf = buildDefaultPerformance(song, { members: { nick: { allowedInstruments: ["guitar"] } } });
+        expect(perf).toEqual({});
     });
 });
