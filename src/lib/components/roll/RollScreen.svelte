@@ -3,6 +3,7 @@
   import NumberStepper from "../shared/NumberStepper.svelte";
   import ChipToggle from "../shared/ChipToggle.svelte";
   import SetlistSongCard from "./SetlistSongCard.svelte";
+  import { anxietyLabel } from "../../anxiety.js";
 
   const store = getContext("app");
 
@@ -84,27 +85,11 @@
 
   let settingsTab = $state("constraints");
   let hasConstraints = $derived(membersWithChoices().length > 0);
-  // anxietyLevel: read from generator's pre-computed summary (avoids Svelte proxy issues)
+  // anxietyLevel: pre-computed by the generator, label from anxiety lib
   let anxietyLevel = $derived.by(() => {
-    const setlist = store.generatedSetlist;
-    if (!setlist?.summary?.anxiety) return { scaled: 0, label: "" };
-
-    const { scaled, rawChanges, transitionsDisrupted, totalTransitions } = setlist.summary.anxiety;
-    const spreadNote = transitionsDisrupted > 0 ? ` across ${transitionsDisrupted} of ${totalTransitions} transitions` : "";
-    let label;
-    if (rawChanges === 0) {
-      label = "Bass player is relaxed for once. Zero gear changes — smooth sailing.";
-    } else if (scaled <= 2) {
-      label = `${rawChanges} gear change${rawChanges === 1 ? "" : "s"}${spreadNote}. Bass player barely notices.`;
-    } else if (scaled <= 5) {
-      label = `${rawChanges} gear changes${spreadNote}. Bass player is rehearsing crowd work.`;
-    } else if (scaled <= 7) {
-      label = `${rawChanges} gear changes${spreadNote}. Bass player is visibly sweating.`;
-    } else {
-      label = `${rawChanges} gear changes${spreadNote}. Bass player is writing a stand-up set to fill all the dead air.`;
-    }
-
-    return { scaled, label };
+    const anxiety = store.generatedSetlist?.summary?.anxiety;
+    if (!anxiety) return { scaled: 0, label: "" };
+    return { scaled: anxiety.scaled, label: anxietyLabel(anxiety) };
   });
   let settingsEl = $state(null);
 

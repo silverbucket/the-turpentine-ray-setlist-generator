@@ -1,4 +1,5 @@
 import { deepMerge, toArray } from "./utils.js";
+import { computeAnxiety } from "./anxiety.js";
 
 function clampInteger(value, fallback, minimum) {
     const parsed = Number.parseInt(value, 10);
@@ -576,54 +577,7 @@ class SetList {
             };
         });
 
-        // Compute anxiety: weighted gear changes with spread factor
-        const songCount = finalizedItems.length;
-        const totalTransitions = Math.max(1, songCount - 1);
-        let totalWeighted = 0;
-        let totalRawChanges = 0;
-        let transitionsWithChanges = 0;
-
-        for (let idx = 1; idx < finalizedItems.length; idx++) {
-            const song = finalizedItems[idx];
-            const changes = song.propChanges || {};
-            let hasChange = false;
-
-            for (const propName of this._propNames) {
-                const change = changes[propName];
-                if (!change || !change.changed) continue;
-                const w = this._getPropWeight(propName);
-                totalWeighted += change.magnitude * w;
-                totalRawChanges += change.magnitude;
-                hasChange = true;
-            }
-            if (hasChange) transitionsWithChanges++;
-        }
-
-        // Spread factor: scattered changes (more disrupted transitions) = more anxiety
-        const spreadRatio = transitionsWithChanges / totalTransitions;
-        const adjustedWeighted = totalWeighted * (0.5 + spreadRatio * 0.5);
-
-        // Dynamic scale based on this band's weights
-        let avgWeight = 0;
-        if (this._propNames.length > 0) {
-            let sumW = 0;
-            for (const propName of this._propNames) {
-                sumW += this._getPropWeight(propName);
-            }
-            avgWeight = sumW / this._propNames.length;
-        }
-        const mediumBaseline = totalTransitions * 0.3 * avgWeight;
-        const maxBaseline = totalTransitions * avgWeight * 2;
-
-        let anxietyScaled;
-        if (maxBaseline <= 0) {
-            anxietyScaled = 0;
-        } else if (adjustedWeighted <= mediumBaseline) {
-            anxietyScaled = Math.round((adjustedWeighted / mediumBaseline) * 5);
-        } else {
-            anxietyScaled = 5 + Math.round(((adjustedWeighted - mediumBaseline) / (maxBaseline - mediumBaseline)) * 5);
-        }
-        anxietyScaled = Math.max(0, Math.min(10, anxietyScaled));
+        const anxiety = computeAnxiety(finalizedItems, this._config);
 
         return {
             items: finalizedItems,
@@ -632,13 +586,7 @@ class SetList {
                 covers: state.coverCount,
                 instrumentals: state.instrumentalCount,
                 changes: state.changeTotals,
-                anxiety: {
-                    scaled: anxietyScaled,
-                    rawChanges: totalRawChanges,
-                    weightedScore: Math.round(adjustedWeighted * 10) / 10,
-                    transitionsDisrupted: transitionsWithChanges,
-                    totalTransitions
-                }
+                anxiety
             }
         };
     }
@@ -1223,46 +1171,7 @@ export function scoreFixedOrder(fixedSongs, config) {
         });
     });
 
-    // Compute anxiety for reordered setlist
-    const totalTransitions = Math.max(1, count - 1);
-    let totalWeighted = 0;
-    let totalRawChanges = 0;
-    let transitionsWithChanges = 0;
-
-    for (let idx = 1; idx < items.length; idx++) {
-        const changes = items[idx].propChanges || {};
-        let hasChange = false;
-        for (const pn of propNames) {
-            const change = changes[pn];
-            if (!change || !change.changed) continue;
-            totalWeighted += change.magnitude * getPropWeight(pn);
-            totalRawChanges += change.magnitude;
-            hasChange = true;
-        }
-        if (hasChange) transitionsWithChanges++;
-    }
-
-    const spreadRatio = transitionsWithChanges / totalTransitions;
-    const adjustedWeighted = totalWeighted * (0.5 + spreadRatio * 0.5);
-
-    let avgWeight = 0;
-    if (propNames.length > 0) {
-        let sumW = 0;
-        for (const pn of propNames) sumW += getPropWeight(pn);
-        avgWeight = sumW / propNames.length;
-    }
-    const mediumBaseline = totalTransitions * 0.3 * avgWeight;
-    const maxBaseline = totalTransitions * avgWeight * 2;
-
-    let anxietyScaled;
-    if (maxBaseline <= 0) {
-        anxietyScaled = 0;
-    } else if (adjustedWeighted <= mediumBaseline) {
-        anxietyScaled = Math.round((adjustedWeighted / mediumBaseline) * 5);
-    } else {
-        anxietyScaled = 5 + Math.round(((adjustedWeighted - mediumBaseline) / (maxBaseline - mediumBaseline)) * 5);
-    }
-    anxietyScaled = Math.max(0, Math.min(10, anxietyScaled));
+    const anxiety = computeAnxiety(items, config);
 
     return {
         songs: items,
@@ -1270,13 +1179,7 @@ export function scoreFixedOrder(fixedSongs, config) {
             score: totalScore,
             covers: coverCount,
             instrumentals: instrumentalCount,
-            anxiety: {
-                scaled: anxietyScaled,
-                rawChanges: totalRawChanges,
-                weightedScore: Math.round(adjustedWeighted * 10) / 10,
-                transitionsDisrupted: transitionsWithChanges,
-                totalTransitions
-            }
+            anxiety
         }
     };
 }
