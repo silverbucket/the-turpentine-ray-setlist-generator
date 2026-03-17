@@ -367,28 +367,11 @@
         {/if}
       </div>
 
-      <details class="debug-details">
-        <summary class="debug-summary">Roll stats</summary>
-        <div class="debug-body">
-          <div class="debug-row">
-            <span class="debug-label">Songs</span>
-            <span class="debug-val">{store.generatedSetlist.songs.length}</span>
-          </div>
-          <div class="debug-row">
-            <span class="debug-label">Covers</span>
-            <span class="debug-val">{store.generatedSetlist.summary.covers}</span>
-          </div>
-          <div class="debug-row">
-            <span class="debug-label">Instrumentals</span>
-            <span class="debug-val">{store.generatedSetlist.summary.instrumentals}</span>
-          </div>
-          <div class="debug-row">
-            <span class="debug-label">Score</span>
-            <span class="debug-val">{store.generatedSetlist.summary.score.toFixed(1)}</span>
-          </div>
-          <p class="debug-hint">Score = total penalty points from gear changes, position misses, and constraint violations. Lower is better — 0 means no compromises were made.</p>
-        </div>
-      </details>
+      <div class="roadie-score">
+        <span class="roadie-label">Bass Player Anxiety</span>
+        <span class="roadie-val">{store.generatedSetlist.summary.score.toFixed(1)}</span>
+        <p class="roadie-hint">{store.generatedSetlist.summary.score === 0 ? "Bass player is relaxed for once. Smooth transitions, zero dead air." : store.generatedSetlist.summary.score < 5 ? "Bass player is calm. Might need one quick joke between songs." : store.generatedSetlist.summary.score < 15 ? "Bass player is rehearsing crowd work. A few gear swaps are going to need covering." : "Bass player is writing crowd work material as we speak. Too many tuning changes — expect nervous rambling about the weather."}</p>
+      </div>
     </section>
   {/if}
 
@@ -914,52 +897,33 @@
     color: #fff;
   }
 
-  /* Debug / roll stats */
-  .debug-details {
-    border: 1px solid rgba(27, 49, 80, 0.08);
+  /* Bass Player Anxiety score */
+  .roadie-score {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0.5rem 0.65rem;
     border-radius: var(--radius-md, 12px);
     background: rgba(27, 49, 80, 0.03);
-    overflow: hidden;
+    border: 1px solid rgba(27, 49, 80, 0.06);
   }
 
-  .debug-summary {
-    padding: 0.4rem 0.65rem;
+  .roadie-label {
     font-size: 0.72rem;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--muted, #8a95a5);
-    cursor: pointer;
-    user-select: none;
-    list-style: none;
   }
 
-  .debug-summary::-webkit-details-marker {
-    display: none;
-  }
-
-  .debug-body {
-    padding: 0 0.65rem 0.65rem;
-    display: grid;
-    gap: 0.3rem;
-  }
-
-  .debug-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.72rem;
-  }
-
-  .debug-label {
-    color: var(--muted, #8a95a5);
-    font-weight: 600;
-  }
-
-  .debug-val {
+  .roadie-val {
+    font-size: 0.82rem;
     font-weight: 800;
     color: var(--ink, #182230);
   }
 
-  .debug-hint {
-    margin: 0.25rem 0 0;
+  .roadie-hint {
+    flex-basis: 100%;
+    margin: 0;
     font-size: 0.68rem;
     line-height: 1.35;
     color: var(--muted, #8a95a5);
