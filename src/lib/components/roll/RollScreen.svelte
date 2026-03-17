@@ -10,6 +10,17 @@
   let showConfetti = $state(false);
   let diceValue = $state(6);
   let landed = $state(false);
+  let showAddSongPicker = $state(false);
+  let addSongSearch = $state("");
+  let setlistSongIds = $derived(
+    new Set((store.generatedSetlist?.songs || []).map((s) => s.id))
+  );
+  let filteredPickerSongs = $derived(() => {
+    const eligible = store.songs?.filter((s) => !s.unpracticed) || [];
+    if (!addSongSearch) return eligible;
+    const q = addSongSearch.toLowerCase();
+    return eligible.filter((s) => s.name.toLowerCase().includes(q));
+  });
 
   // Watch for generation completing with a result
   let prevGenerating = false;
@@ -356,12 +367,14 @@
               prevSong={i > 0 ? store.generatedSetlist.songs[i - 1] : null}
               onDragStart={handleDragStart}
               onEdit={handleEditSong}
+              onRemove={(idx) => store.removeSetlistSong(idx)}
             />
           </div>
         {/each}
       </div>
 
       <div class="setlist-actions">
+        <button class="save-set-btn add-song-btn" onclick={() => { showAddSongPicker = true; }}>+ Add song</button>
         {#if store.setlistLocked}
           <div class="locked-badge">🔒 Locked in</div>
           {#if store.setlistSaved}
@@ -387,11 +400,44 @@
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div class="confirm-dialog" onclick={(e) => e.stopPropagation()}>
         <p class="confirm-title">This setlist is locked in.</p>
-        <p class="confirm-desc">Rolling again will wipe it. You sure?</p>
-        <div class="confirm-actions">
+        <p class="confirm-desc">What do you want to do?</p>
+        <div class="confirm-actions-stacked">
+          <button class="confirm-btn optimize" onclick={store.confirmOptimizeOrder}>Optimize order</button>
+          <button class="confirm-btn proceed" onclick={store.confirmFreshRoll}>Fresh roll</button>
           <button class="confirm-btn cancel" onclick={store.cancelRoll}>Keep it</button>
-          <button class="confirm-btn proceed" onclick={store.confirmRoll}>Roll anyway</button>
         </div>
+      </div>
+    </div>
+  {/if}
+
+  {#if showAddSongPicker}
+    <div class="confirm-overlay" onclick={() => { showAddSongPicker = false; }}>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="confirm-dialog add-song-dialog" onclick={(e) => e.stopPropagation()}>
+        <p class="confirm-title">Add a song</p>
+        <input
+          class="add-song-search"
+          type="text"
+          placeholder="Search songs..."
+          bind:value={addSongSearch}
+        />
+        <div class="add-song-list">
+          {#each filteredPickerSongs() as song}
+            {@const inSetlist = setlistSongIds.has(song.id)}
+            <button
+              class="add-song-item"
+              class:in-setlist={inSetlist}
+              disabled={inSetlist}
+              onclick={() => { store.addSetlistSong(song.id); showAddSongPicker = false; addSongSearch = ""; }}
+            >
+              {song.name}
+              {#if inSetlist}<span class="in-setlist-tag">added</span>{/if}
+            </button>
+          {:else}
+            <p class="add-song-empty">No songs available</p>
+          {/each}
+        </div>
+        <button class="confirm-btn cancel" onclick={() => { showAddSongPicker = false; addSongSearch = ""; }}>Cancel</button>
       </div>
     </div>
   {/if}
@@ -1083,6 +1129,94 @@
   .confirm-btn.proceed {
     background: var(--accent, #e15b37);
     color: #fff;
+  }
+
+  .confirm-btn.optimize {
+    background: var(--ink, #182230);
+    color: #fff;
+  }
+
+  .confirm-actions-stacked {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-top: 0.25rem;
+  }
+
+  .add-song-btn {
+    background: var(--line, rgba(27, 49, 80, 0.08));
+    color: var(--ink, #182230);
+    border: 1px dashed rgba(27, 49, 80, 0.2);
+  }
+
+  .add-song-dialog {
+    max-height: 70vh;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .add-song-search {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line, rgba(27, 49, 80, 0.12));
+    border-radius: var(--radius-md, 12px);
+    font-size: 0.88rem;
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  .add-song-search:focus {
+    border-color: var(--accent, #e15b37);
+  }
+
+  .add-song-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    overflow-y: auto;
+    max-height: 40vh;
+  }
+
+  .add-song-item {
+    text-align: left;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--line, rgba(27, 49, 80, 0.08));
+    border-radius: var(--radius-md, 12px);
+    background: rgba(255, 255, 255, 0.92);
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--ink, #182230);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .add-song-item:active:not(:disabled) {
+    background: rgba(225, 91, 55, 0.06);
+  }
+
+  .add-song-item.in-setlist {
+    opacity: 0.45;
+    cursor: default;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .in-setlist-tag {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--muted, #8a95a5);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .add-song-empty {
+    font-size: 0.85rem;
+    color: var(--muted, #8a95a5);
+    text-align: center;
+    padding: 1rem;
+    margin: 0;
   }
 
   @keyframes fade-in {
