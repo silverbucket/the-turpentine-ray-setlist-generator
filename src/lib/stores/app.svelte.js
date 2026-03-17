@@ -362,7 +362,7 @@ export function createAppStore(repo) {
             bootstrapMeta = data.bootstrap;
             appConfig = data.config ? normalizeAppConfig(data.config) : null;
             if (data.setlists) {
-                savedSetlists = stripEnergy(data.setlists).slice(0, MAX_SAVED_SETS);
+                savedSetlists = stripEnergy(data.setlists);
             }
             if (data.members) {
                 bandMembers = Object.fromEntries(
@@ -594,26 +594,38 @@ export function createAppStore(repo) {
             seed: generatedSetlist.seed,
             songCount: generatedSetlist.songs.length
         };
-        // Enforce limit: remove oldest if at max
-        if (currentSaved.length >= MAX_SAVED_SETS) {
-            await repo.deleteSetlist(currentSaved[currentSaved.length - 1].id);
+        try {
+            // Enforce limit: remove oldest if at max
+            if (currentSaved.length >= MAX_SAVED_SETS) {
+                await repo.deleteSetlist(currentSaved[currentSaved.length - 1].id);
+            }
+            await withSync("Saving setlist", () => repo.putSetlist(entry));
+            savedSetlists = [entry, ...currentSaved].slice(0, MAX_SAVED_SETS);
+            setlistSaved = true;
+        } catch (error) {
+            addToast(error?.message || "Could not save setlist.", "danger");
         }
-        await repo.putSetlist(entry);
-        savedSetlists = [entry, ...currentSaved].slice(0, MAX_SAVED_SETS);
-        setlistSaved = true;
     }
 
     async function removeSavedSetlist(id) {
-        await repo.deleteSetlist(id);
-        savedSetlists = savedSetlists.filter((s) => s.id !== id);
+        try {
+            await withSync("Removing setlist", () => repo.deleteSetlist(id));
+            savedSetlists = savedSetlists.filter((s) => s.id !== id);
+        } catch (error) {
+            addToast(error?.message || "Could not remove setlist.", "danger");
+        }
     }
 
     async function updateSavedSetlist(id, fields) {
         const existing = savedSetlists.find((s) => s.id === id);
         if (!existing) return;
         const merged = { ...existing, ...fields };
-        await repo.putSetlist(merged);
-        savedSetlists = savedSetlists.map((s) => s.id === id ? merged : s);
+        try {
+            await withSync("Updating setlist", () => repo.putSetlist(merged));
+            savedSetlists = savedSetlists.map((s) => s.id === id ? merged : s);
+        } catch (error) {
+            addToast(error?.message || "Could not update setlist.", "danger");
+        }
     }
 
     function loadSavedSetlist(id) {
@@ -920,12 +932,14 @@ export function createAppStore(repo) {
             for (const song of songs) {
                 await repo.deleteSong(song.id);
             }
-            // Delete all setlists from RS
-            for (const setlist of savedSetlists) {
+            // Delete all setlists from RS (list from remote to catch any beyond in-memory state)
+            const allSetlists = await repo.listSetlists();
+            for (const setlist of allSetlists) {
                 await repo.deleteSetlist(setlist.id);
             }
-            // Delete all members from RS
-            for (const name of Object.keys(bandMembers)) {
+            // Delete all members from RS (list from remote to catch any beyond in-memory state)
+            const allMembers = await repo.listMembers();
+            for (const name of Object.keys(allMembers)) {
                 await repo.deleteMember(name);
             }
             // Delete config from RS so first-run triggers on reload
@@ -1313,14 +1327,14 @@ export function createAppStore(repo) {
             return { payloadType: "songs-array", songs: payload.map(normalizeSongRecord), config: null, bandMembers: null, savedSetlists: null };
         }
         if (payload && Array.isArray(payload.songs)) {
+            // Extract old-format members BEFORE normalizeAppConfig strips them
+            let importedMembers = payload.bandMembers || null;
+            if (!importedMembers && payload.config?.band?.members && Object.keys(payload.config.band.members).length > 0) {
+                importedMembers = clone(payload.config.band.members);
+            }
             const config = payload.config ? normalizeAppConfig({
                 ...clone(payload.config), bandName: payload.config.bandName || appConfig?.bandName || "", updatedAt: nowIso()
             }) : null;
-            // Handle old format: members inside config.band.members
-            let importedMembers = payload.bandMembers || null;
-            if (!importedMembers && config?.band?.members && Object.keys(config.band.members).length > 0) {
-                importedMembers = config.band.members;
-            }
             // Run rs-migrate on config to strip members
             const migratedConfig = config ? migrator.migrateDocument("config", config) : null;
             return {
@@ -1411,9 +1425,9 @@ export function createAppStore(repo) {
         // Migrate config: read raw config to check for band.members before normalization strips them
         const rawConfig = await repo.getRawConfig();
         if (rawConfig?.band?.members && Object.keys(rawConfig.band.members).length > 0) {
-            // Extract members from old config and write as individual files
-            if (Object.keys(bandMembers).length === 0) {
-                for (const [name, data] of Object.entries(rawConfig.band.members)) {
+            // Extract members from old config and write only those not already migrated
+            for (const [name, data] of Object.entries(rawConfig.band.members)) {
+                if (!bandMembers[name]) {
                     await repo.putMember(name, normalizeMemberRecord(data));
                 }
             }
@@ -1463,7 +1477,12 @@ export function createAppStore(repo) {
             currentUserAddress = connectAddress;
             loadUserLocalData();
             await reloadAll();
-            await runMigrations();
+            try {
+                await runMigrations();
+            } catch (err) {
+                console.error("Migration failed:", err);
+                addToast("Data migration encountered an error. Some data may need re-syncing.", "danger");
+            }
         });
 
         repo.on("disconnected", () => {
