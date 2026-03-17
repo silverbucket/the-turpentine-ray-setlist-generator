@@ -6,16 +6,50 @@
 
   const store = getContext("app");
 
+  let showConfetti = $state(false);
+  let diceValue = $state(6);
+  let landed = $state(false);
+
+  // Watch for generation completing with a result
+  let prevGenerating = false;
+  $effect(() => {
+    const generating = store.isGenerating;
+    if (prevGenerating && !generating) {
+      diceValue = Math.floor(Math.random() * 6) + 1;
+      if (store.generatedSetlist) {
+        landed = true;
+        showConfetti = true;
+        setTimeout(() => { showConfetti = false; landed = false; }, 1200);
+      }
+    }
+    prevGenerating = generating;
+  });
+
+  // Dice pip layouts: [x, y] positions on a 0-1 grid for each face value
+  const PIP_LAYOUTS = {
+    1: [[0.5, 0.5]],
+    2: [[0.25, 0.25], [0.75, 0.75]],
+    3: [[0.25, 0.25], [0.5, 0.5], [0.75, 0.75]],
+    4: [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]],
+    5: [[0.25, 0.25], [0.75, 0.25], [0.5, 0.5], [0.25, 0.75], [0.75, 0.75]],
+    6: [[0.25, 0.22], [0.75, 0.22], [0.25, 0.5], [0.75, 0.5], [0.25, 0.78], [0.75, 0.78]],
+  };
+
+  // New band detection — only songs are required to roll
+  let hasSongs = $derived((store.songs || []).length > 0);
+  let readyToRoll = $derived(hasSongs);
+
   function handleRoll() {
-    store.generate();
+    if (settingsEl) settingsEl.open = false;
+    store.requestRoll();
+  }
+
+  function handleLock() {
+    store.lockSetlist();
   }
 
   function handleSaveSetlist() {
     store.saveCurrentSetlist();
-  }
-
-  function handleRemoveSaved(id) {
-    store.removeSavedSetlist(id);
   }
 
   // Determine which members have multiple instrument/tuning options worth toggling
@@ -47,6 +81,10 @@
   function varietyToTemp(v) { return 0.3 + (v / 100) * 1.7; }
   function tempToVariety(t) { return Math.round(((t - 0.3) / 1.7) * 100); }
   let varietyValue = $derived(tempToVariety(store.generationOptions.randomness?.temperature ?? 0.85));
+
+  let settingsTab = $state("constraints");
+  let hasConstraints = $derived(membersWithChoices().length > 0);
+  let settingsEl = $state(null);
 
   // ---- drag-to-reorder ----
   function handleEditSong(songId) {
@@ -113,15 +151,94 @@
           onchange={(v) => store.updateGenerationField("count", v)}
         />
       </div>
-      <button class="roll-btn" onclick={handleRoll}>Roll</button>
+      <button class="roll-btn" class:rolling={store.isGenerating} class:landed class:disabled={!readyToRoll} disabled={!readyToRoll} onclick={handleRoll} aria-label="Roll setlist">
+        <span class="dice-container" class:rolling={store.isGenerating}>
+          <svg class="dice-svg" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3" y="3" width="50" height="50" rx="10" ry="10"
+              fill="#fff" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
+            {#each PIP_LAYOUTS[diceValue] as [px, py]}
+              <circle cx={6 + px * 44} cy={6 + py * 44} r="4.5" fill="#e15b37"/>
+            {/each}
+          </svg>
+        </span>
+        <span class="roll-label">{store.isGenerating ? "Rolling..." : "Roll"}</span>
+        {#if showConfetti}
+          <span class="confetti-burst">
+            {#each Array(12) as _, i}
+              <span class="confetti-dot" style="--i:{i}"></span>
+            {/each}
+          </span>
+        {/if}
+      </button>
     </div>
-  </div>
 
-  <!-- Constraints section -->
-  {#if membersWithChoices().length > 0}
-    <details class="section-details">
-      <summary class="section-summary"><span>Constraints</span><svg class="chevron-down" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
-      <div class="section-body">
+    <!-- Settings (inside hero) -->
+    <details class="settings-drawer" bind:this={settingsEl}>
+      <summary class="settings-toggle">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>Settings</span>
+    </summary>
+    <div class="settings-body">
+      {#if hasConstraints}
+        <div class="settings-tabs">
+          <button class="settings-tab" class:active={settingsTab === "constraints"} onclick={() => { settingsTab = "constraints"; }}>Demands</button>
+          <button class="settings-tab" class:active={settingsTab === "chaos"} onclick={() => { settingsTab = "chaos"; }}>Tweak the Chaos</button>
+        </div>
+      {/if}
+
+      {#if settingsTab === "chaos" || !hasConstraints}
+        <div class="quick-row">
+          <label class="adv-field">
+            <span>Max covers</span>
+            <input
+              type="number"
+              min="0"
+              value={store.generationOptions.maxCovers}
+              oninput={(e) => store.updateGenerationField("maxCovers", Number(e.currentTarget.value))}
+            />
+          </label>
+          <label class="adv-field">
+            <span>Max instrumentals</span>
+            <input
+              type="number"
+              min="0"
+              value={store.generationOptions.maxInstrumentals}
+              oninput={(e) => store.updateGenerationField("maxInstrumentals", Number(e.currentTarget.value))}
+            />
+          </label>
+        </div>
+
+        <div class="variety-field">
+          <div class="variety-header">
+            <span class="variety-label">Variety</span>
+            <span class="variety-hint">{varietyValue >= 100 ? "YOLO 🤘" : varietyValue < 30 ? "Safe pick" : varietyValue > 70 ? "Hold my beer" : "Feels right"}</span>
+          </div>
+          <input
+            class="variety-slider"
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value={varietyValue}
+            oninput={(e) => store.updateGenerationField("randomness.temperature", varietyToTemp(Number(e.currentTarget.value)))}
+          />
+          <div class="variety-labels">
+            <span>Safe pick</span>
+            <span>Hold my beer</span>
+          </div>
+        </div>
+
+        <label class="adv-field">
+          <span>Seed <span class="field-hint">(leave 0 for random)</span></span>
+          <input
+            type="number"
+            value={store.generationOptions.seed}
+            oninput={(e) => store.updateGenerationField("seed", Number(e.currentTarget.value))}
+          />
+        </label>
+      {/if}
+
+      {#if settingsTab === "constraints" && hasConstraints}
         {#each membersWithChoices() as memberName}
           <div class="constraint-member">
             <span class="constraint-member-name">{memberName}</span>
@@ -190,76 +307,39 @@
             {/if}
           </div>
         {/each}
-      </div>
-    </details>
-  {/if}
-
-  <!-- Quick Settings -->
-  <details class="section-details">
-    <summary class="section-summary"><span>Quick Settings</span><svg class="chevron-down" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
-    <div class="section-body">
-      <div class="quick-row">
-        <label class="adv-field">
-          <span>Max covers</span>
-          <input
-            type="number"
-            min="0"
-            value={store.generationOptions.maxCovers}
-            oninput={(e) => store.updateGenerationField("maxCovers", Number(e.currentTarget.value))}
-          />
-        </label>
-        <label class="adv-field">
-          <span>Max instrumentals</span>
-          <input
-            type="number"
-            min="0"
-            value={store.generationOptions.maxInstrumentals}
-            oninput={(e) => store.updateGenerationField("maxInstrumentals", Number(e.currentTarget.value))}
-          />
-        </label>
-      </div>
-
-      <div class="variety-field">
-        <div class="variety-header">
-          <span class="variety-label">Variety</span>
-          <span class="variety-hint">{varietyValue < 30 ? "Predictable" : varietyValue > 70 ? "Adventurous" : "Balanced"}</span>
-        </div>
-        <input
-          class="variety-slider"
-          type="range"
-          min="0"
-          max="100"
-          step="1"
-          value={varietyValue}
-          oninput={(e) => store.updateGenerationField("randomness.temperature", varietyToTemp(Number(e.currentTarget.value)))}
-        />
-        <div class="variety-labels">
-          <span>Predictable</span>
-          <span>Adventurous</span>
-        </div>
-      </div>
-
-      <label class="adv-field">
-        <span>Seed <span class="field-hint">(leave 0 for random)</span></span>
-        <input
-          type="number"
-          value={store.generationOptions.seed}
-          oninput={(e) => store.updateGenerationField("seed", Number(e.currentTarget.value))}
-        />
-      </label>
+      {/if}
     </div>
   </details>
+  </div>
+
+  <!-- Getting Started -->
+  {#if !readyToRoll}
+    <div class="onboarding-card">
+      <div class="onboarding-illustration">🎸🥁🎤</div>
+      <h2 class="onboarding-title">Almost showtime!</h2>
+      <p class="onboarding-desc">Add some songs to your catalog and Set Roll will build you a setlist.</p>
+      <ol class="onboarding-steps">
+        <li class:done={hasSongs}>
+          <span class="step-icon">{hasSongs ? "✓" : "1"}</span>
+          <span class="step-text">
+            {#if hasSongs}
+              Songs added
+            {:else}
+              <button class="step-link" onclick={() => { store.navigate("songs"); }}>Add some songs</button>
+              <span class="step-hint">Your catalog of tunes. Covers, originals, whatever you play.</span>
+            {/if}
+          </span>
+        </li>
+      </ol>
+      <p class="onboarding-tip">Got members who switch guitars, tunings, or capos between songs? Add them in each song and Set Roll will minimize gear changes.</p>
+      <p class="onboarding-footer">Then come back here and hit Roll.</p>
+      <button class="help-toggle" onclick={() => store.navigate("help")}>How does this work?</button>
+    </div>
+  {/if}
 
   <!-- Setlist result -->
   {#if store.generatedSetlist}
     <section class="result-section">
-      <div class="summary-bar">
-        <div class="stat-pill"><span class="stat-val">{store.generatedSetlist.songs.length}</span><span class="stat-label">songs</span></div>
-        <div class="stat-pill"><span class="stat-val">{store.generatedSetlist.summary.score.toFixed(1)}</span><span class="stat-label">score</span></div>
-        <div class="stat-pill"><span class="stat-val">{store.generatedSetlist.summary.covers}</span><span class="stat-label">covers</span></div>
-        <div class="stat-pill"><span class="stat-val">{store.generatedSetlist.summary.instrumentals}</span><span class="stat-label">inst.</span></div>
-      </div>
-
       <div class="song-list" bind:this={songListEl}>
         {#each store.generatedSetlist.songs as song, i}
           <div class="song-list-item" class:drag-over={dragIndex !== null && dragOverIndex === i && dragIndex !== i}>
@@ -274,44 +354,74 @@
         {/each}
       </div>
 
-      <button class="save-set-btn" onclick={handleSaveSetlist}>Save this set</button>
+      <div class="setlist-actions">
+        {#if store.setlistLocked}
+          <div class="locked-badge">🔒 Locked in</div>
+          {#if store.setlistSaved}
+            <div class="saved-badge">✓ Saved</div>
+          {:else}
+            <button class="save-set-btn secondary" onclick={handleSaveSetlist}>Save to Greatest Hits</button>
+          {/if}
+        {:else}
+          <button class="save-set-btn" onclick={handleLock}>Lock it in 🔒</button>
+        {/if}
+      </div>
+
+      <details class="debug-details">
+        <summary class="debug-summary">Roll stats</summary>
+        <div class="debug-body">
+          <div class="debug-row">
+            <span class="debug-label">Songs</span>
+            <span class="debug-val">{store.generatedSetlist.songs.length}</span>
+          </div>
+          <div class="debug-row">
+            <span class="debug-label">Covers</span>
+            <span class="debug-val">{store.generatedSetlist.summary.covers}</span>
+          </div>
+          <div class="debug-row">
+            <span class="debug-label">Instrumentals</span>
+            <span class="debug-val">{store.generatedSetlist.summary.instrumentals}</span>
+          </div>
+          <div class="debug-row">
+            <span class="debug-label">Score</span>
+            <span class="debug-val">{store.generatedSetlist.summary.score.toFixed(1)}</span>
+          </div>
+          <p class="debug-hint">Score = total penalty points from gear changes, position misses, and constraint violations. Lower is better — 0 means no compromises were made.</p>
+        </div>
+      </details>
     </section>
   {/if}
 
-  <!-- Saved sets -->
-  {#if store.savedSetlists?.length > 0}
-    <section class="saved-section">
-      <h3 class="saved-heading">Saved sets</h3>
-      <div class="saved-scroll">
-        {#each store.savedSetlists as saved}
-          <div class="saved-card">
-            <div class="saved-card-top">
-              <span class="saved-songs">{saved.songs?.length || 0} songs</span>
-              <button class="saved-remove" onclick={() => handleRemoveSaved(saved.id)} aria-label="Remove saved set">&times;</button>
-            </div>
-            {#if saved.summary}
-              <div class="saved-stats">
-                <span>Score {saved.summary.score}</span>
-                <span>{saved.summary.covers}c / {saved.summary.instrumentals}i</span>
-              </div>
-            {/if}
-            {#if saved.seed != null}
-              <span class="saved-seed">seed {saved.seed}</span>
-            {/if}
-          </div>
-        {/each}
+  {#if store.pendingRollConfirm}
+    <div class="confirm-overlay" onclick={store.cancelRoll}>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="confirm-dialog" onclick={(e) => e.stopPropagation()}>
+        <p class="confirm-title">This setlist is locked in.</p>
+        <p class="confirm-desc">Rolling again will wipe it. You sure?</p>
+        <div class="confirm-actions">
+          <button class="confirm-btn cancel" onclick={store.cancelRoll}>Keep it</button>
+          <button class="confirm-btn proceed" onclick={store.confirmRoll}>Roll anyway</button>
+        </div>
       </div>
-    </section>
+    </div>
   {/if}
+
 </div>
 
 <style>
   .roll-screen {
     display: grid;
-    gap: 1rem;
-    padding: 0.75rem;
+    gap: 0.75rem;
+    padding: 0.5rem;
     max-width: 540px;
     margin: 0 auto;
+  }
+
+  @media (min-width: 400px) {
+    .roll-screen {
+      gap: 1rem;
+      padding: 0.75rem;
+    }
   }
 
   /* Hero */
@@ -324,20 +434,28 @@
     -webkit-backdrop-filter: blur(16px);
     border-radius: var(--radius-lg, 16px);
     border: 1px solid rgba(27, 49, 80, 0.1);
-    padding: 0.75rem;
+    padding: 0.6rem;
     display: grid;
-    gap: 0.6rem;
+    gap: 0.5rem;
+  }
+
+  @media (min-width: 400px) {
+    .hero {
+      padding: 0.75rem;
+      gap: 0.6rem;
+    }
   }
 
   .hero-row {
     display: flex;
     align-items: flex-end;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
 
   .count-control {
     display: grid;
     gap: 0.25rem;
+    flex-shrink: 0;
   }
 
   .field-label {
@@ -348,71 +466,257 @@
     color: var(--muted, #8a95a5);
   }
 
+  /* ---- Roll button ---- */
   .roll-btn {
     flex: 1;
-    min-height: 2.8rem;
+    min-width: 0;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    height: 2.8rem;
+    margin-bottom: 1px;
+    padding: 0 0.8rem;
     border: none;
-    border-radius: var(--radius-md, 12px);
-    background: var(--accent, #e15b37);
+    border-radius: 14px;
+    background: linear-gradient(140deg, #e15b37 0%, #c94020 100%);
     color: #fff;
-    font-size: 1.05rem;
-    font-weight: 800;
     cursor: pointer;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
-    transition: background 140ms ease, transform 80ms ease;
-  }
-
-  .roll-btn:hover,
-  .roll-btn:active {
-    background: #c64724;
-  }
-
-  .roll-btn:active {
-    transform: scale(0.97);
-  }
-
-  /* Collapsible sections */
-  .section-details {
-    border: 1px solid rgba(27, 49, 80, 0.1);
-    border-radius: var(--radius-lg, 16px);
-    background: rgba(255, 255, 255, 0.76);
+    box-shadow:
+      0 4px 12px rgba(225, 91, 55, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    transition: transform 120ms ease, box-shadow 120ms ease;
     overflow: hidden;
   }
 
-  .section-summary {
-    padding: 0.7rem 0.85rem;
-    font-weight: 700;
-    font-size: 0.9rem;
-    color: var(--ink, #182230);
+  .roll-btn:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 8px 24px rgba(225, 91, 55, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  }
+
+  .roll-btn.disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+    box-shadow: none;
+  }
+
+  .roll-btn:active:not(.rolling) {
+    transform: scale(0.97);
+    box-shadow:
+      0 2px 6px rgba(225, 91, 55, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .roll-btn.rolling {
+    pointer-events: none;
+    background: linear-gradient(140deg, #d4502e 0%, #b83818 100%);
+  }
+
+  .roll-btn.landed {
+    animation: btn-land 300ms ease;
+  }
+
+  @keyframes btn-land {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.04); }
+    100% { transform: scale(1); }
+  }
+
+  /* ---- Dice graphic ---- */
+  .dice-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+    transition: transform 150ms ease;
+  }
+
+  @media (min-width: 400px) {
+    .dice-container {
+      width: 36px;
+      height: 36px;
+    }
+  }
+
+  .roll-btn:hover .dice-container:not(.rolling) {
+    animation: dice-hover 500ms ease;
+  }
+
+  .dice-container.rolling {
+    animation: dice-roll 0.5s cubic-bezier(0.25, 0.1, 0.25, 1) infinite;
+  }
+
+  .dice-svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .roll-label {
+    font-size: 0.95rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+  }
+
+  @media (min-width: 400px) {
+    .roll-label {
+      font-size: 1.1rem;
+    }
+  }
+
+  @keyframes dice-hover {
+    0%, 100% { transform: rotate(0deg); }
+    20%  { transform: rotate(-12deg) scale(1.05); }
+    60%  { transform: rotate(8deg) scale(1.05); }
+    80%  { transform: rotate(-3deg); }
+  }
+
+  @keyframes dice-roll {
+    0%   { transform: rotate(0deg) scale(1) translateY(0); }
+    15%  { transform: rotate(50deg) scale(0.9) translateY(-3px); }
+    30%  { transform: rotate(-30deg) scale(1.05) translateY(1px); }
+    50%  { transform: rotate(180deg) scale(0.92) translateY(-4px); }
+    65%  { transform: rotate(240deg) scale(1.02) translateY(0); }
+    80%  { transform: rotate(310deg) scale(0.95) translateY(-2px); }
+    100% { transform: rotate(360deg) scale(1) translateY(0); }
+  }
+
+  /* ---- Confetti burst ---- */
+  .confetti-burst {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .confetti-dot {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    opacity: 0;
+    animation: confetti-fly 800ms ease-out forwards;
+    /* Each dot gets a unique angle from --i */
+    --angle: calc(var(--i) * 30deg);
+    --dist: 55px;
+  }
+
+  /* Shapes: mix circles and squares */
+  .confetti-dot:nth-child(odd) { border-radius: 50%; }
+  .confetti-dot:nth-child(even) { border-radius: 1px; transform: rotate(45deg); }
+
+  .confetti-dot:nth-child(1)  { background: #e15b37; --dist: 50px; }
+  .confetti-dot:nth-child(2)  { background: #4c75f4; --dist: 60px; }
+  .confetti-dot:nth-child(3)  { background: #f4c84c; --dist: 45px; }
+  .confetti-dot:nth-child(4)  { background: #1f8f61; --dist: 65px; }
+  .confetti-dot:nth-child(5)  { background: #e15b37; --dist: 55px; }
+  .confetti-dot:nth-child(6)  { background: #9b59b6; --dist: 50px; }
+  .confetti-dot:nth-child(7)  { background: #f4c84c; --dist: 60px; }
+  .confetti-dot:nth-child(8)  { background: #4c75f4; --dist: 45px; }
+  .confetti-dot:nth-child(9)  { background: #1f8f61; --dist: 65px; }
+  .confetti-dot:nth-child(10) { background: #e15b37; --dist: 55px; }
+  .confetti-dot:nth-child(11) { background: #9b59b6; --dist: 48px; }
+  .confetti-dot:nth-child(12) { background: #f4c84c; --dist: 58px; }
+
+  .confetti-dot:nth-child(2n)   { animation-delay: 40ms; }
+  .confetti-dot:nth-child(3n)   { animation-delay: 80ms; width: 5px; height: 5px; }
+  .confetti-dot:nth-child(4n+1) { animation-delay: 20ms; width: 7px; height: 7px; }
+
+  @keyframes confetti-fly {
+    0% {
+      transform: translate(0, 0) scale(1) rotate(0deg);
+      opacity: 1;
+    }
+    100% {
+      transform:
+        translate(
+          calc(cos(var(--angle)) * var(--dist)),
+          calc(sin(var(--angle)) * var(--dist) - 20px)
+        )
+        scale(0)
+        rotate(180deg);
+      opacity: 0;
+    }
+  }
+
+  /* Fallback for browsers without CSS cos/sin — use fixed positions */
+  @supports not (transform: translate(calc(cos(0deg) * 1px), 0)) {
+    .confetti-dot:nth-child(1)  { --tx:  50px; --ty: -25px; }
+    .confetti-dot:nth-child(2)  { --tx:  35px; --ty: -50px; }
+    .confetti-dot:nth-child(3)  { --tx:   0px; --ty: -55px; }
+    .confetti-dot:nth-child(4)  { --tx: -40px; --ty: -45px; }
+    .confetti-dot:nth-child(5)  { --tx: -55px; --ty: -15px; }
+    .confetti-dot:nth-child(6)  { --tx: -45px; --ty:  20px; }
+    .confetti-dot:nth-child(7)  { --tx: -15px; --ty:  40px; }
+    .confetti-dot:nth-child(8)  { --tx:  25px; --ty:  35px; }
+    .confetti-dot:nth-child(9)  { --tx:  55px; --ty:  10px; }
+    .confetti-dot:nth-child(10) { --tx:  45px; --ty: -40px; }
+    .confetti-dot:nth-child(11) { --tx: -20px; --ty: -58px; }
+    .confetti-dot:nth-child(12) { --tx:  10px; --ty:  45px; }
+
+    @keyframes confetti-fly {
+      0% {
+        transform: translate(0, 0) scale(1) rotate(0deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translate(var(--tx, 40px), var(--ty, -30px)) scale(0) rotate(180deg);
+        opacity: 0;
+      }
+    }
+  }
+
+  /* Settings drawer — minimal, not card-like */
+  .settings-drawer {
+    border: none;
+    background: none;
+  }
+
+  .settings-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--muted, #8a95a5);
     cursor: pointer;
     user-select: none;
     list-style: none;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.4rem;
-    min-height: 2.6rem;
+    transition: color 140ms ease;
   }
 
-  .section-summary::-webkit-details-marker {
+  .settings-toggle::-webkit-details-marker {
     display: none;
   }
 
-  .chevron-down {
-    flex-shrink: 0;
-    color: var(--muted, #8a95a5);
-    transition: transform 200ms ease;
+  .settings-toggle:hover,
+  .settings-drawer[open] > .settings-toggle {
+    color: var(--ink, #182230);
   }
 
-  .section-details[open] > .section-summary .chevron-down {
-    transform: rotate(180deg);
+  .settings-toggle svg {
+    transition: transform 300ms ease;
   }
 
-  .section-body {
-    padding: 0 0.85rem 0.85rem;
+  .settings-drawer[open] > .settings-toggle svg {
+    transform: rotate(90deg);
+  }
+
+  .settings-body {
+    margin-top: 0.35rem;
+    padding: 0.55rem 0.1rem 0.1rem;
     display: grid;
     gap: 0.75rem;
+    border-top: 1px solid rgba(27, 49, 80, 0.08);
   }
 
   /* Constraints */
@@ -569,32 +873,95 @@
   .result-section {
     display: grid;
     gap: 0.65rem;
+    animation: pop-in 250ms ease;
   }
 
-  .summary-bar {
-    display: flex;
-    gap: 0.45rem;
-    flex-wrap: wrap;
+  @keyframes pop-in {
+    0% { transform: scale(0.92); opacity: 0; }
+    70% { transform: scale(1.02); }
+    100% { transform: scale(1); opacity: 1; }
   }
 
-  .stat-pill {
+  /* Settings tabs */
+  .settings-tabs {
     display: flex;
-    align-items: baseline;
-    gap: 0.25rem;
-    padding: 0.35rem 0.65rem;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid rgba(27, 49, 80, 0.1);
+    gap: 0;
+    border-radius: var(--radius-md, 12px);
+    overflow: hidden;
+    border: 1px solid rgba(27, 49, 80, 0.12);
+  }
+
+  .settings-tab {
+    flex: 1;
+    padding: 0.45rem 0.5rem;
+    border: none;
+    background: rgba(27, 49, 80, 0.04);
     font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--muted, #8a95a5);
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 120ms ease, color 120ms ease;
   }
 
-  .stat-val {
+  .settings-tab + .settings-tab {
+    border-left: 1px solid rgba(27, 49, 80, 0.12);
+  }
+
+  .settings-tab.active {
+    background: var(--accent, #e15b37);
+    color: #fff;
+  }
+
+  /* Debug / roll stats */
+  .debug-details {
+    border: 1px solid rgba(27, 49, 80, 0.08);
+    border-radius: var(--radius-md, 12px);
+    background: rgba(27, 49, 80, 0.03);
+    overflow: hidden;
+  }
+
+  .debug-summary {
+    padding: 0.4rem 0.65rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--muted, #8a95a5);
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+  }
+
+  .debug-summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .debug-body {
+    padding: 0 0.65rem 0.65rem;
+    display: grid;
+    gap: 0.3rem;
+  }
+
+  .debug-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.72rem;
+  }
+
+  .debug-label {
+    color: var(--muted, #8a95a5);
+    font-weight: 600;
+  }
+
+  .debug-val {
     font-weight: 800;
     color: var(--ink, #182230);
   }
 
-  .stat-label {
-    font-weight: 600;
+  .debug-hint {
+    margin: 0.25rem 0 0;
+    font-size: 0.68rem;
+    line-height: 1.35;
     color: var(--muted, #8a95a5);
   }
 
@@ -613,7 +980,14 @@
     border-radius: var(--radius-md, 12px);
   }
 
+  .setlist-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
   .save-set-btn {
+    flex: 1;
     min-height: 2.6rem;
     border: 2px solid var(--accent, #e15b37);
     border-radius: var(--radius-md, 12px);
@@ -632,82 +1006,256 @@
     background: rgba(225, 91, 55, 0.12);
   }
 
-  /* Saved sets */
-  .saved-section {
-    display: grid;
-    gap: 0.5rem;
-  }
-
-  .saved-heading {
-    font-size: 0.9rem;
+  .save-set-btn.secondary {
+    flex: 1;
+    border-color: rgba(27, 49, 80, 0.18);
+    background: rgba(27, 49, 80, 0.06);
+    color: var(--ink);
     font-weight: 700;
-    color: var(--ink, #182230);
+    font-size: 0.85rem;
   }
 
-  .saved-scroll {
-    display: flex;
-    gap: 0.5rem;
-    overflow-x: auto;
-    padding-bottom: 0.5rem;
-    -webkit-overflow-scrolling: touch;
-    scroll-snap-type: x mandatory;
+  .save-set-btn.secondary:hover,
+  .save-set-btn.secondary:active {
+    background: rgba(27, 49, 80, 0.12);
   }
 
-  .saved-card {
-    flex: 0 0 auto;
-    width: clamp(120px, 38vw, 160px);
-    padding: 0.65rem;
-    border-radius: var(--radius-md, 12px);
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid rgba(27, 49, 80, 0.1);
-    display: grid;
-    gap: 0.3rem;
-    scroll-snap-align: start;
+  .save-set-btn.secondary:active {
+    transform: scale(0.96);
   }
 
-  .saved-card-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .saved-songs {
-    font-weight: 700;
+  .saved-badge {
     font-size: 0.82rem;
+    font-weight: 700;
+    color: #1f8f61;
+    white-space: nowrap;
+    padding: 0.4rem 0.75rem;
+    border: 1.5px solid #1f8f6140;
+    border-radius: var(--radius-md, 12px);
+    background: rgba(31, 143, 97, 0.08);
+  }
+
+  .locked-badge {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #1f8f61;
+    white-space: nowrap;
+    padding: 0.4rem 0.75rem;
+    border: 1.5px solid #1f8f6140;
+    border-radius: var(--radius-md, 12px);
+    background: rgba(31, 143, 97, 0.08);
+  }
+
+  /* Confirm dialog */
+  .confirm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(30, 38, 52, 0.35);
+    backdrop-filter: blur(4px);
+    display: grid;
+    place-items: center;
+    z-index: 60;
+    padding: 1rem;
+    animation: fade-in 150ms ease;
+  }
+
+  .confirm-dialog {
+    width: min(100%, 320px);
+    padding: 1.5rem;
+    background: var(--paper-strong, #fff);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-xl, 16px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+    display: grid;
+    gap: 0.75rem;
+    animation: pop-in 200ms ease;
+  }
+
+  .confirm-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  .confirm-desc {
+    font-size: 0.88rem;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .confirm-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+  }
+
+  .confirm-btn {
+    flex: 1;
+    min-height: 2.4rem;
+    border: none;
+    border-radius: var(--radius-md, 12px);
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .confirm-btn.cancel {
+    background: var(--line);
+    color: var(--ink);
+  }
+
+  .confirm-btn.proceed {
+    background: var(--accent, #e15b37);
+    color: #fff;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* ---- Onboarding card ---- */
+  .onboarding-card {
+    border: 1px solid rgba(27, 49, 80, 0.1);
+    border-radius: var(--radius-lg, 16px);
+    background: rgba(255, 255, 255, 0.85);
+    padding: 1.25rem 1rem;
+    display: grid;
+    gap: 0.65rem;
+    text-align: center;
+    animation: pop-in 300ms ease;
+  }
+
+  .onboarding-illustration {
+    font-size: 2.2rem;
+    line-height: 1;
+    letter-spacing: 0.1em;
+  }
+
+  .onboarding-title {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 800;
     color: var(--ink, #182230);
   }
 
-  .saved-remove {
-    border: none;
-    background: none;
-    cursor: pointer;
-    font-size: 1.1rem;
+  .onboarding-desc {
+    margin: 0;
+    font-size: 0.85rem;
     color: var(--muted, #8a95a5);
+    line-height: 1.4;
+  }
+
+  .onboarding-steps {
+    list-style: none;
     padding: 0;
-    line-height: 1;
-    min-width: 24px;
-    min-height: 24px;
+    margin: 0.25rem 0 0;
+    display: grid;
+    gap: 0.6rem;
+    text-align: left;
+  }
+
+  .onboarding-steps li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: var(--radius-md, 12px);
+    background: rgba(27, 49, 80, 0.04);
+    border: 1px solid rgba(27, 49, 80, 0.06);
+  }
+
+  .onboarding-steps li.done {
+    background: rgba(31, 143, 97, 0.06);
+    border-color: rgba(31, 143, 97, 0.15);
+  }
+
+  .step-icon {
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--accent, #e15b37);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 800;
   }
 
-  .saved-remove:hover,
-  .saved-remove:active {
-    color: var(--accent, #e15b37);
+  .onboarding-steps li.done .step-icon {
+    background: #1f8f61;
   }
 
-  .saved-stats {
-    display: flex;
-    gap: 0.4rem;
-    font-size: 0.7rem;
-    color: var(--muted, #8a95a5);
+  .step-text {
+    display: grid;
+    gap: 0.15rem;
+    font-size: 0.85rem;
     font-weight: 600;
+    color: var(--ink, #182230);
+    padding-top: 0.15rem;
   }
 
-  .saved-seed {
-    font-size: 0.65rem;
-    color: var(--muted, #8a95a5);
-    font-family: monospace;
+  .step-link {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    font-weight: 700;
+    color: var(--accent, #e15b37);
+    cursor: pointer;
+    text-align: left;
+    text-decoration: underline;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 2px;
   }
+
+  .step-link:hover {
+    color: #c94020;
+  }
+
+  .step-hint {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--muted, #8a95a5);
+  }
+
+  .onboarding-tip {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--muted, #8a95a5);
+    line-height: 1.4;
+    padding: 0.5rem 0.7rem;
+    background: rgba(27, 49, 80, 0.03);
+    border-radius: var(--radius-md, 12px);
+    border-left: 3px solid var(--accent, #e15b37);
+  }
+
+  .onboarding-footer {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--muted, #8a95a5);
+    line-height: 1.4;
+  }
+
+  .help-toggle {
+    background: none;
+    border: none;
+    padding: 0.25rem 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--accent, #e15b37);
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+  }
+
+  .help-toggle:hover {
+    color: #c94020;
+  }
+
 </style>

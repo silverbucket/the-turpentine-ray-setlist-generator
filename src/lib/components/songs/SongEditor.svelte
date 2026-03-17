@@ -7,6 +7,31 @@
 
     let expandedMember = $state("");
     let confirmingDelete = $state(false);
+    // Track instrument name drafts so we can show sections before committing
+    let instrumentNameDrafts = $state({});
+
+    function draftKey(memberName, index) {
+        return `${memberName}::${index}`;
+    }
+
+    function getInstrumentDraft(memberName, index, currentName) {
+        const key = draftKey(memberName, index);
+        return key in instrumentNameDrafts ? instrumentNameDrafts[key] : currentName;
+    }
+
+    function setInstrumentDraft(memberName, index, value) {
+        instrumentNameDrafts = { ...instrumentNameDrafts, [draftKey(memberName, index)]: value };
+    }
+
+    function commitInstrumentName(memberName, index) {
+        const key = draftKey(memberName, index);
+        const draft = (instrumentNameDrafts[key] || "").trim();
+        if (draft) {
+            store.updateInstrumentOption(memberName, index, "name", draft);
+        }
+        const { [key]: _, ...rest } = instrumentNameDrafts;
+        instrumentNameDrafts = rest;
+    }
 
     function toggleMember(name) {
         expandedMember = expandedMember === name ? "" : name;
@@ -53,6 +78,69 @@
         store.updateInstrumentOption(memberName, index, "tuning", next);
     }
 
+    async function handleAddTuning(memberName, instrumentName, songInstrumentIndex) {
+        const added = await store.addTuningChoice(memberName, instrumentName);
+        if (added) {
+            // Also select it for this song
+            const current = store.editorSong.members[memberName].instruments[songInstrumentIndex].tuning || [];
+            if (!current.includes(added)) {
+                store.updateInstrumentOption(memberName, songInstrumentIndex, "tuning", current.concat(added));
+            }
+        }
+    }
+
+    function handleAddTuningKeydown(e, memberName, instrumentName, songInstrumentIndex) {
+        if (e.key === "Enter") handleAddTuning(memberName, instrumentName, songInstrumentIndex);
+    }
+
+    async function handleAddTechnique(memberName, instrumentName, songInstrumentIndex) {
+        const added = await store.addTechniqueChoice(memberName, instrumentName);
+        if (added) {
+            // Also select it for this song
+            const current = (store.editorSong.members[memberName].instruments[songInstrumentIndex].picking || []).filter(t => t !== "none");
+            if (!current.includes(added)) {
+                store.updateInstrumentOption(memberName, songInstrumentIndex, "picking", current.concat(added));
+            }
+        }
+    }
+
+    function handleAddTechniqueKeydown(e, memberName, instrumentName, songInstrumentIndex) {
+        if (e.key === "Enter") handleAddTechnique(memberName, instrumentName, songInstrumentIndex);
+    }
+
+    function hasDefaultTechnique(memberName, instrumentName) {
+        const memberConfig = store.appConfig?.band?.members?.[memberName];
+        const instConfig = (memberConfig?.instruments || []).find((i) => i.name === instrumentName);
+        return !!(instConfig?.defaultTechnique);
+    }
+
+    function hasTechniques(memberName, instrumentName) {
+        const memberConfig = store.appConfig?.band?.members?.[memberName];
+        const instConfig = (memberConfig?.instruments || []).find((i) => i.name === instrumentName);
+        return (instConfig?.techniques || []).length > 0;
+    }
+
+    function hasDefaultTuning(memberName, instrumentName) {
+        const memberConfig = store.appConfig?.band?.members?.[memberName];
+        const instConfig = (memberConfig?.instruments || []).find((i) => i.name === instrumentName);
+        return !!(instConfig?.defaultTuning);
+    }
+
+    function hasTunings(memberName, instrumentName) {
+        return availableTunings(memberName, { name: instrumentName }).length > 0;
+    }
+
+    function openBandMemberEdit(memberName) {
+        store.editingMemberName = memberName;
+        store.bandSubView = "member-edit";
+        store.navigate("band");
+    }
+
+    function bandMembersNotInSong() {
+        const existing = Object.keys(store.editorSong?.members || {});
+        return (store.bandMemberEntries || []).filter(([name]) => !existing.includes(name));
+    }
+
     function handleSave() {
         store.saveSong();
     }
@@ -68,6 +156,23 @@
 
     function cancelDelete() {
         confirmingDelete = false;
+    }
+
+    function memberIssues(memberName, memberSetup) {
+        const instruments = memberSetup?.instruments || [];
+        if (instruments.length === 0) return null; // no setups = member just listed, that's fine
+        for (const inst of instruments) {
+            if (!inst.name) return "Pick or type an instrument name";
+            const bandMembers = store.appConfig?.band?.members || {};
+            const bandMember = bandMembers[memberName];
+            if (bandMember) {
+                const bandInst = (bandMember.instruments || []).find((i) => i.name === inst.name);
+                if (bandInst && (bandInst.techniques || []).length > 0 && (!Array.isArray(inst.picking) || inst.picking.length === 0)) {
+                    return `${inst.name}: pick a technique`;
+                }
+            }
+        }
+        return null;
     }
 </script>
 
@@ -142,16 +247,22 @@
             <h3 class="section-heading">Members</h3>
 
             {#each Object.entries(store.editorSong.members || {}) as [memberName, memberSetup]}
+                {@const issue = memberIssues(memberName, memberSetup)}
                 <div class="member-card">
                     <button
                         class="member-header"
+                        class:has-issue={issue}
                         onclick={() => toggleMember(memberName)}
                         aria-expanded={expandedMember === memberName}
                     >
                         <span class="member-name">{memberName}</span>
-                        <span class="member-instrument-summary">
-                            {(memberSetup.instruments || []).map((i) => i.name).filter(Boolean).join(", ")}
-                        </span>
+                        {#if issue}
+                            <span class="member-issue">{issue}</span>
+                        {:else}
+                            <span class="member-instrument-summary">
+                                {(memberSetup.instruments || []).map((i) => i.name).filter(Boolean).join(", ")}
+                            </span>
+                        {/if}
                         <svg
                             class="chevron"
                             class:open={expandedMember === memberName}
@@ -175,20 +286,33 @@
                             </label>
 
                             {#each memberSetup.instruments as option, index}
+                                {@const knownInstruments = availableInstruments(memberName, option).filter(Boolean)}
+                                {@const instDraft = getInstrumentDraft(memberName, index, option.name)}
                                 <div class="instrument-card">
                                     <div class="instrument-top">
                                         <label class="field flex-1">
                                             <span class="field-label">Instrument</span>
-                                            <select
-                                                class="field-input"
-                                                value={option.name}
-                                                onchange={(e) => store.updateInstrumentOption(memberName, index, "name", e.currentTarget.value)}
-                                            >
-                                                <option value="">Select instrument</option>
-                                                {#each availableInstruments(memberName, option) as instrument}
-                                                    <option value={instrument}>{instrument}</option>
-                                                {/each}
-                                            </select>
+                                            <div class="inline-add">
+                                                <input
+                                                    class="field-input"
+                                                    list="inst-{memberName}-{index}"
+                                                    value={instDraft}
+                                                    placeholder="e.g. Guitar, Bass, Keys"
+                                                    oninput={(e) => setInstrumentDraft(memberName, index, e.currentTarget.value)}
+                                                    onkeydown={(e) => { if (e.key === "Enter") { e.preventDefault(); commitInstrumentName(memberName, index); } }}
+                                                    onblur={() => commitInstrumentName(memberName, index)}
+                                                />
+                                                {#if instDraft && instDraft !== option.name}
+                                                    <button class="add-sm-btn" onclick={() => commitInstrumentName(memberName, index)}>Set</button>
+                                                {/if}
+                                            </div>
+                                            {#if knownInstruments.length > 0}
+                                                <datalist id="inst-{memberName}-{index}">
+                                                    {#each knownInstruments as instrument}
+                                                        <option value={instrument} />
+                                                    {/each}
+                                                </datalist>
+                                            {/if}
                                         </label>
 
                                         <button
@@ -197,37 +321,54 @@
                                         >Remove</button>
                                     </div>
 
-                                    {#if availableTunings(memberName, option).length > 0}
+                                    {#if option.name || instDraft}
                                         <div class="tuning-section">
                                             <span class="field-label">Tunings</span>
                                             {#if defaultTuning(memberName, option.name)}
                                                 <small class="default-note">Default: {defaultTuning(memberName, option.name)}</small>
                                             {/if}
-                                            <div class="chip-row">
-                                                {#each availableTunings(memberName, option) as tuning}
-                                                    <ChipToggle
-                                                        checked={(option.tuning || []).includes(tuning)}
-                                                        onchange={() => toggleTuning(memberName, index, tuning)}
-                                                    >{tuning}</ChipToggle>
-                                                {/each}
+                                            {#if availableTunings(memberName, option).length > 0}
+                                                <div class="chip-row">
+                                                    {#each availableTunings(memberName, option) as tuning}
+                                                        <ChipToggle
+                                                            checked={(option.tuning || []).includes(tuning)}
+                                                            onchange={() => toggleTuning(memberName, index, tuning)}
+                                                        >{tuning}</ChipToggle>
+                                                    {/each}
+                                                </div>
+                                                {#if !hasDefaultTuning(memberName, option.name)}
+                                                    <button class="defaults-hint" onclick={() => openBandMemberEdit(memberName)}>No default tuning — set one in {memberName}'s config</button>
+                                                {/if}
+                                            {/if}
+                                            <div class="inline-add">
+                                                <input
+                                                    class="field-input small"
+                                                    type="text"
+                                                    placeholder="Add tuning..."
+                                                    value={store.newTuningByInstrument?.[store.tuningDraftKey(memberName, option.name)] || ""}
+                                                    oninput={(e) => { store.newTuningByInstrument = { ...store.newTuningByInstrument, [store.tuningDraftKey(memberName, option.name)]: e.currentTarget.value }; }}
+                                                    onkeydown={(e) => handleAddTuningKeydown(e, memberName, option.name, index)}
+                                                />
+                                                <button class="add-sm-btn" onclick={() => handleAddTuning(memberName, option.name, index)}>Add</button>
                                             </div>
                                         </div>
-                                    {/if}
 
-                                    <div class="instrument-options-row">
-                                        <div class="field">
-                                            <span class="field-label">Capo</span>
-                                            <NumberStepper
-                                                value={option.capo || 0}
-                                                min={0}
-                                                max={12}
-                                                label="Capo"
-                                                onchange={(v) => store.updateInstrumentOption(memberName, index, "capo", v)}
-                                            />
-                                        </div>
-                                        {#if availableTechniques(memberName, option).length > 0}
+                                        <div class="instrument-options-row">
                                             <div class="field">
-                                                <span class="field-label">Technique</span>
+                                                <span class="field-label">Capo</span>
+                                                <NumberStepper
+                                                    value={option.capo || 0}
+                                                    min={0}
+                                                    max={12}
+                                                    label="Capo"
+                                                    onchange={(v) => store.updateInstrumentOption(memberName, index, "capo", v)}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div class="tuning-section">
+                                            <span class="field-label">Techniques</span>
+                                            {#if availableTechniques(memberName, option).length > 0}
                                                 <div class="chip-row">
                                                     <ChipToggle
                                                         checked={(option.picking || []).includes("none")}
@@ -241,9 +382,23 @@
                                                         >{technique}</ChipToggle>
                                                     {/each}
                                                 </div>
+                                                {#if !hasDefaultTechnique(memberName, option.name)}
+                                                    <button class="defaults-hint" onclick={() => openBandMemberEdit(memberName)}>No default technique set — set one in {memberName}'s config so new songs auto-pick it</button>
+                                                {/if}
+                                            {/if}
+                                            <div class="inline-add">
+                                                <input
+                                                    class="field-input small"
+                                                    type="text"
+                                                    placeholder="Add technique..."
+                                                    value={store.newTechniqueByInstrument?.[store.techniqueDraftKey(memberName, option.name)] || ""}
+                                                    oninput={(e) => { store.newTechniqueByInstrument = { ...store.newTechniqueByInstrument, [store.techniqueDraftKey(memberName, option.name)]: e.currentTarget.value }; }}
+                                                    onkeydown={(e) => handleAddTechniqueKeydown(e, memberName, option.name, index)}
+                                                />
+                                                <button class="add-sm-btn" onclick={() => handleAddTechnique(memberName, option.name, index)}>Add</button>
                                             </div>
-                                        {/if}
-                                    </div>
+                                        </div>
+                                    {/if}
                                 </div>
                             {/each}
 
@@ -261,7 +416,14 @@
                 </div>
             {/each}
 
-            <button class="secondary-btn" onclick={() => store.addMember()}>+ Add member</button>
+            {#if bandMembersNotInSong().length > 0}
+                <div class="add-member-row">
+                    {#each bandMembersNotInSong() as [name]}
+                        <button class="add-member-btn" onclick={() => store.addMember(name)}>+ {name}</button>
+                    {/each}
+                </div>
+            {/if}
+            <button class="secondary-btn" onclick={() => store.addMember()}>+ New member</button>
         </section>
 
         <!-- Bottom actions -->
@@ -409,16 +571,7 @@
         width: 100%;
     }
 
-    select.field-input {
-        appearance: none;
-        -webkit-appearance: none;
-        background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-        background-repeat: no-repeat;
-        background-position: right 0.75rem center;
-        padding-right: 2.2rem;
-    }
-
-    .flex-1 {
+.flex-1 {
         flex: 1 1 0;
     }
 
@@ -465,6 +618,20 @@
         flex: 1;
         font-size: 0.8rem;
         color: var(--muted, #6b7a8d);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .member-header.has-issue {
+        background: rgba(255, 160, 40, 0.06);
+    }
+
+    .member-issue {
+        flex: 1;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #b07020;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -523,6 +690,58 @@
         gap: 0.4rem;
     }
 
+    .inline-add {
+        display: flex;
+        gap: 0.4rem;
+        align-items: center;
+    }
+
+    .inline-add .field-input {
+        flex: 1;
+    }
+
+    .field-input.small {
+        min-height: 2.2rem;
+        padding: 0.4rem 0.7rem;
+        font-size: 0.85rem;
+    }
+
+    .add-sm-btn {
+        min-height: 2.2rem;
+        padding: 0.4rem 0.75rem;
+        border-radius: var(--radius-md, 12px);
+        border: none;
+        background: var(--ink, #182230);
+        color: #fff;
+        font-size: 0.78rem;
+        font-weight: 700;
+        cursor: pointer;
+        touch-action: manipulation;
+        flex-shrink: 0;
+    }
+
+    .add-sm-btn:active {
+        opacity: 0.85;
+    }
+
+    .defaults-hint {
+        background: none;
+        border: none;
+        padding: 0;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--accent, #e15b37);
+        cursor: pointer;
+        text-align: left;
+        text-decoration: underline;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 2px;
+    }
+
+    .defaults-hint:hover {
+        color: #c94020;
+    }
+
     .remove-setup-btn {
         min-height: 2.4rem;
         padding: 0.4rem 0.7rem;
@@ -540,6 +759,29 @@
 
     .remove-setup-btn:active {
         background: rgba(200, 40, 40, 0.06);
+    }
+
+    /* Add member row */
+    .add-member-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+    }
+
+    .add-member-btn {
+        padding: 0.45rem 0.85rem;
+        border-radius: var(--radius-md, 12px);
+        border: 1.5px solid var(--accent, #e15b37);
+        background: rgba(225, 91, 55, 0.06);
+        color: var(--accent, #e15b37);
+        font-weight: 700;
+        font-size: 0.82rem;
+        cursor: pointer;
+        touch-action: manipulation;
+    }
+
+    .add-member-btn:active {
+        background: rgba(225, 91, 55, 0.15);
     }
 
     /* Buttons */

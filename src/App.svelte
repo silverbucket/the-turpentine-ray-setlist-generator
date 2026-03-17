@@ -8,6 +8,8 @@
     import RollScreen from "./lib/components/roll/RollScreen.svelte";
     import SongsScreen from "./lib/components/songs/SongsScreen.svelte";
     import BandScreen from "./lib/components/band/BandScreen.svelte";
+    import SavedScreen from "./lib/components/saved/SavedScreen.svelte";
+    import HelpScreen from "./lib/components/help/HelpScreen.svelte";
 
     const repo = createRemoteStorageRepository();
     const store = createAppStore(repo);
@@ -26,10 +28,10 @@
 {#if store.connectionStatus !== "connected"}
     <main class="connect-shell">
         <section class="connect-card">
-            <p class="eyebrow">Setlist Generator</p>
+            <p class="eyebrow">Set Roll</p>
             <h1>{store.appTitle}</h1>
             <p class="lede">
-                Connect to remoteStorage to keep your songs and presets safe.
+                Connect to remoteStorage so your songs survive the tour bus.
             </p>
 
             <label class="field">
@@ -59,10 +61,14 @@
         <main class="main-content">
             {#if store.activeView === "roll"}
                 <RollScreen />
+            {:else if store.activeView === "saved"}
+                <SavedScreen />
             {:else if store.activeView === "songs"}
                 <SongsScreen />
             {:else if store.activeView === "band"}
                 <BandScreen />
+            {:else if store.activeView === "help"}
+                <HelpScreen />
             {/if}
         </main>
 
@@ -75,7 +81,7 @@
         <div class="modal">
             <p class="eyebrow">First Run</p>
             <h3>Name Your Band</h3>
-            <p class="modal-desc">Give the generator something to call you.</p>
+            <p class="modal-desc">What do we call this operation? Don't overthink it.</p>
             <label class="field">
                 <span>Band name</span>
                 <input
@@ -99,11 +105,12 @@
     </div>
 {/if}
 
-<div class="toast-stack" aria-live="polite">
-    {#each store.toastMessages as toast (toast.id)}
-        <div class="toast {toast.tone}">{toast.message}</div>
-    {/each}
-</div>
+{#if store.toastMessages.length > 0}
+    {@const latest = store.toastMessages[store.toastMessages.length - 1]}
+    <div class="toast-pill {latest.tone}" aria-live="polite">
+        {latest.message}
+    </div>
+{/if}
 
 <style>
     /* ---- Connect screen ---- */
@@ -303,39 +310,46 @@
         flex-shrink: 0;
     }
 
-    /* ---- Toasts ---- */
-    .toast-stack {
+    /* ---- Toast pill ---- */
+    .toast-pill {
         position: fixed;
-        bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + var(--space-3));
-        left: var(--space-3);
-        right: var(--space-3);
-        display: grid;
-        gap: var(--space-2);
-        z-index: 40;
-        pointer-events: none;
-    }
-
-    .toast {
-        background: rgba(18, 27, 39, 0.95);
+        top: calc(env(safe-area-inset-top, 0px) + 48px);
+        left: 50%;
+        transform: translateX(-50%);
+        max-width: calc(100vw - 2rem);
+        padding: 5px 14px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-align: center;
         color: #fff;
-        border-radius: var(--radius-md);
-        padding: 0.75rem 1rem;
-        box-shadow: 0 18px 34px rgba(18, 27, 39, 0.24);
-        animation: toast-in 180ms ease;
-        font-size: 0.85rem;
-        pointer-events: auto;
+        background: #1b3150;
+        border: none;
+        border-radius: 0 0 var(--radius-md, 12px) var(--radius-md, 12px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 300;
+        pointer-events: none;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        animation: toast-slide-down 200ms ease;
     }
 
-    .toast.danger {
-        background: rgba(122, 36, 24, 0.96);
+    .toast-pill.danger {
+        background: #992f20;
+        color: #fff;
+    }
+
+    .toast-pill.warning {
+        background: #7a5c10;
+        color: #fff;
     }
 
     @keyframes spin {
         to { transform: rotate(360deg); }
     }
 
-    @keyframes toast-in {
-        from { opacity: 0; transform: translateY(8px); }
-        to { opacity: 1; transform: translateY(0); }
+    @keyframes toast-slide-down {
+        from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+        to { opacity: 1; transform: translateX(-50%) translateY(0); }
     }
 </style>

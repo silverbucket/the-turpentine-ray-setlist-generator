@@ -345,6 +345,8 @@
             </div>
         </div>
 
+        <hr class="section-divider" />
+
         <!-- Members Section -->
         <div class="section-block">
             <h3 class="section-label">Members</h3>
@@ -352,7 +354,7 @@
             {#if store.bandMemberEntries?.length === 0}
                 <div class="empty-state">
                     <p class="empty-title">No members yet</p>
-                    <p class="empty-sub">Add your first band member below.</p>
+                    <p class="empty-sub">Add members who switch instruments, tunings, or capos between songs. If someone plays the same gear every song, they don't need to be here.</p>
                 </div>
             {/if}
 
@@ -386,11 +388,18 @@
             </div>
         </div>
 
-        <!-- Advanced Config Link -->
-        <button class="card link-card" onclick={() => { store.bandSubView = "advanced"; }}>
-            <span class="link-card-label">Advanced Config</span>
-            <span class="link-card-arrow">&rsaquo;</span>
-        </button>
+        <hr class="section-divider" />
+
+        <!-- Config Section -->
+        <div class="section-block">
+            <h3 class="section-label">Config</h3>
+            <button class="card link-card" onclick={() => { store.bandSubView = "advanced"; }}>
+                <span class="link-card-label">Generation settings, weights, and order rules</span>
+                <span class="link-card-arrow">&rsaquo;</span>
+            </button>
+        </div>
+
+        <hr class="section-divider" />
 
         <!-- Data Section -->
         <div class="section-block">
@@ -419,12 +428,23 @@
                 </div>
             </div>
 
+            <button class="danger-btn" onclick={() => store.deleteAllData()}>Delete All Data</button>
+        </div>
+
+        <hr class="section-divider" />
+
+        <!-- Account Section -->
+        <div class="section-block">
+            <h3 class="section-label">Account</h3>
+
             {#if store.connectAddress}
                 <div class="connect-info">
-                    <span class="field-label">Connected to</span>
+                    <span class="field-label">Connected as</span>
                     <span class="connect-address">{store.connectAddress}</span>
-                    <button class="danger-btn small" onclick={() => store.disconnectStorage()}>Disconnect</button>
                 </div>
+                <button class="danger-btn" onclick={() => store.disconnectStorage()}>Disconnect</button>
+            {:else}
+                <p class="empty-sub">Not connected.</p>
             {/if}
         </div>
     {/if}
@@ -433,7 +453,7 @@
 <style>
     .band-screen {
         display: grid;
-        gap: 0.75rem;
+        gap: 0.85rem;
         padding: 1rem;
         max-width: 640px;
         margin: 0 auto;
@@ -523,10 +543,17 @@
         color: var(--muted, #617086);
     }
 
+    /* Section divider */
+    .section-divider {
+        border: none;
+        border-top: 1px solid var(--line, rgba(27, 49, 80, 0.1));
+        margin: 0.5rem 0;
+    }
+
     /* Section */
     .section-block {
         display: grid;
-        gap: 0.5rem;
+        gap: 0.65rem;
     }
 
     .section-label {
@@ -536,7 +563,7 @@
         letter-spacing: 0.08em;
         color: var(--muted, #617086);
         margin: 0;
-        padding-top: 0.25rem;
+        padding-top: 0;
     }
 
     /* Fields */

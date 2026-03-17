@@ -95,3 +95,13 @@ h1, h2, h3 {
     letter-spacing: -0.04em;
     line-height: 1.05;
 }
+
+@media print {
+    @page {
+        margin: 0.5cm;
+    }
+
+    body {
+        background: #fff !important;
+    }
+}

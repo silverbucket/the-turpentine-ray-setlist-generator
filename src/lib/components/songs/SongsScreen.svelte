@@ -69,13 +69,13 @@
 
     {#if store.emptyCatalog}
         <div class="empty-state">
-            <p class="empty-title">No songs yet</p>
-            <p class="empty-sub">Tap "+ Add" to create your first song.</p>
+            <p class="empty-title">Crickets...</p>
+            <p class="empty-sub">Your song list is lonelier than a drummer's social life. Tap "+ Add" to fix that.</p>
         </div>
     {:else if store.visibleSongs.length === 0}
         <div class="empty-state">
-            <p class="empty-title">No matches</p>
-            <p class="empty-sub">Try adjusting your search or filters.</p>
+            <p class="empty-title">Nope, nothing</p>
+            <p class="empty-sub">Either your search is too picky or your catalog needs more songs.</p>
         </div>
     {:else}
         <ul class="song-list">
@@ -89,7 +89,7 @@
                                     <span class="pill warn">unpracticed</span>
                                 {/if}
                                 {#if store.isSongIncomplete(song)}
-                                    <span class="pill warn">incomplete</span>
+                                    <span class="pill warn" title={store.songIncompleteReasons(song).join(", ")}>incomplete</span>
                                 {/if}
                                 {#if song.cover}
                                     <span class="pill">cover</span>
@@ -100,6 +100,13 @@
                             </div>
                             {#if memberSummary(song)}
                                 <div class="song-members">{memberSummary(song)}</div>
+                            {/if}
+                            {#if store.songIncompleteReasons(song).length > 0}
+                                <div class="incomplete-reasons">
+                                    {#each store.songIncompleteReasons(song) as reason}
+                                        <span class="incomplete-reason">{reason}</span>
+                                    {/each}
+                                </div>
                             {/if}
                             {#if song.key}
                                 <div class="song-key">Key: {song.key}</div>
@@ -331,5 +338,17 @@
     .song-key {
         font-size: 0.78rem;
         color: var(--muted, #6b7a8d);
+    }
+
+    .incomplete-reasons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem 0.5rem;
+    }
+
+    .incomplete-reason {
+        font-size: 0.75rem;
+        color: #b07020;
+        font-weight: 600;
     }
 </style>

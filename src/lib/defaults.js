@@ -182,7 +182,6 @@ export function normalizeSongRecord(song) {
     return {
         id: String(song.id),
         name: song.name || "",
-        energy: Number(song.energy || 2),
         cover: Boolean(song.cover),
         instrumental: Boolean(song.instrumental),
         notGoodOpener: Boolean(song.notGoodOpener),
@@ -219,6 +218,26 @@ export function normalizeAppConfig(config) {
     const timestamp = config.createdAt || nowIso();
     const bandMembers = normalizeBandMembers(config.band?.members || {});
     const catalog = normalizeCatalogConfig(config);
+
+    // Strip deprecated "energy" rules from order constraints
+    const order = config.general?.order;
+    if (order) {
+        for (const slot of Object.keys(order)) {
+            if (Array.isArray(order[slot])) {
+                order[slot] = order[slot].filter(([name]) => name !== "energy");
+            }
+        }
+    }
+
+    // Strip deprecated energy-related weighting keys
+    const weighting = config.general?.weighting;
+    if (weighting) {
+        delete weighting.energyTarget;
+        delete weighting.repeatEnergy;
+        delete weighting.energyStreak;
+        delete weighting.bigEnergyJump;
+    }
+
     return deepMerge(createDefaultAppConfig({ bandName: config.bandName || "" }), {
         ...clone(config),
         bandName: config.bandName || "",

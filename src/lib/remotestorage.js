@@ -46,10 +46,14 @@ export function createRemoteStorageRepository() {
         client,
 
         connect(userAddress) {
+            // Re-enable caching in case it was reset by a previous disconnect
+            remoteStorage.caching.enable(`/${APP_SCOPE}/`);
             remoteStorage.connect(userAddress);
         },
 
         disconnect() {
+            // Reset the local cache before disconnecting to prevent data leaking to the next account
+            remoteStorage.caching.reset();
             remoteStorage.disconnect();
         },
 

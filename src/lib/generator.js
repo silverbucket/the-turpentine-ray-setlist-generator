@@ -1,4 +1,4 @@
-import { clone, deepMerge, toArray } from "./utils.js";
+import { deepMerge, toArray } from "./utils.js";
 
 function clampInteger(value, fallback, minimum) {
     const parsed = Number.parseInt(value, 10);
@@ -68,19 +68,18 @@ function compareStates(left, right) {
     if (left.instrumentalCount !== right.instrumentalCount) {
         return left.instrumentalCount - right.instrumentalCount;
     }
-    const leftNames = left.items.map((item) => item.name).join("|");
-    const rightNames = right.items.map((item) => item.name).join("|");
-    return leftNames.localeCompare(rightNames);
+    // Use numeric tiebreaker instead of expensive string join + localeCompare
+    return (left._tiebreaker || 0) - (right._tiebreaker || 0);
 }
 
 
 class SongsCatalog {
     constructor(list = []) {
-        this._songs = clone(list);
+        this._songs = list;
     }
 
     all() {
-        return clone(this._songs);
+        return this._songs;
     }
 
     expandVariants(song, showConstraints = {}) {
@@ -163,7 +162,7 @@ class SongsCatalog {
             return optionTunings.some((tuning) => validTunings.indexOf(tuning) >= 0);
         }).map((option) => {
             const instrumentName = option.name || option.instrument;
-            const constrainedOption = clone(option);
+            const constrainedOption = { ...option };
 
             if (allowedTunings[instrumentName]) {
                 const validTunings = toArray(allowedTunings[instrumentName]);
@@ -183,7 +182,6 @@ class SongsCatalog {
         return {
             id: String(song.id),
             name: song.name,
-            energy: song.energy || 2,
             cover: Boolean(song.cover),
             instrumental: Boolean(song.instrumental),
             notGoodOpener: Boolean(song.notGoodOpener),
@@ -231,13 +229,13 @@ class SetList {
         const limits = this._config.general?.limits || {};
         const normalized = merge({
             count: this._config.general?.count || 15,
-            beamWidth: this._config.general?.beamWidth || 64,
+            beamWidth: this._config.general?.beamWidth || 20,
             maxCovers: limits.covers || 2,
             maxInstrumentals: limits.instrumentals || 2
         }, options || {});
 
         normalized.count = clampInteger(normalized.count, this._config.general?.count || 15, 1);
-        normalized.beamWidth = clampInteger(normalized.beamWidth, this._config.general?.beamWidth || 64, 1);
+        normalized.beamWidth = clampInteger(normalized.beamWidth, this._config.general?.beamWidth || 20, 1);
         normalized.maxCovers = clampInteger(normalized.maxCovers, limits.covers || 2, 0);
         normalized.maxInstrumentals = clampInteger(normalized.maxInstrumentals, limits.instrumentals || 2, 0);
         normalized.show = deepMerge(this._config.show || {}, normalized.show || {});
@@ -293,39 +291,61 @@ class SetList {
 
     _initialState() {
         return {
-            items: [],
-            usedIds: {},
+            // Linked list: head points to { item, prev } chain
+            head: null,
+            length: 0,
+            usedIds: Object.create(null),
             score: 0,
             coverCount: 0,
             instrumentalCount: 0,
-            energyStreak: 0,
-            lastEnergy: null,
+            lastItem: null,
             rankScore: 0,
+            _tiebreaker: 0,
             propChangeCounts: zeroMap(this._propNames),
             propStreaks: zeroMap(this._propNames),
             changeTotals: zeroMap(this._propNames)
         };
     }
 
+    // Reconstruct items array from linked list
+    _collectItems(state) {
+        const items = new Array(state.length);
+        let node = state.head;
+        for (let i = state.length - 1; i >= 0; i--) {
+            items[i] = node.item;
+            node = node.prev;
+        }
+        return items;
+    }
+
     _build() {
         let states = [this._initialState()];
         const catalog = this._randomness.shuffleCatalog ? this._shuffle(this._catalog) : this._catalog.slice();
 
+        // Pre-expand and cache all variants once
+        const variantCache = new Map();
+        for (let i = 0; i < catalog.length; i++) {
+            variantCache.set(catalog[i].id, this._songs.expandVariants(catalog[i], this._show));
+        }
+        this._variantCache = variantCache;
+
         for (let position = 1; position <= this._count; position += 1) {
             const nextStates = [];
 
-            states.forEach((state) => {
-                catalog.forEach((song) => {
+            for (let si = 0; si < states.length; si++) {
+                const state = states[si];
+                for (let ci = 0; ci < catalog.length; ci++) {
+                    const song = catalog[ci];
                     if (state.usedIds[song.id]) {
-                        return;
+                        continue;
                     }
 
                     const nextState = this._buildNextState(state, song, position);
                     if (nextState) {
                         nextStates.push(nextState);
                     }
-                });
-            });
+                }
+            }
 
             if (!nextStates.length) {
                 break;
@@ -336,7 +356,8 @@ class SetList {
         }
 
         const best = this._pickFinalState(states);
-        const diversifiedItems = this._diversifyCompatibleRuns(best.items);
+        const bestItems = this._collectItems(best);
+        const diversifiedItems = this._diversifyCompatibleRuns(bestItems);
         const finalized = this._finalizeItems(diversifiedItems);
         this._list = finalized.items;
         this._summary = finalized.summary;
@@ -374,8 +395,7 @@ class SetList {
             }
 
             const chosen = pool.splice(chosenIndex, 1)[0];
-            const lastItem = chosen.items[chosen.items.length - 1];
-            const lastSongId = lastItem ? lastItem.id : "none";
+            const lastSongId = chosen.lastItem ? chosen.lastItem.id : "none";
             const used = lastSongCounts[lastSongId] || 0;
 
             if (used >= maxStatesPerLastSong) {
@@ -387,9 +407,11 @@ class SetList {
         }
 
         if (selected.length < this._options.beamWidth) {
-            const fallback = nextStates.filter((state) => selected.indexOf(state) < 0);
-            while (fallback.length && selected.length < this._options.beamWidth) {
-                selected.push(fallback.shift());
+            const selectedSet = new Set(selected);
+            for (let i = 0; i < nextStates.length && selected.length < this._options.beamWidth; i++) {
+                if (!selectedSet.has(nextStates[i])) {
+                    selected.push(nextStates[i]);
+                }
             }
         }
 
@@ -464,8 +486,7 @@ class SetList {
         for (let offset = 0; offset < runItems.length; offset += 1) {
             const position = startPosition + offset;
             const ranked = remaining.map((item) => {
-                const distance = Math.abs(item.energy - this._targetEnergy(position)) * this._weights.energyTarget;
-                const score = distance + this._songBias(item.id);
+                const score = this._songBias(item.id);
                 return { item, score };
             }).sort((left, right) => left.score - right.score);
 
@@ -513,7 +534,6 @@ class SetList {
             const variant = {
                 id: item.id,
                 name: item.name,
-                energy: item.energy,
                 cover: item.cover,
                 instrumental: item.instrumental,
                 key: item.key,
@@ -523,14 +543,12 @@ class SetList {
             const propTransition = this._scoreConfiguredProps(prevItem, variant);
             const nextPropState = this._advancePropState(state, propTransition.changes, prevItem);
             const positionScore = this._scorePosition(variant, position);
-            const context = this._scoreContext(state, variant);
-            const transitionScore = propTransition.score + this._scoreEnergyJump(prevItem, variant);
-            const incrementalScore = transitionScore + positionScore.score + context.score + this._songBias(variant.id);
+            const transitionScore = propTransition.score;
+            const incrementalScore = transitionScore + positionScore.score + this._songBias(variant.id);
 
             const finalized = {
                 id: variant.id,
                 name: variant.name,
-                energy: variant.energy,
                 cover: variant.cover,
                 instrumental: variant.instrumental,
                 key: variant.key,
@@ -538,9 +556,9 @@ class SetList {
                 position,
                 incrementalScore,
                 cumulativeScore: state.score + incrementalScore,
-                transitionNotes: propTransition.notes.concat(this._energyJumpNotes(prevItem, variant)),
+                transitionNotes: propTransition.notes,
                 positionNotes: positionScore.notes,
-                contextNotes: context.notes,
+                contextNotes: [],
                 propChanges: propTransition.changes
             };
 
@@ -552,8 +570,6 @@ class SetList {
                 rankScore: state.score + incrementalScore,
                 coverCount: state.coverCount + Number(Boolean(variant.cover)),
                 instrumentalCount: state.instrumentalCount + Number(Boolean(variant.instrumental)),
-                energyStreak: context.energyStreak,
-                lastEnergy: variant.energy,
                 propChangeCounts: nextPropState.propChangeCounts,
                 propStreaks: nextPropState.propStreaks,
                 changeTotals: nextPropState.changeTotals
@@ -572,8 +588,8 @@ class SetList {
     }
 
     _buildNextState(state, song, position) {
-        const nextCoverCount = state.coverCount + Number(Boolean(song.cover));
-        const nextInstrumentalCount = state.instrumentalCount + Number(Boolean(song.instrumental));
+        const nextCoverCount = state.coverCount + (song.cover ? 1 : 0);
+        const nextInstrumentalCount = state.instrumentalCount + (song.instrumental ? 1 : 0);
 
         if (nextCoverCount > this._options.maxCovers) {
             return null;
@@ -587,15 +603,20 @@ class SetList {
             return null;
         }
 
+        const newScore = state.score + bestVariant.incrementalScore;
+        const usedIds = Object.create(state.usedIds);
+        usedIds[song.id] = true;
+
         return {
-            items: state.items.concat(bestVariant.item),
-            usedIds: merge(state.usedIds, { [song.id]: true }),
-            score: state.score + bestVariant.item.incrementalScore,
-            rankScore: state.score + bestVariant.item.incrementalScore + this._randomJitter(this._randomness.stateJitter),
+            head: { item: bestVariant.item, prev: state.head },
+            length: state.length + 1,
+            usedIds,
+            score: newScore,
             coverCount: nextCoverCount,
             instrumentalCount: nextInstrumentalCount,
-            energyStreak: bestVariant.energyStreak,
-            lastEnergy: bestVariant.item.energy,
+            lastItem: bestVariant.item,
+            rankScore: newScore + this._randomJitter(this._randomness.stateJitter),
+            _tiebreaker: this._rng(),
             propChangeCounts: bestVariant.propChangeCounts,
             propStreaks: bestVariant.propStreaks,
             changeTotals: bestVariant.changeTotals
@@ -603,54 +624,137 @@ class SetList {
     }
 
     _findBestVariant(state, song, position) {
-        const prevItem = state.items[state.items.length - 1] || null;
+        const prevItem = state.lastItem;
         let best = null;
+        let bestScore = Infinity;
 
-        this._songs.expandVariants(song, this._show).forEach((variant) => {
-            const propTransition = this._scoreConfiguredProps(prevItem, variant);
+        const variants = this._variantCache.get(song.id);
+        for (let vi = 0; vi < variants.length; vi++) {
+            const variant = variants[vi];
+            const propTransition = this._scoreConfiguredPropsLite(prevItem, variant);
             if (!this._isAllowedByPropRules(state, propTransition.changes, prevItem, position)) {
-                return;
+                continue;
             }
 
             const nextPropState = this._advancePropState(state, propTransition.changes, prevItem);
-            const positionScore = this._scorePosition(variant, position);
-            const context = this._scoreContext(state, variant);
-            const transitionScore = propTransition.score + this._scoreEnergyJump(prevItem, variant);
-            const incrementalScore = transitionScore + positionScore.score + context.score + this._songBias(variant.id);
+            const positionScore = this._scorePositionLite(variant, position);
+            const transitionScore = propTransition.score;
+            const incrementalScore = transitionScore + positionScore + this._songBias(variant.id);
             const exploratoryScore = incrementalScore + this._randomJitter(this._randomness.variantJitter);
-            const signature = this._variantSignature(variant);
 
-            if (!best || exploratoryScore < best.explorationScore || (
-                exploratoryScore === best.explorationScore && signature < best.signature
-            )) {
+            if (exploratoryScore < bestScore) {
+                bestScore = exploratoryScore;
                 best = {
-                    signature,
-                    explorationScore: exploratoryScore,
-                    energyStreak: context.energyStreak,
                     propChangeCounts: nextPropState.propChangeCounts,
                     propStreaks: nextPropState.propStreaks,
                     changeTotals: nextPropState.changeTotals,
-                    item: {
-                        id: variant.id,
-                        name: variant.name,
-                        energy: variant.energy,
-                        cover: variant.cover,
-                        instrumental: variant.instrumental,
-                        key: variant.key,
-                        performance: variant.performance,
-                        position,
-                        incrementalScore,
-                        cumulativeScore: state.score + incrementalScore,
-                        transitionNotes: propTransition.notes.concat(this._energyJumpNotes(prevItem, variant)),
-                        positionNotes: positionScore.notes,
-                        contextNotes: context.notes,
-                        propChanges: propTransition.changes
-                    }
+                    incrementalScore,
+                    item: variant
                 };
             }
-        });
+        }
 
         return best;
+    }
+
+    // Lite version: returns { score, changes } without building notes arrays
+    _scoreConfiguredPropsLite(prevItem, nextVariant) {
+        const changes = {};
+        let score = 0;
+
+        for (let i = 0; i < this._propNames.length; i++) {
+            const propName = this._propNames[i];
+            const change = this._detectPropChangeLite(prevItem, nextVariant, propName, this._propConfig[propName]);
+            changes[propName] = change;
+            if (change.changed) {
+                score += change.magnitude * this._getPropWeight(propName);
+            }
+        }
+
+        return { score, changes };
+    }
+
+    _detectPropChangeLite(prevItem, nextVariant, propName, rule) {
+        if (!prevItem) {
+            return { changed: false, magnitude: 0 };
+        }
+        const kind = rule.kind || this._inferPropKind(propName);
+        if (kind === "instrumentSet") {
+            return this._detectInstrumentSetChangeLite(prevItem, nextVariant);
+        }
+        if (kind === "instrumentDelta") {
+            return this._detectInstrumentValueChangeLite(prevItem, nextVariant, rule, true, false);
+        }
+        if (kind === "instrumentBoolean") {
+            return this._detectInstrumentValueChangeLite(prevItem, nextVariant, rule, false, true);
+        }
+        return this._detectInstrumentValueChangeLite(prevItem, nextVariant, rule, false, false);
+    }
+
+    _detectInstrumentSetChangeLite(prevItem, nextVariant) {
+        const prevPerf = prevItem.performance;
+        const nextPerf = nextVariant.performance;
+        let magnitude = 0;
+        const prevKeys = Object.keys(prevPerf);
+        const nextKeys = Object.keys(nextPerf);
+        for (let i = 0; i < prevKeys.length; i++) {
+            const m = prevKeys[i];
+            if (!nextPerf[m]) { magnitude += 1; continue; }
+            if (prevPerf[m].instrument !== nextPerf[m].instrument) { magnitude += 1; }
+        }
+        for (let i = 0; i < nextKeys.length; i++) {
+            if (!prevPerf[nextKeys[i]]) { magnitude += 1; }
+        }
+        return { changed: magnitude > 0, magnitude };
+    }
+
+    _detectInstrumentValueChangeLite(prevItem, nextVariant, rule, scaleByDelta, coerceBoolean) {
+        const field = rule.field;
+        let magnitude = 0;
+        const prevPerf = prevItem.performance;
+        const nextPerf = nextVariant.performance;
+        const prevKeys = Object.keys(prevPerf);
+        for (let i = 0; i < prevKeys.length; i++) {
+            const member = prevKeys[i];
+            if (!nextPerf[member]) continue;
+            const prevValue = prevPerf[member][field];
+            const nextValue = nextPerf[member][field];
+            if (coerceBoolean) {
+                if (Boolean(prevValue) === Boolean(nextValue)) continue;
+            } else {
+                const left = (prevValue === undefined || prevValue === null) ? "" : String(prevValue);
+                const right = (nextValue === undefined || nextValue === null) ? "" : String(nextValue);
+                if (left === right) continue;
+            }
+            const amount = scaleByDelta ? Math.abs((prevValue || 0) - (nextValue || 0)) : 1;
+            if (!amount) continue;
+            magnitude += amount;
+        }
+        return { changed: magnitude > 0, magnitude };
+    }
+
+    // Lite position scoring: returns just the numeric score
+    _scorePositionLite(song, position) {
+        let score = 0;
+        const orderLabel = this._findOrderLabel(position);
+        const orderRules = (this._config.general?.order && this._config.general.order[orderLabel]) || [];
+
+        for (let i = 0; i < orderRules.length; i++) {
+            const [name, expected] = orderRules[i];
+            const accepted = Array.isArray(expected) ? expected : [expected];
+            const actual = song[name] === undefined ? false : song[name];
+            if (accepted.indexOf(actual) < 0) {
+                score += this._weights.positionMiss;
+            }
+        }
+
+        if (song.cover && position <= 2) {
+            score += this._weights.earlyCover;
+        }
+        if (song.instrumental && position <= 2) {
+            score += this._weights.earlyInstrumental;
+        }
+        return score;
     }
 
     _scoreConfiguredProps(prevItem, nextVariant) {
@@ -816,26 +920,27 @@ class SetList {
     }
 
     _advancePropState(state, propChanges, prevItem) {
-        const propChangeCounts = clone(state.propChangeCounts);
-        const propStreaks = clone(state.propStreaks);
-        const changeTotals = clone(state.changeTotals);
+        const propChangeCounts = { ...state.propChangeCounts };
+        const propStreaks = { ...state.propStreaks };
+        const changeTotals = { ...state.changeTotals };
 
-        this._propNames.forEach((propName) => {
+        for (let i = 0; i < this._propNames.length; i++) {
+            const propName = this._propNames[i];
             const change = propChanges[propName];
             if (!prevItem) {
                 propStreaks[propName] = 1;
-                return;
+                continue;
             }
 
             if (change.changed) {
                 propChangeCounts[propName] += 1;
                 propStreaks[propName] = 1;
                 changeTotals[propName] += change.magnitude;
-                return;
+                continue;
             }
 
             propStreaks[propName] += 1;
-        });
+        }
 
         return {
             propChangeCounts,
@@ -844,35 +949,12 @@ class SetList {
         };
     }
 
-    _scoreEnergyJump(prevItem, nextVariant) {
-        if (!prevItem) {
-            return 0;
-        }
-        if (Math.abs(prevItem.energy - nextVariant.energy) > 1) {
-            return this._weights.bigEnergyJump;
-        }
-        return 0;
-    }
-
-    _energyJumpNotes(prevItem, nextVariant) {
-        if (!prevItem) {
-            return [];
-        }
-        if (Math.abs(prevItem.energy - nextVariant.energy) > 1) {
-            return [`energy jump ${prevItem.energy} -> ${nextVariant.energy}`];
-        }
-        return [];
-    }
 
     _scorePosition(song, position) {
         const notes = [];
-        let score = Math.abs(song.energy - this._targetEnergy(position)) * this._weights.energyTarget;
+        let score = 0;
         const orderLabel = this._findOrderLabel(position);
         const orderRules = (this._config.general?.order && this._config.general.order[orderLabel]) || [];
-
-        if (score > 0) {
-            notes.push(`energy target ${this._targetEnergy(position).toFixed(1)}`);
-        }
 
         orderRules.forEach(([name, expected]) => {
             const accepted = Array.isArray(expected) ? expected : [expected];
@@ -897,38 +979,6 @@ class SetList {
         return { score, notes };
     }
 
-    _scoreContext(state, variant) {
-        const notes = [];
-        let score = 0;
-        let energyStreak = 1;
-
-        if (state.lastEnergy === variant.energy) {
-            score += this._weights.repeatEnergy;
-            energyStreak = state.energyStreak + 1;
-            notes.push(`repeat energy ${variant.energy}`);
-        }
-
-        if (energyStreak >= 3) {
-            score += (energyStreak - 2) * this._weights.energyStreak;
-            notes.push(`energy streak ${energyStreak}`);
-        }
-
-        return { score, notes, energyStreak };
-    }
-
-    _targetEnergy(position) {
-        const ratio = position / this._count;
-        if (ratio <= 0.2) {
-            return 1.5;
-        }
-        if (ratio <= 0.5) {
-            return 2;
-        }
-        if (ratio <= 0.75) {
-            return 2.5;
-        }
-        return 3;
-    }
 
     _findOrderLabel(position) {
         if (position === 1) {
@@ -974,10 +1024,6 @@ class SetList {
 
 const DEFAULT_WEIGHTS = {
     positionMiss: 8,
-    energyTarget: 3,
-    repeatEnergy: 2,
-    energyStreak: 4,
-    bigEnergyJump: 3,
     earlyCover: 6,
     earlyInstrumental: 4
 };
@@ -989,9 +1035,9 @@ const DEFAULT_RANDOMNESS = {
     temperature: 0.85,
     shuffleCatalog: true,
     songBias: 3,
-    beamChoicePoolMultiplier: 6,
+    beamChoicePoolMultiplier: 4,
     beamTemperature: 1.1,
-    maxStatesPerLastSong: 24,
+    maxStatesPerLastSong: 8,
     blockShuffleTemperature: 1.4
 };
 
@@ -1088,67 +1134,25 @@ export function scoreFixedOrder(fixedSongs, config) {
         return { score, notes, changes };
     }
 
-    function targetEnergy(position, count) {
-        const ratio = position / count;
-        if (ratio <= 0.2) return 1.5;
-        if (ratio <= 0.5) return 2;
-        if (ratio <= 0.75) return 2.5;
-        return 3;
-    }
-
-    function scoreEnergyJump(prevItem, nextVariant) {
-        if (!prevItem) return 0;
-        if (Math.abs(prevItem.energy - nextVariant.energy) > 1) return weights.bigEnergyJump;
-        return 0;
-    }
-
-    function energyJumpNotes(prevItem, nextVariant) {
-        if (!prevItem) return [];
-        if (Math.abs(prevItem.energy - nextVariant.energy) > 1) return [`energy jump ${prevItem.energy} -> ${nextVariant.energy}`];
-        return [];
-    }
-
     const count = fixedSongs.length;
     const items = [];
     let totalScore = 0;
     let coverCount = 0;
     let instrumentalCount = 0;
-    let lastEnergy = null;
-    let energyStreak = 0;
 
     fixedSongs.forEach((song, index) => {
         const position = index + 1;
         const prevItem = items[items.length - 1] || null;
         const propTransition = scoreConfiguredProps(prevItem, song);
-        const ejScore = scoreEnergyJump(prevItem, song);
-        const te = targetEnergy(position, count);
-        const posScore = Math.abs(song.energy - te) * weights.energyTarget;
-        const posNotes = posScore > 0 ? [`energy target ${te.toFixed(1)}`] : [];
 
-        let contextScore = 0;
-        const contextNotes = [];
-        let newStreak = 1;
-        if (lastEnergy === song.energy) {
-            contextScore += weights.repeatEnergy;
-            newStreak = energyStreak + 1;
-            contextNotes.push(`repeat energy ${song.energy}`);
-        }
-        if (newStreak >= 3) {
-            contextScore += (newStreak - 2) * weights.energyStreak;
-            contextNotes.push(`energy streak ${newStreak}`);
-        }
-
-        const incrementalScore = propTransition.score + ejScore + posScore + contextScore;
+        const incrementalScore = propTransition.score;
         totalScore += incrementalScore;
         coverCount += Number(Boolean(song.cover));
         instrumentalCount += Number(Boolean(song.instrumental));
-        lastEnergy = song.energy;
-        energyStreak = newStreak;
 
         items.push({
             id: song.id,
             name: song.name,
-            energy: song.energy,
             cover: song.cover,
             instrumental: song.instrumental,
             key: song.key,
@@ -1156,9 +1160,9 @@ export function scoreFixedOrder(fixedSongs, config) {
             position,
             incrementalScore,
             cumulativeScore: totalScore,
-            transitionNotes: propTransition.notes.concat(energyJumpNotes(prevItem, song)),
-            positionNotes: posNotes,
-            contextNotes,
+            transitionNotes: propTransition.notes,
+            positionNotes: [],
+            contextNotes: [],
             propChanges: propTransition.changes
         });
     });
