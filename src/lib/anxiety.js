@@ -5,104 +5,28 @@
  * where they happen, and a 0-10 "anxiety" score scaled to the band's own
  * configuration weights.
  *
+ * Per-member deduplication: when one member changes multiple things at the
+ * same transition (e.g. capo AND picking), it counts as ONE change scored
+ * at the highest-weighted prop that changed for that member.
+ *
  * Usage:
  *   import { computeAnxiety } from "./anxiety.js";
  *   const result = computeAnxiety(songs, config);
- *   // result.scaled          — 0-10 integer
- *   // result.rawChanges      — total magnitude across all props
- *   // result.weightedScore   — magnitude * weight, adjusted for spread
- *   // result.transitionsDisrupted — how many song boundaries had a change
- *   // result.totalTransitions     — songCount - 1
- *   // result.details         — per-transition breakdown
+ *   // result.scaled      — 0-10 integer
+ *   // result.changes     — total member-changes (deduplicated per member per spot)
+ *   // result.spots       — how many song boundaries had a change
+ *   // result.songCount   — total songs in setlist
+ *   // result.weightedScore — max-weight per member, adjusted for spread
+ *   // result.details     — per-transition breakdown
  */
 
-
-// ---------------------------------------------------------------------------
-// Change detection helpers (pure functions, no class state)
-// ---------------------------------------------------------------------------
-
-function normalizeValue(value) {
-    if (value === undefined || value === null) return "";
-    if (Array.isArray(value)) return value.slice().sort().join(",");
-    return String(value);
-}
-
-function displayValue(value) {
-    if (value === undefined || value === null || value === "") return "default";
-    if (Array.isArray(value)) return value.length === 0 ? "default" : value.join(", ");
-    return String(value);
-}
-
-/**
- * Detect whether a member's instrument itself changed (e.g. guitar → banjo).
- * Also detects members appearing / disappearing between songs.
- */
-function detectInstrumentSetChange(prevPerf, nextPerf) {
-    const members = new Set([
-        ...Object.keys(prevPerf),
-        ...Object.keys(nextPerf)
-    ]);
-    const notes = [];
-    let magnitude = 0;
-
-    for (const member of Array.from(members).sort()) {
-        const prev = prevPerf[member];
-        const next = nextPerf[member];
-
-        if (!prev || !next) {
-            magnitude += 1;
-            notes.push(`${member} instrument on/off`);
-            continue;
-        }
-        if (prev.instrument !== next.instrument) {
-            magnitude += 1;
-            notes.push(`${member} instrument ${prev.instrument} -> ${next.instrument}`);
-        }
-    }
-
-    return { changed: magnitude > 0, magnitude, notes };
-}
-
-/**
- * Detect value changes for a given field across all members present in
- * EITHER song (not just shared members — a member disappearing or appearing
- * is itself a change worth noting for field-level props).
- */
-function detectFieldChange(prevPerf, nextPerf, field, scaleByDelta) {
-    const allMembers = new Set([
-        ...Object.keys(prevPerf),
-        ...Object.keys(nextPerf)
-    ]);
-    const notes = [];
-    let magnitude = 0;
-
-    for (const member of Array.from(allMembers).sort()) {
-        const prev = prevPerf[member];
-        const next = nextPerf[member];
-
-        // Member only in one song — skip field comparison (instrument set
-        // change handles the on/off transition).
-        if (!prev || !next) continue;
-
-        const prevValue = prev[field];
-        const nextValue = next[field];
-
-        const left = normalizeValue(prevValue);
-        const right = normalizeValue(nextValue);
-
-        if (left === right) continue;
-
-        const amount = scaleByDelta
-            ? Math.abs((Number(prevValue) || 0) - (Number(nextValue) || 0))
-            : 1;
-        if (!amount) continue;
-
-        magnitude += amount;
-        notes.push(`${member} ${field} ${displayValue(prevValue)} -> ${displayValue(nextValue)}`);
-    }
-
-    return { changed: magnitude > 0, magnitude, notes };
-}
+import {
+    normalizeValue,
+    displayValue,
+    detectInstrumentSetChange,
+    detectFieldChange,
+    inferPropKind
+} from "./detection.js";
 
 
 // ---------------------------------------------------------------------------
@@ -111,13 +35,6 @@ function detectFieldChange(prevPerf, nextPerf, field, scaleByDelta) {
 
 /**
  * Score one transition (prevSong → nextSong) across all configured props.
- *
- * @param {object|null} prevSong - previous song (null for first song)
- * @param {object} nextSong - current song
- * @param {string[]} propNames - ordered property names
- * @param {object} propConfig - prop name → rule
- * @param {object} weights - weightKey → numeric weight
- * @returns {{ score: number, notes: string[], changes: object }}
  */
 function scoreTransition(prevSong, nextSong, propNames, propConfig, weights) {
     if (!prevSong) {
@@ -143,8 +60,6 @@ function scoreTransition(prevSong, nextSong, propNames, propConfig, weights) {
         } else if (kind === "instrumentDelta") {
             change = detectFieldChange(prevPerf, nextPerf, rule.field || propName, true);
         } else {
-            // instrumentField and instrumentBoolean both use field comparison.
-            // The normalizeValue handles arrays, strings, and booleans uniformly.
             change = detectFieldChange(prevPerf, nextPerf, rule.field || propName, false);
         }
 
@@ -158,12 +73,6 @@ function scoreTransition(prevSong, nextSong, propNames, propConfig, weights) {
     }
 
     return { score, notes, changes };
-}
-
-function inferPropKind(propName) {
-    if (propName === "instruments") return "instrumentSet";
-    if (propName === "capo") return "instrumentDelta";
-    return "instrumentField";
 }
 
 
@@ -183,22 +92,6 @@ const DEFAULT_WEIGHTS = {
  * @param {object[]} songs - ordered array of song objects with `.performance`
  * @param {object} config - app config with `.props` and `.general.weighting`
  * @returns {AnxietyResult}
- *
- * @typedef {object} AnxietyResult
- * @property {number} scaled - 0-10 integer score
- * @property {number} rawChanges - total magnitude across all props & transitions
- * @property {number} weightedScore - magnitude * weight, spread-adjusted
- * @property {number} transitionsDisrupted - transitions with at least one change
- * @property {number} totalTransitions - songCount - 1
- * @property {TransitionDetail[]} details - per-transition breakdown
- *
- * @typedef {object} TransitionDetail
- * @property {number} index - transition index (1-based, matching song position)
- * @property {string} from - previous song name
- * @property {string} to - current song name
- * @property {object} changes - propName → { changed, magnitude, notes }
- * @property {string[]} notes - aggregated human-readable notes
- * @property {number} score - weighted score for this transition
  */
 export function computeAnxiety(songs, config) {
     const weights = Object.assign({}, DEFAULT_WEIGHTS, config?.general?.weighting || {});
@@ -207,31 +100,66 @@ export function computeAnxiety(songs, config) {
 
     const totalTransitions = Math.max(1, songs.length - 1);
     let totalWeighted = 0;
-    let totalRawChanges = 0;
-    let transitionsWithChanges = 0;
+    let totalMemberChanges = 0;
+    let spotsWithChanges = 0;
     const details = [];
 
     for (let i = 1; i < songs.length; i++) {
         const prev = songs[i - 1];
         const curr = songs[i];
+
+        // Keep scoreTransition for per-prop notes/details
         const transition = scoreTransition(prev, curr, propNames, propConfig, weights);
 
-        let hasChange = false;
-        let transitionRaw = 0;
+        // Per-member scoring: each member counts once at their highest-weighted
+        // changed prop. If nick changes capo (2) AND picking (1), that's 1 change
+        // scored at weight 2, not 2 changes scored at 3.
+        const prevPerf = prev.performance || {};
+        const currPerf = curr.performance || {};
+        const allMembers = new Set([...Object.keys(prevPerf), ...Object.keys(currPerf)]);
 
-        for (const propName of propNames) {
-            const change = transition.changes[propName];
-            if (change && change.changed) {
-                const weightKey = (propConfig[propName] || {}).weightKey || propName;
+        let spotMemberChanges = 0;
+        let spotWeighted = 0;
+
+        for (const member of allMembers) {
+            let maxWeight = 0;
+
+            for (const propName of propNames) {
+                const rule = propConfig[propName] || {};
+                const kind = rule.kind || inferPropKind(propName);
+                const weightKey = rule.weightKey || propName;
                 const w = weights[weightKey] || 0;
-                totalWeighted += change.magnitude * w;
-                totalRawChanges += change.magnitude;
-                transitionRaw += change.magnitude;
-                hasChange = true;
+
+                const prevM = prevPerf[member];
+                const currM = currPerf[member];
+
+                let changed = false;
+
+                if (kind === "instrumentSet") {
+                    if (!prevM || !currM) changed = true;
+                    else if (prevM.instrument !== currM.instrument) changed = true;
+                } else {
+                    // instrumentField or instrumentDelta — only compare shared members
+                    if (prevM && currM) {
+                        const field = rule.field || propName;
+                        const left = normalizeValue(prevM[field]);
+                        const right = normalizeValue(currM[field]);
+                        if (left !== right) changed = true;
+                    }
+                }
+
+                if (changed && w > maxWeight) maxWeight = w;
+            }
+
+            if (maxWeight > 0) {
+                spotMemberChanges++;
+                spotWeighted += maxWeight;
             }
         }
 
-        if (hasChange) transitionsWithChanges++;
+        if (spotMemberChanges > 0) spotsWithChanges++;
+        totalWeighted += spotWeighted;
+        totalMemberChanges += spotMemberChanges;
 
         details.push({
             index: i,
@@ -239,14 +167,16 @@ export function computeAnxiety(songs, config) {
             to: curr.name || `Song ${i + 1}`,
             changes: transition.changes,
             notes: transition.notes,
-            score: transition.score,
-            rawChanges: transitionRaw
+            score: spotWeighted,
+            memberChanges: spotMemberChanges
         });
     }
 
-    // Spread factor: scattered changes = more dead-air moments = worse
-    const spreadRatio = transitionsWithChanges / totalTransitions;
-    const adjustedWeighted = totalWeighted * (0.5 + spreadRatio * 0.5);
+    // Spread factor: changes spread across many spots = more dead-air moments = worse.
+    // Using power curve so sparse changes (e.g. 3/14) are meaningfully dampened,
+    // while dense disruption (most spots affected) stays close to full weight.
+    const spreadRatio = spotsWithChanges / totalTransitions;
+    const adjustedWeighted = totalWeighted * Math.pow(spreadRatio, 0.7);
 
     // Dynamic scale from the band's own weights
     let avgWeight = 0;
@@ -259,8 +189,11 @@ export function computeAnxiety(songs, config) {
         avgWeight = sumW / propNames.length;
     }
 
-    const mediumBaseline = totalTransitions * 0.3 * avgWeight;
-    const maxBaseline = totalTransitions * avgWeight * 2;
+    // mediumBaseline: weighted score where anxiety hits 5/10
+    // maxBaseline: weighted score where anxiety hits 10/10
+    // Floor ensures short setlists don't spike to 10 from a single change
+    const mediumBaseline = Math.max(totalTransitions * 0.15 * avgWeight, avgWeight * 2);
+    const maxBaseline = Math.max(totalTransitions * 0.7 * avgWeight, avgWeight * 8);
 
     let scaled;
     if (maxBaseline <= 0) {
@@ -274,9 +207,10 @@ export function computeAnxiety(songs, config) {
 
     return {
         scaled,
-        rawChanges: totalRawChanges,
+        changes: totalMemberChanges,
+        spots: spotsWithChanges,
+        songCount: songs.length,
         weightedScore: Math.round(adjustedWeighted * 10) / 10,
-        transitionsDisrupted: transitionsWithChanges,
         totalTransitions,
         details
     };
@@ -287,24 +221,24 @@ export function computeAnxiety(songs, config) {
  * Generate a human-readable label for a given anxiety result.
  */
 export function anxietyLabel(result) {
-    const { scaled, rawChanges, transitionsDisrupted, totalTransitions } = result;
-    const spreadNote = transitionsDisrupted > 0
-        ? ` across ${transitionsDisrupted} of ${totalTransitions} transitions`
+    const { scaled, changes, spots, songCount } = result;
+    const spotNote = spots > 0
+        ? ` in ${spots} spot${spots === 1 ? "" : "s"} over ${songCount} songs`
         : "";
 
-    if (rawChanges === 0) {
+    if (changes === 0) {
         return "Bass player is relaxed for once. Zero gear changes — smooth sailing.";
     }
     if (scaled <= 2) {
-        return `${rawChanges} gear change${rawChanges === 1 ? "" : "s"}${spreadNote}. Bass player barely notices.`;
+        return `${changes} change${changes === 1 ? "" : "s"}${spotNote}. Bass player barely notices.`;
     }
     if (scaled <= 5) {
-        return `${rawChanges} gear changes${spreadNote}. Bass player is rehearsing crowd work.`;
+        return `${changes} change${changes === 1 ? "" : "s"}${spotNote}. Bass player is rehearsing crowd work.`;
     }
     if (scaled <= 7) {
-        return `${rawChanges} gear changes${spreadNote}. Bass player is visibly sweating.`;
+        return `${changes} change${changes === 1 ? "" : "s"}${spotNote}. Bass player is visibly sweating.`;
     }
-    return `${rawChanges} gear changes${spreadNote}. Bass player is writing a stand-up set to fill all the dead air.`;
+    return `${changes} change${changes === 1 ? "" : "s"}${spotNote}. Bass player is writing a stand-up set to fill all the dead air.`;
 }
 
 

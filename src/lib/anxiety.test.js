@@ -215,7 +215,7 @@ describe("detectFieldChange", () => {
 
 
 // ===================================================================
-// scoreTransition
+// scoreTransition (per-prop, used for notes/details)
 // ===================================================================
 describe("scoreTransition", () => {
     const propNames = ["tuning", "capo", "instruments", "picking"];
@@ -322,16 +322,15 @@ describe("computeAnxiety — real setlist", () => {
         expect(result.totalTransitions).toBe(14);
     });
 
-    it("detects more than 5 raw gear changes", () => {
+    it("detects member-changes (deduplicated per member)", () => {
         const result = computeAnxiety(realSetlist, BAND_CONFIG);
-        // The user saw "5 gear changes across 2 of 14 transitions" — this was wrong.
-        // Manual count: nick's picking alone changes on nearly every transition.
-        expect(result.rawChanges).toBeGreaterThan(5);
+        // Per-member dedup means fewer than the old raw magnitude count
+        expect(result.changes).toBeGreaterThan(2);
     });
 
-    it("detects changes on more than 2 transitions", () => {
+    it("detects changes in more than 2 spots", () => {
         const result = computeAnxiety(realSetlist, BAND_CONFIG);
-        expect(result.transitionsDisrupted).toBeGreaterThan(2);
+        expect(result.spots).toBeGreaterThan(2);
     });
 
     it("scores anxiety higher than 3 for this change-heavy setlist", () => {
@@ -361,7 +360,6 @@ describe("computeAnxiety — real setlist", () => {
         const result = computeAnxiety(realSetlist, BAND_CONFIG);
 
         // Tubsies Requiem (clawhammer) → Run Along (picking)
-        // index 2 → index 3, detail index 2
         const t_tubsies_to_run = result.details[2];
         expect(t_tubsies_to_run.from).toBe("Tubsies Requiem");
         expect(t_tubsies_to_run.to).toBe("Run Along");
@@ -381,6 +379,152 @@ describe("computeAnxiety — real setlist", () => {
 
 
 // ===================================================================
+// computeAnxiety — tuning-heavy setlist (user's actual scenario)
+// ===================================================================
+describe("computeAnxiety — tuning-heavy 15-song setlist", () => {
+    // Simulates the user's setlist: 2 tuning changes (most expensive prop,
+    // weight 4) plus several technique changes across 15 songs.
+    const tuningSetlist = [
+        song("Song 1", "G", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G", picking: ["picking"] } }),
+        song("Song 2", "G", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G" } }),
+        song("Song 3", "D", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G" } }),
+        song("Song 4", "D", { mark: { instrument: "guitar", tuning: "DADDAD" }, nick: { instrument: "banjo", tuning: "Open D", picking: ["clawhammer"] } }),
+        song("Song 5", "D", { mark: { instrument: "guitar", tuning: "DADDAD" }, nick: { instrument: "banjo", tuning: "Open D" } }),
+        song("Song 6", "D", { mark: { instrument: "guitar", tuning: "DADDAD" }, nick: { instrument: "banjo", tuning: "Open D" } }),
+        song("Song 7", "C", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G" } }),
+        song("Song 8", "G", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G" } }),
+        song("Song 9", "G", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G" } }),
+        song("Song 10", "G", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G" } }),
+        song("Song 11", "E", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G", picking: ["slide", "picking"] } }),
+        song("Song 12", "E", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G", picking: ["picking", "slide"] } }),
+        song("Song 13", "D", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G" } }),
+        song("Song 14", "E", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G", picking: ["clawhammer", "slide"] } }),
+        song("Song 15", "D", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G", picking: ["picking"] } }),
+    ];
+
+    it("scores 7-8 for a setlist with 2 tuning changes and technique changes", () => {
+        const result = computeAnxiety(tuningSetlist, BAND_CONFIG);
+        // 2 tuning changes (weight 4 each, affecting 2 members) should drive anxiety high
+        expect(result.scaled).toBeGreaterThanOrEqual(7);
+        expect(result.scaled).toBeLessThanOrEqual(8);
+    });
+
+    it("tuning changes contribute more to weighted score than technique changes", () => {
+        const result = computeAnxiety(tuningSetlist, BAND_CONFIG);
+        // Transitions 3→4 and 6→7 have tuning changes (weight 4)
+        const tuningTransition1 = result.details[2]; // Song 3 → Song 4
+        const tuningTransition2 = result.details[5]; // Song 6 → Song 7
+        const techniqueOnly = result.details[0]; // Song 1 → Song 2 (picking change only)
+
+        expect(tuningTransition1.score).toBeGreaterThan(techniqueOnly.score);
+        expect(tuningTransition2.score).toBeGreaterThan(techniqueOnly.score);
+    });
+});
+
+
+// ===================================================================
+// computeAnxiety — low-anxiety setlist (few low-weight changes)
+// ===================================================================
+describe("computeAnxiety — low-anxiety 15-song setlist", () => {
+    // 3 spots with changes in a 15-song set, all low-weight (technique + capo).
+    // No tuning or instrument changes. Should score 1-3.
+    const mk = { instrument: "guitar", tuning: "Standard", capo: 0, picking: [] };
+    const nk = { instrument: "banjo", tuning: "Open G", capo: 0, picking: [] };
+
+    const lowSetlist = [
+        song("Song 1", "G", { mark: { ...mk }, nick: { ...nk, picking: ["clawhammer"] } }),
+        song("Song 2", "G", { mark: { ...mk }, nick: { ...nk, picking: ["clawhammer"] } }),
+        song("Song 3", "G", { mark: { ...mk }, nick: { ...nk, picking: ["clawhammer"] } }),
+        song("Song 4", "G", { mark: { ...mk }, nick: { ...nk, picking: ["clawhammer"] } }),
+        song("Song 5", "G", { mark: { ...mk }, nick: { ...nk, picking: ["clawhammer"] } }),
+        song("Song 6", "G", { mark: { ...mk }, nick: { ...nk, picking: ["slide", "picking"] } }),
+        song("Song 7", "G", { mark: { ...mk }, nick: { ...nk, picking: ["slide", "picking"] } }),
+        song("Song 8", "G", { mark: { ...mk }, nick: { ...nk, picking: ["slide", "picking"] } }),
+        song("Song 9", "G", { mark: { ...mk }, nick: { ...nk, picking: ["picking"] } }),
+        song("Song 10", "G", { mark: { ...mk }, nick: { ...nk, picking: ["picking"] } }),
+        song("Song 11", "D", { mark: { ...mk, capo: 2 }, nick: { ...nk, capo: 2, picking: ["picking"] } }),
+        song("Song 12", "D", { mark: { ...mk, capo: 2 }, nick: { ...nk, capo: 2, picking: ["picking"] } }),
+        song("Song 13", "D", { mark: { ...mk, capo: 2 }, nick: { ...nk, capo: 2, picking: ["picking"] } }),
+        song("Song 14", "D", { mark: { ...mk, capo: 2 }, nick: { ...nk, capo: 2, picking: ["picking"] } }),
+        song("Song 15", "D", { mark: { ...mk, capo: 2 }, nick: { ...nk, capo: 2, picking: ["picking"] } }),
+    ];
+
+    it("scores 1-3 for a setlist with only low-weight changes", () => {
+        const result = computeAnxiety(lowSetlist, BAND_CONFIG);
+        expect(result.spots).toBe(3);
+        // Per-member: T1 nick technique (1), T2 nick technique (1),
+        // T3 mark capo (1 member) + nick capo (1 member, max of capo vs no other change)
+        expect(result.changes).toBe(4);
+        expect(result.scaled).toBeGreaterThanOrEqual(1);
+        expect(result.scaled).toBeLessThanOrEqual(3);
+    });
+
+    it("low-weight setlist scores much lower than tuning-heavy setlist", () => {
+        const lowResult = computeAnxiety(lowSetlist, BAND_CONFIG);
+        // Compare against a setlist with 2 tuning changes (weight 4)
+        const tuningSetlist = [
+            song("T1", "G", { mark: { ...mk }, nick: { ...nk, picking: ["picking"] } }),
+            song("T2", "G", { mark: { ...mk }, nick: { ...nk } }),
+            song("T3", "D", { mark: { ...mk }, nick: { ...nk } }),
+            song("T4", "D", { mark: { ...mk, tuning: "DADDAD" }, nick: { ...nk, tuning: "Open D", picking: ["clawhammer"] } }),
+            song("T5", "D", { mark: { ...mk, tuning: "DADDAD" }, nick: { ...nk, tuning: "Open D" } }),
+            song("T6", "D", { mark: { ...mk, tuning: "DADDAD" }, nick: { ...nk, tuning: "Open D" } }),
+            song("T7", "C", { mark: { ...mk }, nick: { ...nk } }),
+            song("T8", "G", { mark: { ...mk }, nick: { ...nk } }),
+            song("T9", "G", { mark: { ...mk }, nick: { ...nk } }),
+            song("T10", "G", { mark: { ...mk }, nick: { ...nk } }),
+            song("T11", "E", { mark: { ...mk }, nick: { ...nk, picking: ["slide", "picking"] } }),
+            song("T12", "E", { mark: { ...mk }, nick: { ...nk, picking: ["picking", "slide"] } }),
+            song("T13", "D", { mark: { ...mk }, nick: { ...nk } }),
+            song("T14", "E", { mark: { ...mk }, nick: { ...nk, picking: ["clawhammer", "slide"] } }),
+            song("T15", "D", { mark: { ...mk }, nick: { ...nk, picking: ["picking"] } }),
+        ];
+        const highResult = computeAnxiety(tuningSetlist, BAND_CONFIG);
+
+        // Tuning-heavy should be at least 4 points higher
+        expect(highResult.scaled - lowResult.scaled).toBeGreaterThanOrEqual(4);
+    });
+});
+
+
+// ===================================================================
+// computeAnxiety — per-member dedup: one member changing multiple
+// props counts as ONE change at the highest weight
+// ===================================================================
+describe("computeAnxiety — per-member deduplication", () => {
+    it("nick changing capo AND picking counts as 1 change at capo weight", () => {
+        const songs = [
+            song("A", "G", { nick: { capo: 0, picking: ["picking"] } }),
+            song("B", "G", { nick: { capo: 2, picking: ["clawhammer"] } })
+        ];
+        const result = computeAnxiety(songs, BAND_CONFIG);
+        // One member changed — counts as 1, not 2
+        expect(result.changes).toBe(1);
+        expect(result.spots).toBe(1);
+    });
+
+    it("nick changing instrument + tuning + picking = 1 change at tuning weight", () => {
+        const songs = [
+            song("A", "G", { nick: { instrument: "banjo", tuning: "Open G", picking: ["picking"] } }),
+            song("B", "G", { nick: { instrument: "guitar", tuning: "Standard", picking: ["clawhammer"] } })
+        ];
+        const result = computeAnxiety(songs, BAND_CONFIG);
+        // One member, multiple props, but counts as 1 change at max weight (tuning=4)
+        expect(result.changes).toBe(1);
+    });
+
+    it("two members each changing = 2 changes", () => {
+        const songs = [
+            song("A", "G", { mark: { tuning: "Standard" }, nick: { tuning: "Open G" } }),
+            song("B", "G", { mark: { tuning: "DADDAD" }, nick: { tuning: "Open D" } })
+        ];
+        const result = computeAnxiety(songs, BAND_CONFIG);
+        expect(result.changes).toBe(2);
+    });
+});
+
+
+// ===================================================================
 // computeAnxiety — varying inputs
 // ===================================================================
 describe("computeAnxiety — no changes", () => {
@@ -390,8 +534,8 @@ describe("computeAnxiety — no changes", () => {
         );
         const result = computeAnxiety(songs, BAND_CONFIG);
         expect(result.scaled).toBe(0);
-        expect(result.rawChanges).toBe(0);
-        expect(result.transitionsDisrupted).toBe(0);
+        expect(result.changes).toBe(0);
+        expect(result.spots).toBe(0);
     });
 });
 
@@ -403,8 +547,8 @@ describe("computeAnxiety — single transition", () => {
         ];
         const result = computeAnxiety(songs, BAND_CONFIG);
         expect(result.totalTransitions).toBe(1);
-        expect(result.rawChanges).toBe(1);
-        expect(result.transitionsDisrupted).toBe(1);
+        expect(result.changes).toBe(1);
+        expect(result.spots).toBe(1);
         expect(result.details).toHaveLength(1);
         expect(result.scaled).toBeGreaterThan(0);
     });
@@ -420,7 +564,7 @@ describe("computeAnxiety — every transition has changes", () => {
             }));
         }
         const result = computeAnxiety(songs, BAND_CONFIG);
-        expect(result.transitionsDisrupted).toBe(9);
+        expect(result.spots).toBe(9);
         expect(result.scaled).toBeGreaterThanOrEqual(7);
     });
 });
@@ -447,8 +591,8 @@ describe("computeAnxiety — grouped vs scattered changes", () => {
         const scatteredResult = computeAnxiety(scattered, BAND_CONFIG);
         const groupedResult = computeAnxiety(grouped, BAND_CONFIG);
 
-        // Scattered should have higher anxiety (more transitions disrupted)
-        expect(scatteredResult.transitionsDisrupted).toBeGreaterThan(groupedResult.transitionsDisrupted);
+        // Scattered should have higher anxiety (more spots disrupted)
+        expect(scatteredResult.spots).toBeGreaterThan(groupedResult.spots);
         // The spread factor should make scattered score higher
         expect(scatteredResult.weightedScore).toBeGreaterThan(groupedResult.weightedScore);
     });
@@ -484,8 +628,8 @@ describe("computeAnxiety — weight sensitivity", () => {
         const result = computeAnxiety(baseSongs, zeroConfig);
         expect(result.weightedScore).toBe(0);
         expect(result.scaled).toBe(0);
-        // But raw changes should still be counted
-        expect(result.rawChanges).toBeGreaterThan(0);
+        // Per-member changes still happen, but max weight per member is 0
+        expect(result.changes).toBe(0);
     });
 });
 
@@ -501,7 +645,7 @@ describe("computeAnxiety — no props", () => {
         ];
         const result = computeAnxiety(songs, { general: { weighting: {} }, props: {} });
         expect(result.scaled).toBe(0);
-        expect(result.rawChanges).toBe(0);
+        expect(result.changes).toBe(0);
     });
 });
 
@@ -526,7 +670,7 @@ describe("computeAnxiety — edge cases", () => {
     it("handles songs with no performance data", () => {
         const songs = [song("A", "G"), song("B", "D"), song("C", "E")];
         const result = computeAnxiety(songs, BAND_CONFIG);
-        expect(result.rawChanges).toBe(0);
+        expect(result.changes).toBe(0);
         expect(result.scaled).toBe(0);
     });
 
@@ -538,7 +682,13 @@ describe("computeAnxiety — edge cases", () => {
         ];
         const result = computeAnxiety(songs, BAND_CONFIG);
         // nick disappears then reappears — instrument set changes
-        expect(result.rawChanges).toBeGreaterThan(0);
+        expect(result.changes).toBeGreaterThan(0);
+    });
+
+    it("includes songCount in result", () => {
+        const songs = [song("A", "G"), song("B", "G"), song("C", "G")];
+        const result = computeAnxiety(songs, BAND_CONFIG);
+        expect(result.songCount).toBe(3);
     });
 });
 
@@ -559,10 +709,9 @@ describe("computeAnxiety — scaling", () => {
         const short = computeAnxiety(makeAlternating(5), BAND_CONFIG);
         const long = computeAnxiety(makeAlternating(20), BAND_CONFIG);
 
-        // Both have ~100% disrupted transitions, so spread ratio ≈ 1
-        // But longer setlist has more total changes. Scaled should be similar
-        // because baselines also scale with song count.
-        expect(short.rawChanges).toBeLessThan(long.rawChanges);
+        // Both have ~100% disrupted spots, so spread ratio ≈ 1
+        // Longer setlist has more total changes.
+        expect(short.changes).toBeLessThan(long.changes);
         // Scaled should be roughly comparable (both near max for their length)
         expect(Math.abs(short.scaled - long.scaled)).toBeLessThanOrEqual(2);
     });
@@ -574,36 +723,37 @@ describe("computeAnxiety — scaling", () => {
 // ===================================================================
 describe("anxietyLabel", () => {
     it("returns relaxed message for 0 changes", () => {
-        const label = anxietyLabel({ scaled: 0, rawChanges: 0, transitionsDisrupted: 0, totalTransitions: 14 });
+        const label = anxietyLabel({ scaled: 0, changes: 0, spots: 0, songCount: 15 });
         expect(label).toContain("relaxed");
     });
 
     it("returns 'barely notices' for low anxiety", () => {
-        const label = anxietyLabel({ scaled: 1, rawChanges: 2, transitionsDisrupted: 1, totalTransitions: 14 });
+        const label = anxietyLabel({ scaled: 1, changes: 2, spots: 1, songCount: 15 });
         expect(label).toContain("barely notices");
-        expect(label).toContain("1 of 14 transitions");
+        expect(label).toContain("1 spot over 15 songs");
     });
 
     it("returns 'crowd work' for medium anxiety", () => {
-        const label = anxietyLabel({ scaled: 4, rawChanges: 8, transitionsDisrupted: 5, totalTransitions: 14 });
+        const label = anxietyLabel({ scaled: 4, changes: 5, spots: 3, songCount: 15 });
         expect(label).toContain("crowd work");
+        expect(label).toContain("3 spots over 15 songs");
     });
 
     it("returns 'sweating' for high anxiety", () => {
-        const label = anxietyLabel({ scaled: 7, rawChanges: 15, transitionsDisrupted: 10, totalTransitions: 14 });
+        const label = anxietyLabel({ scaled: 7, changes: 10, spots: 7, songCount: 15 });
         expect(label).toContain("sweating");
     });
 
     it("returns 'stand-up set' for extreme anxiety", () => {
-        const label = anxietyLabel({ scaled: 9, rawChanges: 25, transitionsDisrupted: 14, totalTransitions: 14 });
+        const label = anxietyLabel({ scaled: 9, changes: 18, spots: 12, songCount: 15 });
         expect(label).toContain("stand-up set");
     });
 
-    it("pluralizes 'gear change' correctly", () => {
-        expect(anxietyLabel({ scaled: 1, rawChanges: 1, transitionsDisrupted: 1, totalTransitions: 5 }))
-            .toContain("1 gear change ");
-        expect(anxietyLabel({ scaled: 2, rawChanges: 3, transitionsDisrupted: 2, totalTransitions: 5 }))
-            .toContain("3 gear changes");
+    it("pluralizes 'change' correctly", () => {
+        expect(anxietyLabel({ scaled: 1, changes: 1, spots: 1, songCount: 5 }))
+            .toContain("1 change ");
+        expect(anxietyLabel({ scaled: 2, changes: 3, spots: 2, songCount: 5 }))
+            .toContain("3 changes");
     });
 });
 
@@ -630,19 +780,19 @@ describe("transition-by-transition detail verification", () => {
         expect(t.changes.picking.changed).toBe(false);
     });
 
-    it("transition 2→3: instrument + tuning + picking change", () => {
+    it("transition 2→3: instrument + tuning + picking = 1 member at max weight (tuning=4)", () => {
         const result = computeAnxiety(setlist, BAND_CONFIG);
         const t = result.details[1];
         expect(t.changes.instruments.changed).toBe(true);
-        expect(t.changes.instruments.magnitude).toBe(1);
         expect(t.changes.tuning.changed).toBe(true);
         expect(t.changes.picking.changed).toBe(true);
         expect(t.changes.capo.changed).toBe(false);
-        // Score: instrument(3) + tuning(4) + technique(1) = 8
-        expect(t.score).toBe(8);
+        // Per-member: nick changes 3 things, score = max weight (tuning=4)
+        expect(t.score).toBe(4);
+        expect(t.memberChanges).toBe(1);
     });
 
-    it("transition 3→4: capo change only (delta=2)", () => {
+    it("transition 3→4: capo change only = 1 member at capo weight (2)", () => {
         const result = computeAnxiety(setlist, BAND_CONFIG);
         const t = result.details[2];
         expect(t.changes.capo.changed).toBe(true);
@@ -650,31 +800,32 @@ describe("transition-by-transition detail verification", () => {
         expect(t.changes.instruments.changed).toBe(false);
         expect(t.changes.tuning.changed).toBe(false);
         expect(t.changes.picking.changed).toBe(false);
-        // Score: capo magnitude 2 * weight 2 = 4
-        expect(t.score).toBe(4);
+        // Per-member: nick changes capo only, score = capo weight (2)
+        expect(t.score).toBe(2);
+        expect(t.memberChanges).toBe(1);
     });
 
-    it("transition 4→5: everything changes", () => {
+    it("transition 4→5: everything changes = 1 member at max weight (tuning=4)", () => {
         const result = computeAnxiety(setlist, BAND_CONFIG);
         const t = result.details[3];
         expect(t.changes.instruments.changed).toBe(true);
         expect(t.changes.tuning.changed).toBe(true);
         expect(t.changes.capo.changed).toBe(true);
-        expect(t.changes.capo.magnitude).toBe(2); // |2-0|
         expect(t.changes.picking.changed).toBe(true);
-        // instrument(3) + tuning(4) + capo(2*2=4) + technique(1) = 12
-        expect(t.score).toBe(12);
+        // Per-member: nick changes everything, score = max weight (tuning=4)
+        expect(t.score).toBe(4);
+        expect(t.memberChanges).toBe(1);
     });
 
-    it("total rawChanges matches sum of detail rawChanges", () => {
+    it("total changes matches sum of detail memberChanges", () => {
         const result = computeAnxiety(setlist, BAND_CONFIG);
-        const sumFromDetails = result.details.reduce((sum, d) => sum + d.rawChanges, 0);
-        expect(result.rawChanges).toBe(sumFromDetails);
+        const sumFromDetails = result.details.reduce((sum, d) => sum + d.memberChanges, 0);
+        expect(result.changes).toBe(sumFromDetails);
     });
 
-    it("transitionsDisrupted matches count of non-zero detail entries", () => {
+    it("spots matches count of non-zero detail entries", () => {
         const result = computeAnxiety(setlist, BAND_CONFIG);
-        const disrupted = result.details.filter(d => d.rawChanges > 0).length;
-        expect(result.transitionsDisrupted).toBe(disrupted);
+        const spots = result.details.filter(d => d.memberChanges > 0).length;
+        expect(result.spots).toBe(spots);
     });
 });

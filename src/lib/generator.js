@@ -1,5 +1,14 @@
 import { deepMerge, toArray } from "./utils.js";
 import { computeAnxiety } from "./anxiety.js";
+import {
+    normalizeValue,
+    displayValue,
+    detectInstrumentSetChange,
+    detectFieldChange,
+    detectInstrumentSetChangeLite,
+    detectFieldChangeLite,
+    inferPropKind
+} from "./detection.js";
 
 function clampInteger(value, fallback, minimum) {
     const parsed = Number.parseInt(value, 10);
@@ -212,6 +221,7 @@ class SetList {
         });
         this._songBiasById = this._buildSongBiases(this._catalog);
         this._count = Math.min(this._options.count, this._catalog.length);
+        this._minConstraints = this._buildMinConstraints();
         this._list = [];
         this._summary = {
             score: 0,
@@ -290,6 +300,95 @@ class SetList {
         return this._songBiasById[songId] || 0;
     }
 
+    /**
+     * Pre-compute minimum instrument/tuning constraints from show config.
+     * Returns { instruments: [{member, instrument, min}], tunings: [{member, instrument, tuning, min}] }
+     */
+    _buildMinConstraints() {
+        const constraints = { instruments: [], tunings: [] };
+        const showMembers = this._show.members || {};
+
+        for (const [memberName, memberShow] of Object.entries(showMembers)) {
+            const allowed = memberShow.allowedInstruments || [];
+            if (allowed.length >= 2) {
+                const min = memberShow.minSongsPerInstrument ?? 2;
+                for (const inst of allowed) {
+                    constraints.instruments.push({ member: memberName, instrument: inst, min });
+                }
+            }
+
+            const allowedTunings = memberShow.allowedTunings || {};
+            const minPerTuning = memberShow.minSongsPerTuning || {};
+            for (const [instName, tunings] of Object.entries(allowedTunings)) {
+                if (tunings.length >= 2) {
+                    const min = minPerTuning[instName] ?? 2;
+                    for (const tuning of tunings) {
+                        constraints.tunings.push({ member: memberName, instrument: instName, tuning, min });
+                    }
+                }
+            }
+        }
+
+        return constraints;
+    }
+
+    /**
+     * Count instrument/tuning usage from a variant's performance.
+     */
+    _updateUsageCounts(counts, variant) {
+        const next = {
+            instruments: { ...counts.instruments },
+            tunings: { ...counts.tunings }
+        };
+        const perf = variant.performance || {};
+        for (const [member, setup] of Object.entries(perf)) {
+            const instKey = `${member}:${setup.instrument}`;
+            next.instruments[instKey] = (next.instruments[instKey] || 0) + 1;
+            if (setup.tuning) {
+                const tuningKey = `${member}:${setup.instrument}:${setup.tuning}`;
+                next.tunings[tuningKey] = (next.tunings[tuningKey] || 0) + 1;
+            }
+        }
+        return next;
+    }
+
+    /**
+     * Score penalty for unmet minimum constraints. Returns a positive number
+     * when we're falling behind on meeting minimums.
+     * Returns Infinity if it's mathematically impossible to meet them.
+     */
+    _scoreMinimumPenalty(usageCounts, position) {
+        const remaining = this._count - position;
+        let penalty = 0;
+
+        for (const c of this._minConstraints.instruments) {
+            const key = `${c.member}:${c.instrument}`;
+            const have = usageCounts.instruments[key] || 0;
+            const deficit = c.min - have;
+            if (deficit > 0 && deficit > remaining) {
+                return Infinity; // impossible to meet
+            }
+            if (deficit > 0) {
+                // Proportional penalty: higher when deadline is closer
+                penalty += deficit * (this._weights.instrument || 3) * (1 + (1 / (remaining + 1)));
+            }
+        }
+
+        for (const c of this._minConstraints.tunings) {
+            const key = `${c.member}:${c.instrument}:${c.tuning}`;
+            const have = usageCounts.tunings[key] || 0;
+            const deficit = c.min - have;
+            if (deficit > 0 && deficit > remaining) {
+                return Infinity;
+            }
+            if (deficit > 0) {
+                penalty += deficit * (this._weights.tuning || 4) * (1 + (1 / (remaining + 1)));
+            }
+        }
+
+        return penalty;
+    }
+
     _initialState() {
         return {
             // Linked list: head points to { item, prev } chain
@@ -304,7 +403,8 @@ class SetList {
             _tiebreaker: 0,
             propChangeCounts: zeroMap(this._propNames),
             propStreaks: zeroMap(this._propNames),
-            changeTotals: zeroMap(this._propNames)
+            changeTotals: zeroMap(this._propNames),
+            usageCounts: { instruments: {}, tunings: {} }
         };
     }
 
@@ -623,7 +723,8 @@ class SetList {
             _tiebreaker: this._rng(),
             propChangeCounts: bestVariant.propChangeCounts,
             propStreaks: bestVariant.propStreaks,
-            changeTotals: bestVariant.changeTotals
+            changeTotals: bestVariant.changeTotals,
+            usageCounts: bestVariant.usageCounts
         };
     }
 
@@ -631,6 +732,9 @@ class SetList {
         const prevItem = state.lastItem;
         let best = null;
         let bestScore = Infinity;
+        // Fallback: track best variant even if minimums are impossible
+        let fallback = null;
+        let fallbackScore = Infinity;
 
         const variants = this._variantCache.get(song.id);
         for (let vi = 0; vi < variants.length; vi++) {
@@ -641,9 +745,30 @@ class SetList {
             }
 
             const nextPropState = this._advancePropState(state, propTransition.changes, prevItem);
+            const nextUsageCounts = this._updateUsageCounts(state.usageCounts, variant);
+            const minimumPenalty = this._scoreMinimumPenalty(nextUsageCounts, position);
+
             const positionScore = this._scorePositionLite(variant, position);
             const transitionScore = propTransition.score;
-            const incrementalScore = transitionScore + positionScore + this._songBias(variant.id);
+
+            if (minimumPenalty === Infinity) {
+                // Track as fallback in case all variants are impossible
+                const fbScore = transitionScore + positionScore + this._songBias(variant.id);
+                if (fbScore < fallbackScore) {
+                    fallbackScore = fbScore;
+                    fallback = {
+                        propChangeCounts: nextPropState.propChangeCounts,
+                        propStreaks: nextPropState.propStreaks,
+                        changeTotals: nextPropState.changeTotals,
+                        usageCounts: nextUsageCounts,
+                        incrementalScore: fbScore,
+                        item: variant
+                    };
+                }
+                continue;
+            }
+
+            const incrementalScore = transitionScore + positionScore + this._songBias(variant.id) + minimumPenalty;
             const exploratoryScore = incrementalScore + this._randomJitter(this._randomness.variantJitter);
 
             if (exploratoryScore < bestScore) {
@@ -652,13 +777,14 @@ class SetList {
                     propChangeCounts: nextPropState.propChangeCounts,
                     propStreaks: nextPropState.propStreaks,
                     changeTotals: nextPropState.changeTotals,
+                    usageCounts: nextUsageCounts,
                     incrementalScore,
                     item: variant
                 };
             }
         }
 
-        return best;
+        return best || fallback;
     }
 
     // Lite version: returns { score, changes } without building notes arrays
@@ -682,59 +808,16 @@ class SetList {
         if (!prevItem) {
             return { changed: false, magnitude: 0 };
         }
-        const kind = rule.kind || this._inferPropKind(propName);
+        const prevPerf = prevItem.performance;
+        const nextPerf = nextVariant.performance;
+        const kind = rule.kind || inferPropKind(propName);
         if (kind === "instrumentSet") {
-            return this._detectInstrumentSetChangeLite(prevItem, nextVariant);
+            return detectInstrumentSetChangeLite(prevPerf, nextPerf);
         }
         if (kind === "instrumentDelta") {
-            return this._detectInstrumentValueChangeLite(prevItem, nextVariant, rule, true, false);
+            return detectFieldChangeLite(prevPerf, nextPerf, rule.field || propName, true);
         }
-        if (kind === "instrumentBoolean") {
-            return this._detectInstrumentValueChangeLite(prevItem, nextVariant, rule, false, true);
-        }
-        return this._detectInstrumentValueChangeLite(prevItem, nextVariant, rule, false, false);
-    }
-
-    _detectInstrumentSetChangeLite(prevItem, nextVariant) {
-        const prevPerf = prevItem.performance;
-        const nextPerf = nextVariant.performance;
-        let magnitude = 0;
-        const prevKeys = Object.keys(prevPerf);
-        const nextKeys = Object.keys(nextPerf);
-        for (let i = 0; i < prevKeys.length; i++) {
-            const m = prevKeys[i];
-            if (!nextPerf[m]) { magnitude += 1; continue; }
-            if (prevPerf[m].instrument !== nextPerf[m].instrument) { magnitude += 1; }
-        }
-        for (let i = 0; i < nextKeys.length; i++) {
-            if (!prevPerf[nextKeys[i]]) { magnitude += 1; }
-        }
-        return { changed: magnitude > 0, magnitude };
-    }
-
-    _detectInstrumentValueChangeLite(prevItem, nextVariant, rule, scaleByDelta, coerceBoolean) {
-        const field = rule.field;
-        let magnitude = 0;
-        const prevPerf = prevItem.performance;
-        const nextPerf = nextVariant.performance;
-        const prevKeys = Object.keys(prevPerf);
-        for (let i = 0; i < prevKeys.length; i++) {
-            const member = prevKeys[i];
-            if (!nextPerf[member]) continue;
-            const prevValue = prevPerf[member][field];
-            const nextValue = nextPerf[member][field];
-            if (coerceBoolean) {
-                if (Boolean(prevValue) === Boolean(nextValue)) continue;
-            } else {
-                const left = (prevValue === undefined || prevValue === null) ? "" : String(prevValue);
-                const right = (nextValue === undefined || nextValue === null) ? "" : String(nextValue);
-                if (left === right) continue;
-            }
-            const amount = scaleByDelta ? Math.abs((prevValue || 0) - (nextValue || 0)) : 1;
-            if (!amount) continue;
-            magnitude += amount;
-        }
-        return { changed: magnitude > 0, magnitude };
+        return detectFieldChangeLite(prevPerf, nextPerf, rule.field || propName, false);
     }
 
     // Lite position scoring: returns just the numeric score
@@ -780,116 +863,20 @@ class SetList {
 
     _detectPropChange(prevItem, nextVariant, propName, rule) {
         if (!prevItem) {
-            return {
-                changed: false,
-                magnitude: 0,
-                notes: []
-            };
+            return { changed: false, magnitude: 0, notes: [] };
         }
 
-        const kind = rule.kind || this._inferPropKind(propName);
+        const prevPerf = prevItem.performance;
+        const nextPerf = nextVariant.performance;
+        const kind = rule.kind || inferPropKind(propName);
+
         if (kind === "instrumentSet") {
-            return this._detectInstrumentSetChange(prevItem, nextVariant);
+            return detectInstrumentSetChange(prevPerf, nextPerf);
         }
         if (kind === "instrumentDelta") {
-            return this._detectInstrumentValueChange(prevItem, nextVariant, rule, true);
+            return detectFieldChange(prevPerf, nextPerf, rule.field || propName, true);
         }
-        if (kind === "instrumentBoolean") {
-            return this._detectInstrumentValueChange(prevItem, nextVariant, rule, false, true);
-        }
-        return this._detectInstrumentValueChange(prevItem, nextVariant, rule, false, false);
-    }
-
-    _inferPropKind(propName) {
-        if (propName === "instruments") {
-            return "instrumentSet";
-        }
-        if (propName === "capo") {
-            return "instrumentDelta";
-        }
-        if (propName === "picking") {
-            return "instrumentBoolean";
-        }
-        return "instrumentField";
-    }
-
-    _detectInstrumentValueChange(prevItem, nextVariant, rule, scaleByDelta, coerceBoolean) {
-        const field = rule.field;
-        const notes = [];
-        let magnitude = 0;
-        const sharedMembers = Object.keys(prevItem.performance).filter((member) => {
-            return Object.prototype.hasOwnProperty.call(nextVariant.performance, member);
-        }).sort();
-
-        sharedMembers.forEach((member) => {
-            const prevValue = prevItem.performance[member][field];
-            const nextValue = nextVariant.performance[member][field];
-            const left = coerceBoolean ? Boolean(prevValue) : this._normalizeValue(prevValue);
-            const right = coerceBoolean ? Boolean(nextValue) : this._normalizeValue(nextValue);
-
-            if (left === right) {
-                return;
-            }
-
-            const amount = scaleByDelta ? Math.abs((prevValue || 0) - (nextValue || 0)) : 1;
-            if (!amount) {
-                return;
-            }
-
-            magnitude += amount;
-            notes.push(`${member} ${field} ${this._displayValue(prevValue)} -> ${this._displayValue(nextValue)}`);
-        });
-
-        return {
-            changed: magnitude > 0,
-            magnitude,
-            notes
-        };
-    }
-
-    _detectInstrumentSetChange(prevItem, nextVariant) {
-        const members = new Set([
-            ...Object.keys(prevItem.performance),
-            ...Object.keys(nextVariant.performance)
-        ]);
-        const notes = [];
-        let magnitude = 0;
-
-        Array.from(members).sort().forEach((member) => {
-            const previous = prevItem.performance[member];
-            const next = nextVariant.performance[member];
-
-            if (!previous || !next) {
-                magnitude += 1;
-                notes.push(`${member} instrument on/off`);
-                return;
-            }
-
-            if (previous.instrument !== next.instrument) {
-                magnitude += 1;
-                notes.push(`${member} instrument ${previous.instrument} -> ${next.instrument}`);
-            }
-        });
-
-        return {
-            changed: magnitude > 0,
-            magnitude,
-            notes
-        };
-    }
-
-    _normalizeValue(value) {
-        if (value === undefined || value === null) {
-            return "";
-        }
-        return String(value);
-    }
-
-    _displayValue(value) {
-        if (value === undefined || value === null || value === "") {
-            return "default";
-        }
-        return String(value);
+        return detectFieldChange(prevPerf, nextPerf, rule.field || propName, false);
     }
 
     _getPropWeight(propName) {
@@ -909,9 +896,11 @@ class SetList {
             if (!change.changed || !prevItem) {
                 continue;
             }
+            // maxChanges is always enforced, even on the last song
             if (rule.maxChanges !== undefined && state.propChangeCounts[propName] >= rule.maxChanges) {
                 return false;
             }
+            // allowChangeOnLastSong only bypasses minStreak, not maxChanges
             if (isLastSong && rule.allowChangeOnLastSong) {
                 continue;
             }
@@ -1000,21 +989,6 @@ class SetList {
         return undefined;
     }
 
-    _variantSignature(variant) {
-        const parts = [variant.name];
-        Object.keys(variant.performance).sort().forEach((member) => {
-            const setup = variant.performance[member];
-            parts.push([
-                member,
-                setup.instrument || "",
-                setup.tuning || "",
-                String(setup.capo || 0),
-                String(setup.picking || "")
-            ].join("|"));
-        });
-        return parts.join("|");
-    }
-
     toJSON() {
         return {
             options: this._options,
@@ -1062,92 +1036,50 @@ export function scoreFixedOrder(fixedSongs, config) {
         return weights[weightKey] || 0;
     }
 
-    function normalizeValue(value) {
-        if (value === undefined || value === null) return "";
-        return String(value);
-    }
+    function scorePropTransition(prevItem, nextItem) {
+        if (!prevItem) {
+            const changes = {};
+            for (const p of propNames) changes[p] = { changed: false, magnitude: 0, notes: [] };
+            return { score: 0, notes: [], changes };
+        }
 
-    function displayValue(value) {
-        if (value === undefined || value === null || value === "") return "default";
-        return String(value);
-    }
-
-    function detectInstrumentSetChange(prevItem, nextVariant) {
-        const members = new Set([
-            ...Object.keys(prevItem.performance || {}),
-            ...Object.keys(nextVariant.performance || {})
-        ]);
-        const notes = [];
-        let magnitude = 0;
-        Array.from(members).sort().forEach((member) => {
-            const previous = (prevItem.performance || {})[member];
-            const next = (nextVariant.performance || {})[member];
-            if (!previous || !next) { magnitude += 1; notes.push(`${member} instrument on/off`); return; }
-            if (previous.instrument !== next.instrument) { magnitude += 1; notes.push(`${member} instrument ${previous.instrument} -> ${next.instrument}`); }
-        });
-        return { changed: magnitude > 0, magnitude, notes };
-    }
-
-    function detectInstrumentValueChange(prevItem, nextVariant, rule, scaleByDelta, coerceBoolean) {
-        const field = rule.field;
-        const notes = [];
-        let magnitude = 0;
-        const sharedMembers = Object.keys(prevItem.performance || {}).filter((m) => Object.prototype.hasOwnProperty.call(nextVariant.performance || {}, m)).sort();
-        sharedMembers.forEach((member) => {
-            const prevValue = (prevItem.performance || {})[member]?.[field];
-            const nextValue = (nextVariant.performance || {})[member]?.[field];
-            const left = coerceBoolean ? Boolean(prevValue) : normalizeValue(prevValue);
-            const right = coerceBoolean ? Boolean(nextValue) : normalizeValue(nextValue);
-            if (left === right) return;
-            const amount = scaleByDelta ? Math.abs((prevValue || 0) - (nextValue || 0)) : 1;
-            if (!amount) return;
-            magnitude += amount;
-            notes.push(`${member} ${field} ${displayValue(prevValue)} -> ${displayValue(nextValue)}`);
-        });
-        return { changed: magnitude > 0, magnitude, notes };
-    }
-
-    function inferPropKind(propName) {
-        if (propName === "instruments") return "instrumentSet";
-        if (propName === "capo") return "instrumentDelta";
-        if (propName === "picking") return "instrumentBoolean";
-        return "instrumentField";
-    }
-
-    function detectPropChange(prevItem, nextVariant, propName, rule) {
-        if (!prevItem) return { changed: false, magnitude: 0, notes: [] };
-        const kind = rule.kind || inferPropKind(propName);
-        if (kind === "instrumentSet") return detectInstrumentSetChange(prevItem, nextVariant);
-        if (kind === "instrumentDelta") return detectInstrumentValueChange(prevItem, nextVariant, rule, true, false);
-        if (kind === "instrumentBoolean") return detectInstrumentValueChange(prevItem, nextVariant, rule, false, true);
-        return detectInstrumentValueChange(prevItem, nextVariant, rule, false, false);
-    }
-
-    function scoreConfiguredProps(prevItem, nextVariant) {
+        const prevPerf = prevItem.performance || {};
+        const nextPerf = nextItem.performance || {};
         const changes = {};
         const notes = [];
         let score = 0;
-        propNames.forEach((propName) => {
-            const change = detectPropChange(prevItem, nextVariant, propName, propConfig[propName]);
+
+        for (const propName of propNames) {
+            const rule = propConfig[propName] || {};
+            const kind = rule.kind || inferPropKind(propName);
+            let change;
+
+            if (kind === "instrumentSet") {
+                change = detectInstrumentSetChange(prevPerf, nextPerf);
+            } else if (kind === "instrumentDelta") {
+                change = detectFieldChange(prevPerf, nextPerf, rule.field || propName, true);
+            } else {
+                change = detectFieldChange(prevPerf, nextPerf, rule.field || propName, false);
+            }
+
             changes[propName] = change;
             if (change.changed) {
                 score += change.magnitude * getPropWeight(propName);
-                Array.prototype.push.apply(notes, change.notes);
+                notes.push(...change.notes);
             }
-        });
+        }
+
         return { score, notes, changes };
     }
 
-    const count = fixedSongs.length;
     const items = [];
     let totalScore = 0;
     let coverCount = 0;
     let instrumentalCount = 0;
 
     fixedSongs.forEach((song, index) => {
-        const position = index + 1;
         const prevItem = items[items.length - 1] || null;
-        const propTransition = scoreConfiguredProps(prevItem, song);
+        const propTransition = scorePropTransition(prevItem, song);
 
         const incrementalScore = propTransition.score;
         totalScore += incrementalScore;
@@ -1161,7 +1093,7 @@ export function scoreFixedOrder(fixedSongs, config) {
             instrumental: song.instrumental,
             key: song.key,
             performance: song.performance,
-            position,
+            position: index + 1,
             incrementalScore,
             cumulativeScore: totalScore,
             transitionNotes: propTransition.notes,
