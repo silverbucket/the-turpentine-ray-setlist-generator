@@ -1,6 +1,6 @@
 import { clone, deepMerge, nowIso, sortByName, uid } from "./utils.js";
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 const DEFAULT_CONFIG_TEMPLATE = {
     general: {
@@ -102,26 +102,30 @@ function normalizeCatalogConfig(seedConfig = {}) {
     };
 }
 
+export function normalizeMemberRecord(memberConfig) {
+    const instruments = Array.isArray(memberConfig?.instruments)
+        ? memberConfig.instruments.map((instrument) => ({
+            name: instrument?.name || "",
+            tunings: Array.isArray(instrument?.tunings)
+                ? instrument.tunings.filter(Boolean)
+                : [],
+            defaultTuning: instrument?.defaultTuning || "",
+            techniques: Array.isArray(instrument?.techniques)
+                ? instrument.techniques.filter(Boolean)
+                : [],
+            defaultTechnique: instrument?.defaultTechnique || ""
+        })).filter((instrument) => instrument.name)
+        : [];
+
+    return {
+        instruments,
+        defaultInstrument: memberConfig?.defaultInstrument || ""
+    };
+}
+
 function normalizeBandMembers(seedMembers = {}) {
     return Object.entries(seedMembers || {}).reduce((result, [memberName, memberConfig]) => {
-        const instruments = Array.isArray(memberConfig?.instruments)
-            ? memberConfig.instruments.map((instrument) => ({
-                name: instrument?.name || "",
-                tunings: Array.isArray(instrument?.tunings)
-                    ? instrument.tunings.filter(Boolean)
-                    : [],
-                defaultTuning: instrument?.defaultTuning || "",
-                techniques: Array.isArray(instrument?.techniques)
-                    ? instrument.techniques.filter(Boolean)
-                    : [],
-                defaultTechnique: instrument?.defaultTechnique || ""
-            })).filter((instrument) => instrument.name)
-            : [];
-
-        result[memberName] = {
-            instruments,
-            defaultInstrument: memberConfig?.defaultInstrument || ""
-        };
+        result[memberName] = normalizeMemberRecord(memberConfig);
         return result;
     }, {});
 }
@@ -130,10 +134,8 @@ export function createDefaultAppConfig({ bandName = "", seedConfig = DEFAULT_CON
     const timestamp = nowIso();
     const baseConfig = clone(seedConfig);
     baseConfig.show = baseConfig.show || {};
-    baseConfig.show.members = {};
-    baseConfig.band = {
-        members: normalizeBandMembers(baseConfig.band?.members || {})
-    };
+    delete baseConfig.show.members;
+    delete baseConfig.band?.members;
     baseConfig.catalog = normalizeCatalogConfig(baseConfig);
 
     return {
@@ -190,20 +192,20 @@ export function normalizeAppConfig(config) {
     }
 
     const timestamp = config.createdAt || nowIso();
-    const bandMembers = normalizeBandMembers(config.band?.members || {});
     const catalog = normalizeCatalogConfig(config);
 
-    return deepMerge(createDefaultAppConfig({ bandName: config.bandName || "" }), {
+    const normalized = deepMerge(createDefaultAppConfig({ bandName: config.bandName || "" }), {
         ...clone(config),
         bandName: config.bandName || "",
-        band: {
-            members: bandMembers
-        },
         catalog,
         schemaVersion: config.schemaVersion || SCHEMA_VERSION,
         createdAt: config.createdAt || timestamp,
         updatedAt: config.updatedAt || timestamp
     });
+    // Members are now stored as individual files; strip from config
+    delete normalized.band?.members;
+    delete normalized.show?.members;
+    return normalized;
 }
 
 
