@@ -25,7 +25,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 </svelte:head>
 
-{#if store.connectionStatus !== "connected"}
+{#if store.connectionStatus === "disconnected"}
     <main class="connect-shell">
         <section class="connect-card">
             <p class="eyebrow">Setlist Roller</p>
@@ -53,6 +53,22 @@
                 <p class="error-text">{store.loadError}</p>
             {/if}
         </section>
+    </main>
+{:else if !store.initialSyncComplete}
+    <main class="sync-shell">
+        <div class="sync-content">
+            <div class="sync-die-face">
+                <span class="sync-pip" style="left:25%;top:25%"></span>
+                <span class="sync-pip" style="left:75%;top:25%"></span>
+                <span class="sync-pip" style="left:50%;top:50%"></span>
+                <span class="sync-pip" style="left:25%;top:75%"></span>
+                <span class="sync-pip" style="left:75%;top:75%"></span>
+            </div>
+            <div class="sync-label">
+                <span class="spinner"></span>
+                Syncing&hellip;
+            </div>
+        </div>
     </main>
 {:else}
     <div class="app-shell">
@@ -149,6 +165,55 @@
 
     .lede {
         color: var(--muted);
+    }
+
+    /* ---- Sync screen ---- */
+    .sync-shell {
+        min-height: 100vh;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: var(--space-4);
+    }
+
+    .sync-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-4);
+    }
+
+    .sync-die-face {
+        position: relative;
+        width: 72px;
+        height: 72px;
+        border-radius: 14px;
+        background: rgba(225, 91, 55, 0.06);
+        border: 2px solid rgba(225, 91, 55, 0.12);
+        animation: pulse-fade 2s ease-in-out infinite;
+    }
+
+    .sync-pip {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: rgba(225, 91, 55, 0.18);
+        transform: translate(-50%, -50%);
+    }
+
+    .sync-label {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-2);
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--muted);
+    }
+
+    @keyframes pulse-fade {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.06); }
     }
 
     /* ---- App shell ---- */

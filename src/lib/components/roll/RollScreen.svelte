@@ -51,6 +51,16 @@
   let hasSongs = $derived((store.songs || []).length > 0);
   let readyToRoll = $derived(hasSongs);
 
+  const ROLL_NUDGES = [
+    "The setlist isn't going to roll itself.",
+    "That die up there? It's getting lonely.",
+    "Tap Roll. Trust the dice.",
+    "Your songs are ready. Are you?",
+    "Fortune favors the bold. Hit Roll.",
+    "No setlist survives first contact with the stage. Roll one anyway.",
+  ];
+  let nudgeText = ROLL_NUDGES[Math.floor(Math.random() * ROLL_NUDGES.length)];
+
   function handleRoll() {
     if (settingsEl) settingsEl.open = false;
     store.requestRoll();
@@ -352,6 +362,18 @@
       <p class="onboarding-tip">Got members who switch guitars, tunings, or capos between songs? Add them in each song and Setlist Roller will minimize gear changes.</p>
       <p class="onboarding-footer">Then come back here and hit Roll.</p>
       <button class="help-toggle" onclick={() => store.navigate("help")}>How does this work?</button>
+    </div>
+  {/if}
+
+  <!-- Ready to roll but nothing rolled yet -->
+  {#if readyToRoll && !store.generatedSetlist}
+    <div class="idle-nudge">
+      <div class="idle-die-face">
+        {#each PIP_LAYOUTS[5] as [px, py]}
+          <span class="idle-pip" style="left:{px * 100}%;top:{py * 100}%"></span>
+        {/each}
+      </div>
+      <p class="idle-tagline">{nudgeText}</p>
     </div>
   {/if}
 
@@ -1364,6 +1386,49 @@
 
   .help-toggle:hover {
     color: #c94020;
+  }
+
+  /* ---- Idle nudge (ready but nothing rolled) ---- */
+  .idle-nudge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-8) 0 var(--space-6);
+    text-align: center;
+  }
+
+  .idle-die-face {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    border-radius: 18px;
+    background: rgba(225, 91, 55, 0.06);
+    border: 2px solid rgba(225, 91, 55, 0.10);
+    animation: idle-float 3s ease-in-out infinite;
+  }
+
+  .idle-pip {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: rgba(225, 91, 55, 0.15);
+    transform: translate(-50%, -50%);
+  }
+
+  .idle-tagline {
+    color: var(--muted);
+    font-size: 1rem;
+    font-weight: 600;
+    font-style: italic;
+    max-width: 280px;
+    line-height: 1.5;
+  }
+
+  @keyframes idle-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
   }
 
 </style>

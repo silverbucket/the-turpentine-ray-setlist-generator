@@ -46,9 +46,21 @@
     store.navigate("roll");
   }
 
+  let confirmingRemoveId = $state(null);
+
   function handleRemove(e, id) {
     e.stopPropagation();
-    store.removeSavedSetlist(id);
+    if (confirmingRemoveId === id) {
+      store.removeSavedSetlist(id);
+      confirmingRemoveId = null;
+    } else {
+      confirmingRemoveId = id;
+    }
+  }
+
+  function cancelRemove(e) {
+    e.stopPropagation();
+    confirmingRemoveId = null;
   }
 
   let printEl = $state(null);
@@ -180,7 +192,13 @@
             <div class="saved-card-actions">
               <button class="card-btn edit" onclick={(e) => startEdit(e, saved)}>Edit</button>
               <button class="card-btn load" onclick={(e) => handleLoad(e, saved.id)}>Load</button>
-              <button class="card-btn remove" onclick={(e) => handleRemove(e, saved.id)} aria-label="Remove">&times;</button>
+              <span class="action-spacer"></span>
+              {#if confirmingRemoveId === saved.id}
+                <button class="card-btn confirm-delete" onclick={(e) => handleRemove(e, saved.id)}>Delete?</button>
+                <button class="card-btn cancel-delete" onclick={cancelRemove}>No</button>
+              {:else}
+                <button class="card-btn remove" onclick={(e) => handleRemove(e, saved.id)} aria-label="Remove">&times;</button>
+              {/if}
             </div>
           {/if}
         </div>
@@ -348,6 +366,10 @@
     color: #fff;
   }
 
+  .action-spacer {
+    flex: 1;
+  }
+
   .card-btn.remove {
     background: none;
     color: var(--muted, #8a95a5);
@@ -358,6 +380,18 @@
   .card-btn.remove:hover,
   .card-btn.remove:active {
     color: var(--accent, #e15b37);
+  }
+
+  .card-btn.confirm-delete {
+    background: var(--danger, #b91c1c);
+    color: #fff;
+    font-size: 0.72rem;
+  }
+
+  .card-btn.cancel-delete {
+    background: rgba(27, 49, 80, 0.06);
+    color: var(--muted, #8a95a5);
+    font-size: 0.72rem;
   }
 
   .card-btn.edit {

@@ -82,6 +82,7 @@ export function createRemoteStorageRepository() {
             return remoteStorage.connected;
         },
 
+
         getUserAddress() {
             return remoteStorage.remote?.userAddress || "";
         },
