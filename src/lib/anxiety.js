@@ -98,7 +98,7 @@ export function computeAnxiety(songs, config) {
     const propNames = Object.keys(config?.props || {});
     const propConfig = config?.props || {};
 
-    const totalTransitions = Math.max(1, songs.length - 1);
+    const totalTransitions = songs.length - 1;
     let totalWeighted = 0;
     let totalMemberChanges = 0;
     let spotsWithChanges = 0;
@@ -175,7 +175,7 @@ export function computeAnxiety(songs, config) {
     // Spread factor: changes spread across many spots = more dead-air moments = worse.
     // Using power curve so sparse changes (e.g. 3/14) are meaningfully dampened,
     // while dense disruption (most spots affected) stays close to full weight.
-    const spreadRatio = spotsWithChanges / totalTransitions;
+    const spreadRatio = totalTransitions > 0 ? spotsWithChanges / totalTransitions : 0;
     const adjustedWeighted = totalWeighted * Math.pow(spreadRatio, 0.7);
 
     // Dynamic scale from the band's own weights

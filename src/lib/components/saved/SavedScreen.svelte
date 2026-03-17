@@ -62,9 +62,11 @@
     const bandName = (store.appTitle || "").replace(/ — Set Roll$/, "");
     const setName = viewingSet?.name || "Setlist";
     const pdfTitle = `${bandName} - ${setName}`;
+    const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     const win = window.open("", "_blank", "width=800,height=600");
+    if (!win) { store.addToast("Popup blocked — please allow popups to print.", "warning"); return; }
     win.document.write(`<!DOCTYPE html>
-<html><head><title>${pdfTitle}</title>
+<html><head><title>${esc(pdfTitle)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   @page { margin: 0; }

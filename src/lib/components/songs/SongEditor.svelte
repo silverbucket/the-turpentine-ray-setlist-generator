@@ -295,7 +295,7 @@
                                             <div class="inline-add">
                                                 <input
                                                     class="field-input"
-                                                    list="inst-{memberName}-{index}"
+                                                    list={`inst-${memberName}-${index}`}
                                                     value={instDraft}
                                                     placeholder="e.g. Guitar, Bass, Keys"
                                                     oninput={(e) => setInstrumentDraft(memberName, index, e.currentTarget.value)}
@@ -307,7 +307,7 @@
                                                 {/if}
                                             </div>
                                             {#if knownInstruments.length > 0}
-                                                <datalist id="inst-{memberName}-{index}">
+                                                <datalist id={`inst-${memberName}-${index}`}>
                                                     {#each knownInstruments as instrument}
                                                         <option value={instrument} />
                                                     {/each}

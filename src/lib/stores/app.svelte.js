@@ -536,10 +536,7 @@ export function createAppStore(repo) {
     }
 
     function saveCurrentSetlist() {
-        if (!generatedSetlist) {
-            console.warn("[Set Roll] saveCurrentSetlist: no generatedSetlist");
-            return;
-        }
+        if (!generatedSetlist) return;
         const currentSaved = savedSetlists || [];
         const songNames = generatedSetlist.songs.map(s => s.name || s.title || "?");
         const funNames = [
@@ -561,7 +558,6 @@ export function createAppStore(repo) {
         savedSetlists = [entry, ...currentSaved].slice(0, MAX_SAVED_SETS);
         persistSavedSetlists();
         setlistSaved = true;
-        console.log("[Set Roll] saved setlist:", entry.name, entry.id, "total saved:", savedSetlists.length);
     }
 
     function removeSavedSetlist(id) {

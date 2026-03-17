@@ -657,7 +657,7 @@ describe("computeAnxiety — edge cases", () => {
     it("handles single song", () => {
         const result = computeAnxiety([song("Only", "G")], BAND_CONFIG);
         expect(result.scaled).toBe(0);
-        expect(result.totalTransitions).toBe(1); // Math.max(1, 0)
+        expect(result.totalTransitions).toBe(0);
         expect(result.details).toHaveLength(0);
     });
 
