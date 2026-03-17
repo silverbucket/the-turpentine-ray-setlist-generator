@@ -59,7 +59,7 @@
     clone.querySelectorAll(".no-print").forEach(el => el.remove());
     const content = clone.innerHTML;
     const appUrl = window.location.origin;
-    const bandName = (store.appTitle || "").replace(/ — Set Roll$/, "");
+    const bandName = (store.appTitle || "").replace(/ — Setlist Roller$/, "");
     const setName = viewingSet?.name || "Setlist";
     const pdfTitle = `${bandName} - ${setName}`;
     const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -196,7 +196,7 @@
       <div class="print-setlist" bind:this={printEl}>
         <div class="print-top">
           <button class="modal-close no-print" onclick={handleClose} aria-label="Close">&times;</button>
-          <h2 class="print-band">{store.appTitle.replace(/ — Set Roll$/, "")}</h2>
+          <h2 class="print-band">{store.appTitle.replace(/ — Setlist Roller$/, "")}</h2>
           <p class="print-subtitle">{viewingSet.name || "Setlist"} &middot; {formatDate(viewingSet.savedAt)}</p>
         </div>
 

@@ -4,7 +4,7 @@ import { scoreFixedOrder } from "../generator.js";
 import { clone, deepMerge, formatDelimitedList, getByPath, nowIso, parseDelimitedList, setByPath, titleForBand, tryParseJson, uid } from "../utils.js";
 import GeneratorWorker from "../generator.worker.js?worker";
 
-const STORAGE_PREFIX = "setlist-generator";
+const STORAGE_PREFIX = "setlist-roller";
 const MAX_SAVED_SETS = 5;
 
 // Scope localStorage keys per user so accounts don't leak data
@@ -269,9 +269,9 @@ export function createAppStore(repo) {
     // Remove any un-scoped legacy localStorage keys so they can't leak between accounts
     function clearUnscopedLocalStorage() {
         if (typeof localStorage === "undefined") return;
-        localStorage.removeItem("setlist-generator-ui-options");
-        localStorage.removeItem("setlist-generator-saved-sets");
-        localStorage.removeItem("setlist-generator-current-set");
+        localStorage.removeItem("setlist-roller-ui-options");
+        localStorage.removeItem("setlist-roller-saved-sets");
+        localStorage.removeItem("setlist-roller-current-set");
     }
 
     // Clear the current user's scoped localStorage keys (called on disconnect)
@@ -1179,7 +1179,7 @@ export function createAppStore(repo) {
     function buildExportPayload() {
         const currentSaved = savedSetlists || [];
         return {
-            app: "setlist-generator", schemaVersion: 2, exportedAt: nowIso(),
+            app: "setlist-roller", schemaVersion: 2, exportedAt: nowIso(),
             songs: songs.map(normalizeSongRecord),
             config: clone(appConfig),
             savedSetlists: stripEnergy(clone(currentSaved)),

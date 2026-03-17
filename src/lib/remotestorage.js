@@ -7,12 +7,12 @@ import {
 } from "./defaults.js";
 import { clone, nowIso } from "./utils.js";
 
-const APP_SCOPE = "setlist-generator";
+const APP_SCOPE = "setlist-roller";
 const TYPES = {
-    song: "setlist-song",
-    preset: "setlist-preset",
-    config: "setlist-config",
-    meta: "setlist-meta"
+    song: "setlist-roller-song",
+    preset: "setlist-roller-preset",
+    config: "setlist-roller-config",
+    meta: "setlist-roller-meta"
 };
 
 const OBJECT_SCHEMA = {

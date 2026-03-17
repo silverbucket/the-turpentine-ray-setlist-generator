@@ -28,7 +28,7 @@
 {#if store.connectionStatus !== "connected"}
     <main class="connect-shell">
         <section class="connect-card">
-            <p class="eyebrow">Set Roll</p>
+            <p class="eyebrow">Setlist Roller</p>
             <h1>{store.appTitle}</h1>
             <p class="lede">
                 Connect to remoteStorage so your songs survive the tour bus.

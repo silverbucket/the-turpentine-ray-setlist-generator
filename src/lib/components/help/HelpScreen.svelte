@@ -4,8 +4,8 @@
 </script>
 
 <div class="help-screen">
-    <h1 class="help-title">How Set Roll Works</h1>
-    <p class="help-intro">Set Roll builds setlists that flow well on stage. It looks at tuning changes, instrument swaps, capo moves, and other gear transitions to put your songs in an order that keeps the chaos to a minimum.</p>
+    <h1 class="help-title">How Setlist Roller Works</h1>
+    <p class="help-intro">Setlist Roller builds setlists that flow well on stage. It looks at tuning changes, instrument swaps, capo moves, and other gear transitions to put your songs in an order that keeps the chaos to a minimum.</p>
 
     <section class="help-section">
         <h2>Getting started</h2>
@@ -16,15 +16,15 @@
             </li>
             <li>
                 <strong>Set up their instruments</strong>
-                <p>For each member, add the instruments they play. Then add the tunings for each instrument. If your guitarist plays Standard and DADGAD, add both. This is how Set Roll knows what changes cost time on stage.</p>
+                <p>For each member, add the instruments they play. Then add the tunings for each instrument. If your guitarist plays Standard and DADGAD, add both. This is how Setlist Roller knows what changes cost time on stage.</p>
             </li>
             <li>
                 <strong>Add your songs</strong>
-                <p>Go to the <button class="inline-link" onclick={() => store.navigate("songs")}>Songs</button> tab and add your catalog. For each song, tell Set Roll which instrument and tuning each tracked member uses. The more detail you give, the smarter the setlists.</p>
+                <p>Go to the <button class="inline-link" onclick={() => store.navigate("songs")}>Songs</button> tab and add your catalog. For each song, tell Setlist Roller which instrument and tuning each tracked member uses. The more detail you give, the smarter the setlists.</p>
             </li>
             <li>
                 <strong>Roll a setlist</strong>
-                <p>Go to the <button class="inline-link" onclick={() => store.navigate("roll")}>Roll</button> tab, pick how many songs you want, and hit the dice. Set Roll will crunch the numbers and build you an optimized setlist.</p>
+                <p>Go to the <button class="inline-link" onclick={() => store.navigate("roll")}>Roll</button> tab, pick how many songs you want, and hit the dice. Setlist Roller will crunch the numbers and build you an optimized setlist.</p>
             </li>
         </ol>
     </section>

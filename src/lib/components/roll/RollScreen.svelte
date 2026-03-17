@@ -324,7 +324,7 @@
     <div class="onboarding-card">
       <div class="onboarding-illustration">🎸🥁🎤</div>
       <h2 class="onboarding-title">Almost showtime!</h2>
-      <p class="onboarding-desc">Add some songs to your catalog and Set Roll will build you a setlist.</p>
+      <p class="onboarding-desc">Add some songs to your catalog and Setlist Roller will build you a setlist.</p>
       <ol class="onboarding-steps">
         <li class:done={hasSongs}>
           <span class="step-icon">{hasSongs ? "✓" : "1"}</span>
@@ -338,7 +338,7 @@
           </span>
         </li>
       </ol>
-      <p class="onboarding-tip">Got members who switch guitars, tunings, or capos between songs? Add them in each song and Set Roll will minimize gear changes.</p>
+      <p class="onboarding-tip">Got members who switch guitars, tunings, or capos between songs? Add them in each song and Setlist Roller will minimize gear changes.</p>
       <p class="onboarding-footer">Then come back here and hit Roll.</p>
       <button class="help-toggle" onclick={() => store.navigate("help")}>How does this work?</button>
     </div>
