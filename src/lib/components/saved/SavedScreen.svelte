@@ -1,5 +1,6 @@
 <script>
   import { getContext } from "svelte";
+  import { anxietyLabel } from "../../anxiety.js";
 
   const store = getContext("app");
 
@@ -101,6 +102,10 @@
   .print-change.setup { color: #666; }
   .print-change-member { font-weight: 700; }
   .print-change-detail { font-weight: 500; }
+  .print-anxiety { margin-top: 8px; padding-top: 8px; border-top: 2px solid #000; display: flex; align-items: baseline; gap: 5px; font-size: 11pt; }
+  .print-anxiety-title { font-weight: 700; }
+  .print-anxiety-score { font-weight: 800; }
+  .print-anxiety-label { font-weight: 400; color: #555; }
   .print-footer { position: fixed; bottom: 1cm; right: 1.5cm; font-size: 8pt; color: #999; }
 </style></head><body>${content}<div class="print-footer">${appUrl}</div></body></html>`);
     win.document.close();
@@ -244,6 +249,14 @@
           {/each}
         </div>
 
+        {#if viewingSet.summary?.anxiety}
+          {@const anxiety = viewingSet.summary.anxiety}
+          <div class="print-anxiety">
+            <span class="print-anxiety-title">Bass Player Anxiety:</span>
+            <span class="print-anxiety-score">{anxiety.scaled}/10</span>
+            <span class="print-anxiety-label">{anxietyLabel(anxiety)}</span>
+          </div>
+        {/if}
       </div>
 
       <div class="modal-actions">
@@ -594,6 +607,20 @@
     font-weight: 500;
   }
 
+
+  .print-anxiety {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 2px solid #000;
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+  }
+
+  .print-anxiety-title { font-weight: 700; }
+  .print-anxiety-score { font-weight: 800; }
+  .print-anxiety-label { font-weight: 400; color: #555; }
 
   .modal-actions {
     display: flex;
