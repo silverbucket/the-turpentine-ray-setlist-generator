@@ -4,7 +4,7 @@ export const SCHEMA_VERSION = 2;
 
 const DEFAULT_CONFIG_TEMPLATE = {
     general: {
-        count: 15,
+        count: 9,
         beamWidth: 512,
         limits: {
             covers: 2,
