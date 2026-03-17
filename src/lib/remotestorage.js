@@ -82,9 +82,6 @@ export function createRemoteStorageRepository() {
             return remoteStorage.connected;
         },
 
-        hasStoredCredentials() {
-            return !!remoteStorage.remote?.token || remoteStorage.connected;
-        },
 
         getUserAddress() {
             return remoteStorage.remote?.userAddress || "";
