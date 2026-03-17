@@ -4,8 +4,10 @@
 
   const tabs = [
     { id: "roll", label: "Roll", icon: "\u2684" },
+    { id: "saved", label: "Saved", icon: "\u2605" },
     { id: "songs", label: "Songs", icon: "\u266B" },
     { id: "band", label: "Band", icon: "\u2699" },
+    { id: "help", label: "Help", icon: "?" },
   ];
 </script>
 

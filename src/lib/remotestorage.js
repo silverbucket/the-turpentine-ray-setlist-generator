@@ -7,12 +7,12 @@ import {
 } from "./defaults.js";
 import { clone, nowIso } from "./utils.js";
 
-const APP_SCOPE = "setlist-generator";
+const APP_SCOPE = "setlist-roller";
 const TYPES = {
-    song: "setlist-song",
-    preset: "setlist-preset",
-    config: "setlist-config",
-    meta: "setlist-meta"
+    song: "setlist-roller-song",
+    preset: "setlist-roller-preset",
+    config: "setlist-roller-config",
+    meta: "setlist-roller-meta"
 };
 
 const OBJECT_SCHEMA = {
@@ -46,10 +46,14 @@ export function createRemoteStorageRepository() {
         client,
 
         connect(userAddress) {
+            // Re-enable caching in case it was reset by a previous disconnect
+            remoteStorage.caching.enable(`/${APP_SCOPE}/`);
             remoteStorage.connect(userAddress);
         },
 
         disconnect() {
+            // Reset the local cache before disconnecting to prevent data leaking to the next account
+            remoteStorage.caching.reset();
             remoteStorage.disconnect();
         },
 
@@ -104,6 +108,10 @@ export function createRemoteStorageRepository() {
 
         async deleteSong(songId) {
             await client.remove(`songs/${songId}`);
+        },
+
+        async deleteConfig() {
+            await client.remove("settings/app-config");
         },
 
         async getConfig() {

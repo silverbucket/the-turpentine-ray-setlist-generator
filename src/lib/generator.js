@@ -1,4 +1,14 @@
-import { clone, deepMerge, toArray } from "./utils.js";
+import { deepMerge, toArray } from "./utils.js";
+import { computeAnxiety } from "./anxiety.js";
+import {
+    normalizeValue,
+    displayValue,
+    detectInstrumentSetChange,
+    detectFieldChange,
+    detectInstrumentSetChangeLite,
+    detectFieldChangeLite,
+    inferPropKind
+} from "./detection.js";
 
 function clampInteger(value, fallback, minimum) {
     const parsed = Number.parseInt(value, 10);
@@ -68,19 +78,18 @@ function compareStates(left, right) {
     if (left.instrumentalCount !== right.instrumentalCount) {
         return left.instrumentalCount - right.instrumentalCount;
     }
-    const leftNames = left.items.map((item) => item.name).join("|");
-    const rightNames = right.items.map((item) => item.name).join("|");
-    return leftNames.localeCompare(rightNames);
+    // Use numeric tiebreaker instead of expensive string join + localeCompare
+    return (left._tiebreaker || 0) - (right._tiebreaker || 0);
 }
 
 
 class SongsCatalog {
     constructor(list = []) {
-        this._songs = clone(list);
+        this._songs = list;
     }
 
     all() {
-        return clone(this._songs);
+        return this._songs;
     }
 
     expandVariants(song, showConstraints = {}) {
@@ -163,7 +172,7 @@ class SongsCatalog {
             return optionTunings.some((tuning) => validTunings.indexOf(tuning) >= 0);
         }).map((option) => {
             const instrumentName = option.name || option.instrument;
-            const constrainedOption = clone(option);
+            const constrainedOption = { ...option };
 
             if (allowedTunings[instrumentName]) {
                 const validTunings = toArray(allowedTunings[instrumentName]);
@@ -183,7 +192,6 @@ class SongsCatalog {
         return {
             id: String(song.id),
             name: song.name,
-            energy: song.energy || 2,
             cover: Boolean(song.cover),
             instrumental: Boolean(song.instrumental),
             notGoodOpener: Boolean(song.notGoodOpener),
@@ -213,6 +221,7 @@ class SetList {
         });
         this._songBiasById = this._buildSongBiases(this._catalog);
         this._count = Math.min(this._options.count, this._catalog.length);
+        this._minConstraints = this._buildMinConstraints();
         this._list = [];
         this._summary = {
             score: 0,
@@ -231,13 +240,13 @@ class SetList {
         const limits = this._config.general?.limits || {};
         const normalized = merge({
             count: this._config.general?.count || 15,
-            beamWidth: this._config.general?.beamWidth || 64,
+            beamWidth: this._config.general?.beamWidth || 20,
             maxCovers: limits.covers || 2,
             maxInstrumentals: limits.instrumentals || 2
         }, options || {});
 
         normalized.count = clampInteger(normalized.count, this._config.general?.count || 15, 1);
-        normalized.beamWidth = clampInteger(normalized.beamWidth, this._config.general?.beamWidth || 64, 1);
+        normalized.beamWidth = clampInteger(normalized.beamWidth, this._config.general?.beamWidth || 20, 1);
         normalized.maxCovers = clampInteger(normalized.maxCovers, limits.covers || 2, 0);
         normalized.maxInstrumentals = clampInteger(normalized.maxInstrumentals, limits.instrumentals || 2, 0);
         normalized.show = deepMerge(this._config.show || {}, normalized.show || {});
@@ -291,41 +300,153 @@ class SetList {
         return this._songBiasById[songId] || 0;
     }
 
+    /**
+     * Pre-compute minimum instrument/tuning constraints from show config.
+     * Returns { instruments: [{member, instrument, min}], tunings: [{member, instrument, tuning, min}] }
+     */
+    _buildMinConstraints() {
+        const constraints = { instruments: [], tunings: [] };
+        const showMembers = this._show.members || {};
+
+        for (const [memberName, memberShow] of Object.entries(showMembers)) {
+            const allowed = memberShow.allowedInstruments || [];
+            if (allowed.length >= 2) {
+                const min = memberShow.minSongsPerInstrument ?? 2;
+                for (const inst of allowed) {
+                    constraints.instruments.push({ member: memberName, instrument: inst, min });
+                }
+            }
+
+            const allowedTunings = memberShow.allowedTunings || {};
+            const minPerTuning = memberShow.minSongsPerTuning || {};
+            for (const [instName, tunings] of Object.entries(allowedTunings)) {
+                if (tunings.length >= 2) {
+                    const min = minPerTuning[instName] ?? 2;
+                    for (const tuning of tunings) {
+                        constraints.tunings.push({ member: memberName, instrument: instName, tuning, min });
+                    }
+                }
+            }
+        }
+
+        return constraints;
+    }
+
+    /**
+     * Count instrument/tuning usage from a variant's performance.
+     */
+    _updateUsageCounts(counts, variant) {
+        const next = {
+            instruments: { ...counts.instruments },
+            tunings: { ...counts.tunings }
+        };
+        const perf = variant.performance || {};
+        for (const [member, setup] of Object.entries(perf)) {
+            const instKey = `${member}:${setup.instrument}`;
+            next.instruments[instKey] = (next.instruments[instKey] || 0) + 1;
+            if (setup.tuning) {
+                const tuningKey = `${member}:${setup.instrument}:${setup.tuning}`;
+                next.tunings[tuningKey] = (next.tunings[tuningKey] || 0) + 1;
+            }
+        }
+        return next;
+    }
+
+    /**
+     * Score penalty for unmet minimum constraints. Returns a positive number
+     * when we're falling behind on meeting minimums.
+     * Returns Infinity if it's mathematically impossible to meet them.
+     */
+    _scoreMinimumPenalty(usageCounts, position) {
+        const remaining = this._count - position;
+        let penalty = 0;
+
+        for (const c of this._minConstraints.instruments) {
+            const key = `${c.member}:${c.instrument}`;
+            const have = usageCounts.instruments[key] || 0;
+            const deficit = c.min - have;
+            if (deficit > 0 && deficit > remaining) {
+                return Infinity; // impossible to meet
+            }
+            if (deficit > 0) {
+                // Proportional penalty: higher when deadline is closer
+                penalty += deficit * (this._weights.instrument || 3) * (1 + (1 / (remaining + 1)));
+            }
+        }
+
+        for (const c of this._minConstraints.tunings) {
+            const key = `${c.member}:${c.instrument}:${c.tuning}`;
+            const have = usageCounts.tunings[key] || 0;
+            const deficit = c.min - have;
+            if (deficit > 0 && deficit > remaining) {
+                return Infinity;
+            }
+            if (deficit > 0) {
+                penalty += deficit * (this._weights.tuning || 4) * (1 + (1 / (remaining + 1)));
+            }
+        }
+
+        return penalty;
+    }
+
     _initialState() {
         return {
-            items: [],
-            usedIds: {},
+            // Linked list: head points to { item, prev } chain
+            head: null,
+            length: 0,
+            usedIds: Object.create(null),
             score: 0,
             coverCount: 0,
             instrumentalCount: 0,
-            energyStreak: 0,
-            lastEnergy: null,
+            lastItem: null,
             rankScore: 0,
+            _tiebreaker: 0,
             propChangeCounts: zeroMap(this._propNames),
             propStreaks: zeroMap(this._propNames),
-            changeTotals: zeroMap(this._propNames)
+            changeTotals: zeroMap(this._propNames),
+            usageCounts: { instruments: {}, tunings: {} }
         };
+    }
+
+    // Reconstruct items array from linked list
+    _collectItems(state) {
+        const items = new Array(state.length);
+        let node = state.head;
+        for (let i = state.length - 1; i >= 0; i--) {
+            items[i] = node.item;
+            node = node.prev;
+        }
+        return items;
     }
 
     _build() {
         let states = [this._initialState()];
         const catalog = this._randomness.shuffleCatalog ? this._shuffle(this._catalog) : this._catalog.slice();
 
+        // Pre-expand and cache all variants once
+        const variantCache = new Map();
+        for (let i = 0; i < catalog.length; i++) {
+            variantCache.set(catalog[i].id, this._songs.expandVariants(catalog[i], this._show));
+        }
+        this._variantCache = variantCache;
+
         for (let position = 1; position <= this._count; position += 1) {
             const nextStates = [];
 
-            states.forEach((state) => {
-                catalog.forEach((song) => {
+            for (let si = 0; si < states.length; si++) {
+                const state = states[si];
+                for (let ci = 0; ci < catalog.length; ci++) {
+                    const song = catalog[ci];
                     if (state.usedIds[song.id]) {
-                        return;
+                        continue;
                     }
 
                     const nextState = this._buildNextState(state, song, position);
                     if (nextState) {
                         nextStates.push(nextState);
                     }
-                });
-            });
+                }
+            }
 
             if (!nextStates.length) {
                 break;
@@ -336,7 +457,8 @@ class SetList {
         }
 
         const best = this._pickFinalState(states);
-        const diversifiedItems = this._diversifyCompatibleRuns(best.items);
+        const bestItems = this._collectItems(best);
+        const diversifiedItems = this._diversifyCompatibleRuns(bestItems);
         const finalized = this._finalizeItems(diversifiedItems);
         this._list = finalized.items;
         this._summary = finalized.summary;
@@ -374,8 +496,7 @@ class SetList {
             }
 
             const chosen = pool.splice(chosenIndex, 1)[0];
-            const lastItem = chosen.items[chosen.items.length - 1];
-            const lastSongId = lastItem ? lastItem.id : "none";
+            const lastSongId = chosen.lastItem ? chosen.lastItem.id : "none";
             const used = lastSongCounts[lastSongId] || 0;
 
             if (used >= maxStatesPerLastSong) {
@@ -387,9 +508,11 @@ class SetList {
         }
 
         if (selected.length < this._options.beamWidth) {
-            const fallback = nextStates.filter((state) => selected.indexOf(state) < 0);
-            while (fallback.length && selected.length < this._options.beamWidth) {
-                selected.push(fallback.shift());
+            const selectedSet = new Set(selected);
+            for (let i = 0; i < nextStates.length && selected.length < this._options.beamWidth; i++) {
+                if (!selectedSet.has(nextStates[i])) {
+                    selected.push(nextStates[i]);
+                }
             }
         }
 
@@ -464,8 +587,7 @@ class SetList {
         for (let offset = 0; offset < runItems.length; offset += 1) {
             const position = startPosition + offset;
             const ranked = remaining.map((item) => {
-                const distance = Math.abs(item.energy - this._targetEnergy(position)) * this._weights.energyTarget;
-                const score = distance + this._songBias(item.id);
+                const score = this._songBias(item.id);
                 return { item, score };
             }).sort((left, right) => left.score - right.score);
 
@@ -513,7 +635,6 @@ class SetList {
             const variant = {
                 id: item.id,
                 name: item.name,
-                energy: item.energy,
                 cover: item.cover,
                 instrumental: item.instrumental,
                 key: item.key,
@@ -523,14 +644,12 @@ class SetList {
             const propTransition = this._scoreConfiguredProps(prevItem, variant);
             const nextPropState = this._advancePropState(state, propTransition.changes, prevItem);
             const positionScore = this._scorePosition(variant, position);
-            const context = this._scoreContext(state, variant);
-            const transitionScore = propTransition.score + this._scoreEnergyJump(prevItem, variant);
-            const incrementalScore = transitionScore + positionScore.score + context.score + this._songBias(variant.id);
+            const transitionScore = propTransition.score;
+            const incrementalScore = transitionScore + positionScore.score + this._songBias(variant.id);
 
             const finalized = {
                 id: variant.id,
                 name: variant.name,
-                energy: variant.energy,
                 cover: variant.cover,
                 instrumental: variant.instrumental,
                 key: variant.key,
@@ -538,9 +657,9 @@ class SetList {
                 position,
                 incrementalScore,
                 cumulativeScore: state.score + incrementalScore,
-                transitionNotes: propTransition.notes.concat(this._energyJumpNotes(prevItem, variant)),
+                transitionNotes: propTransition.notes,
                 positionNotes: positionScore.notes,
-                contextNotes: context.notes,
+                contextNotes: [],
                 propChanges: propTransition.changes
             };
 
@@ -552,13 +671,13 @@ class SetList {
                 rankScore: state.score + incrementalScore,
                 coverCount: state.coverCount + Number(Boolean(variant.cover)),
                 instrumentalCount: state.instrumentalCount + Number(Boolean(variant.instrumental)),
-                energyStreak: context.energyStreak,
-                lastEnergy: variant.energy,
                 propChangeCounts: nextPropState.propChangeCounts,
                 propStreaks: nextPropState.propStreaks,
                 changeTotals: nextPropState.changeTotals
             };
         });
+
+        const anxiety = computeAnxiety(finalizedItems, this._config);
 
         return {
             items: finalizedItems,
@@ -566,14 +685,15 @@ class SetList {
                 score: state.score,
                 covers: state.coverCount,
                 instrumentals: state.instrumentalCount,
-                changes: state.changeTotals
+                changes: state.changeTotals,
+                anxiety
             }
         };
     }
 
     _buildNextState(state, song, position) {
-        const nextCoverCount = state.coverCount + Number(Boolean(song.cover));
-        const nextInstrumentalCount = state.instrumentalCount + Number(Boolean(song.instrumental));
+        const nextCoverCount = state.coverCount + (song.cover ? 1 : 0);
+        const nextInstrumentalCount = state.instrumentalCount + (song.instrumental ? 1 : 0);
 
         if (nextCoverCount > this._options.maxCovers) {
             return null;
@@ -587,70 +707,141 @@ class SetList {
             return null;
         }
 
+        const newScore = state.score + bestVariant.incrementalScore;
+        const usedIds = Object.create(state.usedIds);
+        usedIds[song.id] = true;
+
         return {
-            items: state.items.concat(bestVariant.item),
-            usedIds: merge(state.usedIds, { [song.id]: true }),
-            score: state.score + bestVariant.item.incrementalScore,
-            rankScore: state.score + bestVariant.item.incrementalScore + this._randomJitter(this._randomness.stateJitter),
+            head: { item: bestVariant.item, prev: state.head },
+            length: state.length + 1,
+            usedIds,
+            score: newScore,
             coverCount: nextCoverCount,
             instrumentalCount: nextInstrumentalCount,
-            energyStreak: bestVariant.energyStreak,
-            lastEnergy: bestVariant.item.energy,
+            lastItem: bestVariant.item,
+            rankScore: newScore + this._randomJitter(this._randomness.stateJitter),
+            _tiebreaker: this._rng(),
             propChangeCounts: bestVariant.propChangeCounts,
             propStreaks: bestVariant.propStreaks,
-            changeTotals: bestVariant.changeTotals
+            changeTotals: bestVariant.changeTotals,
+            usageCounts: bestVariant.usageCounts
         };
     }
 
     _findBestVariant(state, song, position) {
-        const prevItem = state.items[state.items.length - 1] || null;
+        const prevItem = state.lastItem;
         let best = null;
+        let bestScore = Infinity;
+        // Fallback: track best variant even if minimums are impossible
+        let fallback = null;
+        let fallbackScore = Infinity;
 
-        this._songs.expandVariants(song, this._show).forEach((variant) => {
-            const propTransition = this._scoreConfiguredProps(prevItem, variant);
+        const variants = this._variantCache.get(song.id);
+        for (let vi = 0; vi < variants.length; vi++) {
+            const variant = variants[vi];
+            const propTransition = this._scoreConfiguredPropsLite(prevItem, variant);
             if (!this._isAllowedByPropRules(state, propTransition.changes, prevItem, position)) {
-                return;
+                continue;
             }
 
             const nextPropState = this._advancePropState(state, propTransition.changes, prevItem);
-            const positionScore = this._scorePosition(variant, position);
-            const context = this._scoreContext(state, variant);
-            const transitionScore = propTransition.score + this._scoreEnergyJump(prevItem, variant);
-            const incrementalScore = transitionScore + positionScore.score + context.score + this._songBias(variant.id);
-            const exploratoryScore = incrementalScore + this._randomJitter(this._randomness.variantJitter);
-            const signature = this._variantSignature(variant);
+            const nextUsageCounts = this._updateUsageCounts(state.usageCounts, variant);
+            const minimumPenalty = this._scoreMinimumPenalty(nextUsageCounts, position);
 
-            if (!best || exploratoryScore < best.explorationScore || (
-                exploratoryScore === best.explorationScore && signature < best.signature
-            )) {
+            const positionScore = this._scorePositionLite(variant, position);
+            const transitionScore = propTransition.score;
+
+            if (minimumPenalty === Infinity) {
+                // Track as fallback in case all variants are impossible
+                const fbScore = transitionScore + positionScore + this._songBias(variant.id);
+                if (fbScore < fallbackScore) {
+                    fallbackScore = fbScore;
+                    fallback = {
+                        propChangeCounts: nextPropState.propChangeCounts,
+                        propStreaks: nextPropState.propStreaks,
+                        changeTotals: nextPropState.changeTotals,
+                        usageCounts: nextUsageCounts,
+                        incrementalScore: fbScore,
+                        item: variant
+                    };
+                }
+                continue;
+            }
+
+            const incrementalScore = transitionScore + positionScore + this._songBias(variant.id) + minimumPenalty;
+            const exploratoryScore = incrementalScore + this._randomJitter(this._randomness.variantJitter);
+
+            if (exploratoryScore < bestScore) {
+                bestScore = exploratoryScore;
                 best = {
-                    signature,
-                    explorationScore: exploratoryScore,
-                    energyStreak: context.energyStreak,
                     propChangeCounts: nextPropState.propChangeCounts,
                     propStreaks: nextPropState.propStreaks,
                     changeTotals: nextPropState.changeTotals,
-                    item: {
-                        id: variant.id,
-                        name: variant.name,
-                        energy: variant.energy,
-                        cover: variant.cover,
-                        instrumental: variant.instrumental,
-                        key: variant.key,
-                        performance: variant.performance,
-                        position,
-                        incrementalScore,
-                        cumulativeScore: state.score + incrementalScore,
-                        transitionNotes: propTransition.notes.concat(this._energyJumpNotes(prevItem, variant)),
-                        positionNotes: positionScore.notes,
-                        contextNotes: context.notes,
-                        propChanges: propTransition.changes
-                    }
+                    usageCounts: nextUsageCounts,
+                    incrementalScore,
+                    item: variant
                 };
             }
-        });
+        }
 
-        return best;
+        return best || fallback;
+    }
+
+    // Lite version: returns { score, changes } without building notes arrays
+    _scoreConfiguredPropsLite(prevItem, nextVariant) {
+        const changes = {};
+        let score = 0;
+
+        for (let i = 0; i < this._propNames.length; i++) {
+            const propName = this._propNames[i];
+            const change = this._detectPropChangeLite(prevItem, nextVariant, propName, this._propConfig[propName]);
+            changes[propName] = change;
+            if (change.changed) {
+                score += change.magnitude * this._getPropWeight(propName);
+            }
+        }
+
+        return { score, changes };
+    }
+
+    _detectPropChangeLite(prevItem, nextVariant, propName, rule) {
+        if (!prevItem) {
+            return { changed: false, magnitude: 0 };
+        }
+        const prevPerf = prevItem.performance;
+        const nextPerf = nextVariant.performance;
+        const kind = rule.kind || inferPropKind(propName);
+        if (kind === "instrumentSet") {
+            return detectInstrumentSetChangeLite(prevPerf, nextPerf);
+        }
+        if (kind === "instrumentDelta") {
+            return detectFieldChangeLite(prevPerf, nextPerf, rule.field || propName, true);
+        }
+        return detectFieldChangeLite(prevPerf, nextPerf, rule.field || propName, false);
+    }
+
+    // Lite position scoring: returns just the numeric score
+    _scorePositionLite(song, position) {
+        let score = 0;
+        const orderLabel = this._findOrderLabel(position);
+        const orderRules = (this._config.general?.order && this._config.general.order[orderLabel]) || [];
+
+        for (let i = 0; i < orderRules.length; i++) {
+            const [name, expected] = orderRules[i];
+            const accepted = Array.isArray(expected) ? expected : [expected];
+            const actual = song[name] === undefined ? false : song[name];
+            if (accepted.indexOf(actual) < 0) {
+                score += this._weights.positionMiss;
+            }
+        }
+
+        if (song.cover && position <= 2) {
+            score += this._weights.earlyCover;
+        }
+        if (song.instrumental && position <= 2) {
+            score += this._weights.earlyInstrumental;
+        }
+        return score;
     }
 
     _scoreConfiguredProps(prevItem, nextVariant) {
@@ -672,116 +863,20 @@ class SetList {
 
     _detectPropChange(prevItem, nextVariant, propName, rule) {
         if (!prevItem) {
-            return {
-                changed: false,
-                magnitude: 0,
-                notes: []
-            };
+            return { changed: false, magnitude: 0, notes: [] };
         }
 
-        const kind = rule.kind || this._inferPropKind(propName);
+        const prevPerf = prevItem.performance;
+        const nextPerf = nextVariant.performance;
+        const kind = rule.kind || inferPropKind(propName);
+
         if (kind === "instrumentSet") {
-            return this._detectInstrumentSetChange(prevItem, nextVariant);
+            return detectInstrumentSetChange(prevPerf, nextPerf);
         }
         if (kind === "instrumentDelta") {
-            return this._detectInstrumentValueChange(prevItem, nextVariant, rule, true);
+            return detectFieldChange(prevPerf, nextPerf, rule.field || propName, true);
         }
-        if (kind === "instrumentBoolean") {
-            return this._detectInstrumentValueChange(prevItem, nextVariant, rule, false, true);
-        }
-        return this._detectInstrumentValueChange(prevItem, nextVariant, rule, false, false);
-    }
-
-    _inferPropKind(propName) {
-        if (propName === "instruments") {
-            return "instrumentSet";
-        }
-        if (propName === "capo") {
-            return "instrumentDelta";
-        }
-        if (propName === "picking") {
-            return "instrumentBoolean";
-        }
-        return "instrumentField";
-    }
-
-    _detectInstrumentValueChange(prevItem, nextVariant, rule, scaleByDelta, coerceBoolean) {
-        const field = rule.field;
-        const notes = [];
-        let magnitude = 0;
-        const sharedMembers = Object.keys(prevItem.performance).filter((member) => {
-            return Object.prototype.hasOwnProperty.call(nextVariant.performance, member);
-        }).sort();
-
-        sharedMembers.forEach((member) => {
-            const prevValue = prevItem.performance[member][field];
-            const nextValue = nextVariant.performance[member][field];
-            const left = coerceBoolean ? Boolean(prevValue) : this._normalizeValue(prevValue);
-            const right = coerceBoolean ? Boolean(nextValue) : this._normalizeValue(nextValue);
-
-            if (left === right) {
-                return;
-            }
-
-            const amount = scaleByDelta ? Math.abs((prevValue || 0) - (nextValue || 0)) : 1;
-            if (!amount) {
-                return;
-            }
-
-            magnitude += amount;
-            notes.push(`${member} ${field} ${this._displayValue(prevValue)} -> ${this._displayValue(nextValue)}`);
-        });
-
-        return {
-            changed: magnitude > 0,
-            magnitude,
-            notes
-        };
-    }
-
-    _detectInstrumentSetChange(prevItem, nextVariant) {
-        const members = new Set([
-            ...Object.keys(prevItem.performance),
-            ...Object.keys(nextVariant.performance)
-        ]);
-        const notes = [];
-        let magnitude = 0;
-
-        Array.from(members).sort().forEach((member) => {
-            const previous = prevItem.performance[member];
-            const next = nextVariant.performance[member];
-
-            if (!previous || !next) {
-                magnitude += 1;
-                notes.push(`${member} instrument on/off`);
-                return;
-            }
-
-            if (previous.instrument !== next.instrument) {
-                magnitude += 1;
-                notes.push(`${member} instrument ${previous.instrument} -> ${next.instrument}`);
-            }
-        });
-
-        return {
-            changed: magnitude > 0,
-            magnitude,
-            notes
-        };
-    }
-
-    _normalizeValue(value) {
-        if (value === undefined || value === null) {
-            return "";
-        }
-        return String(value);
-    }
-
-    _displayValue(value) {
-        if (value === undefined || value === null || value === "") {
-            return "default";
-        }
-        return String(value);
+        return detectFieldChange(prevPerf, nextPerf, rule.field || propName, false);
     }
 
     _getPropWeight(propName) {
@@ -801,9 +896,11 @@ class SetList {
             if (!change.changed || !prevItem) {
                 continue;
             }
+            // maxChanges is always enforced, even on the last song
             if (rule.maxChanges !== undefined && state.propChangeCounts[propName] >= rule.maxChanges) {
                 return false;
             }
+            // allowChangeOnLastSong only bypasses minStreak, not maxChanges
             if (isLastSong && rule.allowChangeOnLastSong) {
                 continue;
             }
@@ -816,26 +913,27 @@ class SetList {
     }
 
     _advancePropState(state, propChanges, prevItem) {
-        const propChangeCounts = clone(state.propChangeCounts);
-        const propStreaks = clone(state.propStreaks);
-        const changeTotals = clone(state.changeTotals);
+        const propChangeCounts = { ...state.propChangeCounts };
+        const propStreaks = { ...state.propStreaks };
+        const changeTotals = { ...state.changeTotals };
 
-        this._propNames.forEach((propName) => {
+        for (let i = 0; i < this._propNames.length; i++) {
+            const propName = this._propNames[i];
             const change = propChanges[propName];
             if (!prevItem) {
                 propStreaks[propName] = 1;
-                return;
+                continue;
             }
 
             if (change.changed) {
                 propChangeCounts[propName] += 1;
                 propStreaks[propName] = 1;
                 changeTotals[propName] += change.magnitude;
-                return;
+                continue;
             }
 
             propStreaks[propName] += 1;
-        });
+        }
 
         return {
             propChangeCounts,
@@ -844,35 +942,12 @@ class SetList {
         };
     }
 
-    _scoreEnergyJump(prevItem, nextVariant) {
-        if (!prevItem) {
-            return 0;
-        }
-        if (Math.abs(prevItem.energy - nextVariant.energy) > 1) {
-            return this._weights.bigEnergyJump;
-        }
-        return 0;
-    }
-
-    _energyJumpNotes(prevItem, nextVariant) {
-        if (!prevItem) {
-            return [];
-        }
-        if (Math.abs(prevItem.energy - nextVariant.energy) > 1) {
-            return [`energy jump ${prevItem.energy} -> ${nextVariant.energy}`];
-        }
-        return [];
-    }
 
     _scorePosition(song, position) {
         const notes = [];
-        let score = Math.abs(song.energy - this._targetEnergy(position)) * this._weights.energyTarget;
+        let score = 0;
         const orderLabel = this._findOrderLabel(position);
         const orderRules = (this._config.general?.order && this._config.general.order[orderLabel]) || [];
-
-        if (score > 0) {
-            notes.push(`energy target ${this._targetEnergy(position).toFixed(1)}`);
-        }
 
         orderRules.forEach(([name, expected]) => {
             const accepted = Array.isArray(expected) ? expected : [expected];
@@ -897,38 +972,6 @@ class SetList {
         return { score, notes };
     }
 
-    _scoreContext(state, variant) {
-        const notes = [];
-        let score = 0;
-        let energyStreak = 1;
-
-        if (state.lastEnergy === variant.energy) {
-            score += this._weights.repeatEnergy;
-            energyStreak = state.energyStreak + 1;
-            notes.push(`repeat energy ${variant.energy}`);
-        }
-
-        if (energyStreak >= 3) {
-            score += (energyStreak - 2) * this._weights.energyStreak;
-            notes.push(`energy streak ${energyStreak}`);
-        }
-
-        return { score, notes, energyStreak };
-    }
-
-    _targetEnergy(position) {
-        const ratio = position / this._count;
-        if (ratio <= 0.2) {
-            return 1.5;
-        }
-        if (ratio <= 0.5) {
-            return 2;
-        }
-        if (ratio <= 0.75) {
-            return 2.5;
-        }
-        return 3;
-    }
 
     _findOrderLabel(position) {
         if (position === 1) {
@@ -946,21 +989,6 @@ class SetList {
         return undefined;
     }
 
-    _variantSignature(variant) {
-        const parts = [variant.name];
-        Object.keys(variant.performance).sort().forEach((member) => {
-            const setup = variant.performance[member];
-            parts.push([
-                member,
-                setup.instrument || "",
-                setup.tuning || "",
-                String(setup.capo || 0),
-                String(setup.picking || "")
-            ].join("|"));
-        });
-        return parts.join("|");
-    }
-
     toJSON() {
         return {
             options: this._options,
@@ -974,10 +1002,6 @@ class SetList {
 
 const DEFAULT_WEIGHTS = {
     positionMiss: 8,
-    energyTarget: 3,
-    repeatEnergy: 2,
-    energyStreak: 4,
-    bigEnergyJump: 3,
     earlyCover: 6,
     earlyInstrumental: 4
 };
@@ -989,9 +1013,9 @@ const DEFAULT_RANDOMNESS = {
     temperature: 0.85,
     shuffleCatalog: true,
     songBias: 3,
-    beamChoicePoolMultiplier: 6,
+    beamChoicePoolMultiplier: 4,
     beamTemperature: 1.1,
-    maxStatesPerLastSong: 24,
+    maxStatesPerLastSong: 8,
     blockShuffleTemperature: 1.4
 };
 
@@ -1012,163 +1036,82 @@ export function scoreFixedOrder(fixedSongs, config) {
         return weights[weightKey] || 0;
     }
 
-    function normalizeValue(value) {
-        if (value === undefined || value === null) return "";
-        return String(value);
-    }
+    function scorePropTransition(prevItem, nextItem) {
+        if (!prevItem) {
+            const changes = {};
+            for (const p of propNames) changes[p] = { changed: false, magnitude: 0, notes: [] };
+            return { score: 0, notes: [], changes };
+        }
 
-    function displayValue(value) {
-        if (value === undefined || value === null || value === "") return "default";
-        return String(value);
-    }
-
-    function detectInstrumentSetChange(prevItem, nextVariant) {
-        const members = new Set([
-            ...Object.keys(prevItem.performance || {}),
-            ...Object.keys(nextVariant.performance || {})
-        ]);
-        const notes = [];
-        let magnitude = 0;
-        Array.from(members).sort().forEach((member) => {
-            const previous = (prevItem.performance || {})[member];
-            const next = (nextVariant.performance || {})[member];
-            if (!previous || !next) { magnitude += 1; notes.push(`${member} instrument on/off`); return; }
-            if (previous.instrument !== next.instrument) { magnitude += 1; notes.push(`${member} instrument ${previous.instrument} -> ${next.instrument}`); }
-        });
-        return { changed: magnitude > 0, magnitude, notes };
-    }
-
-    function detectInstrumentValueChange(prevItem, nextVariant, rule, scaleByDelta, coerceBoolean) {
-        const field = rule.field;
-        const notes = [];
-        let magnitude = 0;
-        const sharedMembers = Object.keys(prevItem.performance || {}).filter((m) => Object.prototype.hasOwnProperty.call(nextVariant.performance || {}, m)).sort();
-        sharedMembers.forEach((member) => {
-            const prevValue = (prevItem.performance || {})[member]?.[field];
-            const nextValue = (nextVariant.performance || {})[member]?.[field];
-            const left = coerceBoolean ? Boolean(prevValue) : normalizeValue(prevValue);
-            const right = coerceBoolean ? Boolean(nextValue) : normalizeValue(nextValue);
-            if (left === right) return;
-            const amount = scaleByDelta ? Math.abs((prevValue || 0) - (nextValue || 0)) : 1;
-            if (!amount) return;
-            magnitude += amount;
-            notes.push(`${member} ${field} ${displayValue(prevValue)} -> ${displayValue(nextValue)}`);
-        });
-        return { changed: magnitude > 0, magnitude, notes };
-    }
-
-    function inferPropKind(propName) {
-        if (propName === "instruments") return "instrumentSet";
-        if (propName === "capo") return "instrumentDelta";
-        if (propName === "picking") return "instrumentBoolean";
-        return "instrumentField";
-    }
-
-    function detectPropChange(prevItem, nextVariant, propName, rule) {
-        if (!prevItem) return { changed: false, magnitude: 0, notes: [] };
-        const kind = rule.kind || inferPropKind(propName);
-        if (kind === "instrumentSet") return detectInstrumentSetChange(prevItem, nextVariant);
-        if (kind === "instrumentDelta") return detectInstrumentValueChange(prevItem, nextVariant, rule, true, false);
-        if (kind === "instrumentBoolean") return detectInstrumentValueChange(prevItem, nextVariant, rule, false, true);
-        return detectInstrumentValueChange(prevItem, nextVariant, rule, false, false);
-    }
-
-    function scoreConfiguredProps(prevItem, nextVariant) {
+        const prevPerf = prevItem.performance || {};
+        const nextPerf = nextItem.performance || {};
         const changes = {};
         const notes = [];
         let score = 0;
-        propNames.forEach((propName) => {
-            const change = detectPropChange(prevItem, nextVariant, propName, propConfig[propName]);
+
+        for (const propName of propNames) {
+            const rule = propConfig[propName] || {};
+            const kind = rule.kind || inferPropKind(propName);
+            let change;
+
+            if (kind === "instrumentSet") {
+                change = detectInstrumentSetChange(prevPerf, nextPerf);
+            } else if (kind === "instrumentDelta") {
+                change = detectFieldChange(prevPerf, nextPerf, rule.field || propName, true);
+            } else {
+                change = detectFieldChange(prevPerf, nextPerf, rule.field || propName, false);
+            }
+
             changes[propName] = change;
             if (change.changed) {
                 score += change.magnitude * getPropWeight(propName);
-                Array.prototype.push.apply(notes, change.notes);
+                notes.push(...change.notes);
             }
-        });
+        }
+
         return { score, notes, changes };
     }
 
-    function targetEnergy(position, count) {
-        const ratio = position / count;
-        if (ratio <= 0.2) return 1.5;
-        if (ratio <= 0.5) return 2;
-        if (ratio <= 0.75) return 2.5;
-        return 3;
-    }
-
-    function scoreEnergyJump(prevItem, nextVariant) {
-        if (!prevItem) return 0;
-        if (Math.abs(prevItem.energy - nextVariant.energy) > 1) return weights.bigEnergyJump;
-        return 0;
-    }
-
-    function energyJumpNotes(prevItem, nextVariant) {
-        if (!prevItem) return [];
-        if (Math.abs(prevItem.energy - nextVariant.energy) > 1) return [`energy jump ${prevItem.energy} -> ${nextVariant.energy}`];
-        return [];
-    }
-
-    const count = fixedSongs.length;
     const items = [];
     let totalScore = 0;
     let coverCount = 0;
     let instrumentalCount = 0;
-    let lastEnergy = null;
-    let energyStreak = 0;
 
     fixedSongs.forEach((song, index) => {
-        const position = index + 1;
         const prevItem = items[items.length - 1] || null;
-        const propTransition = scoreConfiguredProps(prevItem, song);
-        const ejScore = scoreEnergyJump(prevItem, song);
-        const te = targetEnergy(position, count);
-        const posScore = Math.abs(song.energy - te) * weights.energyTarget;
-        const posNotes = posScore > 0 ? [`energy target ${te.toFixed(1)}`] : [];
+        const propTransition = scorePropTransition(prevItem, song);
 
-        let contextScore = 0;
-        const contextNotes = [];
-        let newStreak = 1;
-        if (lastEnergy === song.energy) {
-            contextScore += weights.repeatEnergy;
-            newStreak = energyStreak + 1;
-            contextNotes.push(`repeat energy ${song.energy}`);
-        }
-        if (newStreak >= 3) {
-            contextScore += (newStreak - 2) * weights.energyStreak;
-            contextNotes.push(`energy streak ${newStreak}`);
-        }
-
-        const incrementalScore = propTransition.score + ejScore + posScore + contextScore;
+        const incrementalScore = propTransition.score;
         totalScore += incrementalScore;
         coverCount += Number(Boolean(song.cover));
         instrumentalCount += Number(Boolean(song.instrumental));
-        lastEnergy = song.energy;
-        energyStreak = newStreak;
 
         items.push({
             id: song.id,
             name: song.name,
-            energy: song.energy,
             cover: song.cover,
             instrumental: song.instrumental,
             key: song.key,
             performance: song.performance,
-            position,
+            position: index + 1,
             incrementalScore,
             cumulativeScore: totalScore,
-            transitionNotes: propTransition.notes.concat(energyJumpNotes(prevItem, song)),
-            positionNotes: posNotes,
-            contextNotes,
+            transitionNotes: propTransition.notes,
+            positionNotes: [],
+            contextNotes: [],
             propChanges: propTransition.changes
         });
     });
+
+    const anxiety = computeAnxiety(items, config);
 
     return {
         songs: items,
         summary: {
             score: totalScore,
             covers: coverCount,
-            instrumentals: instrumentalCount
+            instrumentals: instrumentalCount,
+            anxiety
         }
     };
 }

@@ -1,0 +1,606 @@
+<script>
+  import { getContext } from "svelte";
+
+  const store = getContext("app");
+
+  let viewingSet = $state(null);
+  let editingId = $state(null);
+  let editName = $state("");
+  let editDate = $state("");
+
+  function handleView(saved) {
+    if (editingId) return;
+    viewingSet = saved;
+  }
+
+  function startEdit(e, saved) {
+    e.stopPropagation();
+    editingId = saved.id;
+    editName = saved.name || "";
+    // Convert ISO to YYYY-MM-DD for date input
+    editDate = saved.savedAt ? saved.savedAt.slice(0, 10) : "";
+  }
+
+  function saveEdit(e) {
+    if (e) e.stopPropagation();
+    if (!editingId) return;
+    store.updateSavedSetlist(editingId, {
+      name: editName.trim() || "Untitled Set",
+      savedAt: editDate ? new Date(editDate + "T12:00:00").toISOString() : new Date().toISOString(),
+    });
+    editingId = null;
+  }
+
+  function cancelEdit(e) {
+    if (e) e.stopPropagation();
+    editingId = null;
+  }
+
+  function handleClose() {
+    viewingSet = null;
+  }
+
+  function handleLoad(e, id) {
+    e.stopPropagation();
+    store.loadSavedSetlist(id);
+    store.navigate("roll");
+  }
+
+  function handleRemove(e, id) {
+    e.stopPropagation();
+    store.removeSavedSetlist(id);
+  }
+
+  let printEl = $state(null);
+
+  function handlePrint() {
+    if (!printEl) return;
+    const clone = printEl.cloneNode(true);
+    clone.querySelectorAll(".no-print").forEach(el => el.remove());
+    const content = clone.innerHTML;
+    const appUrl = window.location.origin;
+    const bandName = (store.appTitle || "").replace(/ — Setlist Roller$/, "");
+    const setName = viewingSet?.name || "Setlist";
+    const pdfTitle = `${bandName} - ${setName}`;
+    const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const win = window.open("", "_blank", "width=800,height=600");
+    if (!win) { store.addToast("Popup blocked — please allow popups to print.", "warning"); return; }
+    win.document.write(`<!DOCTYPE html>
+<html><head><title>${esc(pdfTitle)}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  @page { margin: 0; }
+  body {
+    font-family: "Avenir Next", "Helvetica Neue", "Segoe UI", sans-serif;
+    color: #000;
+    padding: 1.5cm;
+  }
+  .print-top { padding-bottom: 8px; border-bottom: 2px solid #000; margin-bottom: 6px; }
+  .print-band { font-size: 22pt; font-weight: 800; line-height: 1.2; }
+  .print-subtitle { font-size: 11pt; font-weight: 400; color: #555; margin-top: 2px; }
+  .print-songs { list-style: none; }
+  .print-song { padding: 9px 0; border-bottom: 1px solid #ddd; break-inside: avoid; }
+  .print-song-row { display: flex; align-items: baseline; gap: 8px; }
+  .print-num { font-size: 14pt; font-weight: 700; color: #666; min-width: 2rem; text-align: right; flex-shrink: 0; }
+  .print-song-name { font-size: 17pt; font-weight: 600; flex: 1; }
+  .print-song-key { font-size: 13pt; font-weight: 700; color: #444; padding: 1px 6px; border: 1px solid #ccc; border-radius: 3px; flex-shrink: 0; }
+  .print-changes { padding-left: 2.5rem; padding-top: 3px; }
+  .print-change { display: flex; align-items: baseline; gap: 5px; font-size: 12pt; color: #333; }
+  .print-change.setup { color: #666; }
+  .print-change-member { font-weight: 700; }
+  .print-change-detail { font-weight: 500; }
+  .print-footer { position: fixed; bottom: 1cm; right: 1.5cm; font-size: 8pt; color: #999; }
+</style></head><body>${content}<div class="print-footer">${appUrl}</div></body></html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 150);
+  }
+
+  function formatDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  }
+
+  // Transition notes — same logic as SetlistSongCard
+  function getChanges(song, prevSong, memberName) {
+    const curr = song.performance?.[memberName];
+    if (!curr) return [];
+    const prev = prevSong?.performance?.[memberName];
+    const changes = [];
+    if (!prev || curr.instrument !== prev.instrument) {
+      if (prev && curr.instrument) changes.push(curr.instrument);
+    }
+    if (!prev || curr.tuning !== prev.tuning) {
+      if (curr.tuning) changes.push(curr.tuning);
+    }
+    if (!prev || curr.capo !== prev.capo) {
+      if (curr.capo) changes.push(`capo ${curr.capo}`);
+      else if (prev?.capo) changes.push("capo off");
+    }
+    const currTech = String(curr.picking || "");
+    const prevTech = prev ? String(prev.picking || "") : "";
+    if (currTech !== prevTech && currTech) {
+      const techDisplay = Array.isArray(curr.picking) ? curr.picking.filter(t => t !== "none").join(", ") : currTech;
+      if (techDisplay) changes.push(techDisplay);
+    }
+    return changes;
+  }
+
+  function allChanges(song, prevSong) {
+    if (!song.performance) return [];
+    const lines = [];
+    for (const [memberName] of Object.entries(song.performance)) {
+      if (prevSong) {
+        const changes = getChanges(song, prevSong, memberName);
+        if (changes.length > 0) lines.push({ member: memberName, changes });
+      } else {
+        // First song: show initial setup
+        const perf = song.performance[memberName];
+        const techStr = Array.isArray(perf.picking) && perf.picking.length ? perf.picking.filter(t => t !== "none").join(", ") || null : null;
+        const parts = [perf.instrument, perf.tuning, perf.capo ? `capo ${perf.capo}` : null, techStr].filter(Boolean);
+        if (parts.length > 0) lines.push({ member: memberName, changes: parts, isSetup: true });
+      }
+    }
+    return lines;
+  }
+</script>
+
+<div class="saved-screen">
+  <h2 class="screen-title">Greatest Hits</h2>
+
+  {#if !store.savedSetlists?.length}
+    <div class="empty-state">
+      <p class="empty-title">Nothing saved yet</p>
+      <p class="empty-sub">Roll a setlist you love, lock it in, then save it here for safekeeping.</p>
+    </div>
+  {:else}
+    <div class="saved-list">
+      {#each store.savedSetlists as saved}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="saved-card" onclick={() => handleView(saved)} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter') handleView(saved); }}>
+          {#if editingId === saved.id}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div class="edit-form" onclick={(e) => e.stopPropagation()}>
+              <input class="edit-input" type="text" bind:value={editName} placeholder="Setlist name" onkeydown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }} />
+              <input class="edit-input date" type="date" bind:value={editDate} />
+              <div class="edit-actions">
+                <button class="card-btn save" onclick={saveEdit}>Save</button>
+                <button class="card-btn cancel" onclick={cancelEdit}>Cancel</button>
+              </div>
+            </div>
+          {:else}
+            <div class="saved-top">
+              <span class="saved-name">{saved.name || `Set #${saved.songCount || "?"}`}</span>
+              <span class="saved-date">{formatDate(saved.savedAt)}</span>
+            </div>
+            <div class="saved-meta">
+              <span>{saved.songCount || saved.songs?.length || 0} songs</span>
+            </div>
+            <div class="saved-card-actions">
+              <button class="card-btn edit" onclick={(e) => startEdit(e, saved)}>Edit</button>
+              <button class="card-btn load" onclick={(e) => handleLoad(e, saved.id)}>Load</button>
+              <button class="card-btn remove" onclick={(e) => handleRemove(e, saved.id)} aria-label="Remove">&times;</button>
+            </div>
+          {/if}
+        </div>
+      {/each}
+    </div>
+  {/if}
+</div>
+
+{#if viewingSet}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="modal-backdrop" onclick={handleClose}>
+    <div class="modal-sheet" onclick={(e) => e.stopPropagation()}>
+      <div class="print-setlist" bind:this={printEl}>
+        <div class="print-top">
+          <button class="modal-close no-print" onclick={handleClose} aria-label="Close">&times;</button>
+          <h2 class="print-band">{store.appTitle.replace(/ — Setlist Roller$/, "")}</h2>
+          <p class="print-subtitle">{viewingSet.name || "Setlist"} &middot; {formatDate(viewingSet.savedAt)}</p>
+        </div>
+
+        <div class="print-songs">
+          {#each viewingSet.songs as song, i}
+            {@const prevSong = i > 0 ? viewingSet.songs[i - 1] : null}
+            {@const changes = allChanges(song, prevSong)}
+            <div class="print-song">
+              <div class="print-song-row">
+                <span class="print-num">{i + 1}.</span>
+                <span class="print-song-name">{song.name || song.title || "Untitled"}</span>
+                {#if song.key}
+                  <span class="print-song-key">{song.key}</span>
+                {/if}
+              </div>
+              {#if changes.length > 0}
+                <div class="print-changes">
+                  {#each changes as line}
+                    <div class="print-change" class:setup={line.isSetup}>
+                      <span class="print-change-member">{line.member}:</span>
+                      <span class="print-change-detail">{line.changes.join(", ")}</span>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/each}
+        </div>
+
+      </div>
+
+      <div class="modal-actions">
+        <button class="modal-btn" onclick={handlePrint}>Print / Export PDF</button>
+        <button class="modal-btn primary" onclick={(e) => { handleLoad(e, viewingSet.id); viewingSet = null; }}>Load to Roll</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<style>
+  .saved-screen {
+    display: grid;
+    gap: 1rem;
+    padding: 0.75rem;
+    max-width: 540px;
+    margin: 0 auto;
+  }
+
+  .screen-title {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--ink, #182230);
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+  }
+
+  .empty-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--ink, #182230);
+    margin-bottom: 0.35rem;
+  }
+
+  .empty-sub {
+    font-size: 0.85rem;
+    color: var(--muted, #8a95a5);
+    line-height: 1.5;
+  }
+
+  .saved-list {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .saved-card {
+    border-radius: var(--radius-lg, 16px);
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(27, 49, 80, 0.1);
+    padding: 0.75rem;
+    display: grid;
+    gap: 0.4rem;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: border-color 140ms ease, box-shadow 140ms ease;
+  }
+
+  .saved-card:hover {
+    border-color: var(--accent, #e15b37);
+    box-shadow: 0 2px 8px rgba(225, 91, 55, 0.1);
+  }
+
+  .saved-card:active {
+    background: rgba(225, 91, 55, 0.04);
+  }
+
+  .saved-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .saved-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--ink, #182230);
+  }
+
+  .saved-date {
+    font-size: 0.72rem;
+    color: var(--muted, #8a95a5);
+    font-weight: 600;
+  }
+
+  .saved-meta {
+    display: flex;
+    gap: 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted, #8a95a5);
+  }
+
+  .saved-card-actions {
+    display: flex;
+    gap: 0.35rem;
+    margin-top: 0.15rem;
+  }
+
+  .card-btn {
+    border: none;
+    border-radius: var(--radius-md, 12px);
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    padding: 0.35rem 0.7rem;
+    min-height: 1.8rem;
+    transition: background 120ms ease, transform 80ms ease;
+  }
+
+  .card-btn:active {
+    transform: scale(0.96);
+  }
+
+  .card-btn.load {
+    background: linear-gradient(140deg, #e15b37 0%, #c94020 100%);
+    color: #fff;
+  }
+
+  .card-btn.remove {
+    background: none;
+    color: var(--muted, #8a95a5);
+    font-size: 1.1rem;
+    padding: 0.2rem 0.4rem;
+  }
+
+  .card-btn.remove:hover,
+  .card-btn.remove:active {
+    color: var(--accent, #e15b37);
+  }
+
+  .card-btn.edit {
+    background: rgba(27, 49, 80, 0.06);
+    color: var(--ink, #182230);
+    border: 1px solid rgba(27, 49, 80, 0.12);
+  }
+
+  .card-btn.save {
+    background: #1f8f61;
+    color: #fff;
+  }
+
+  .card-btn.cancel {
+    background: rgba(27, 49, 80, 0.06);
+    color: var(--muted, #8a95a5);
+    border: 1px solid rgba(27, 49, 80, 0.1);
+  }
+
+  .edit-form {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .edit-input {
+    width: 100%;
+    min-height: 2.2rem;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid rgba(27, 49, 80, 0.18);
+    border-radius: var(--radius-md, 12px);
+    background: #fff;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--ink, #182230);
+  }
+
+  .edit-input:focus {
+    outline: none;
+    border-color: var(--accent, #e15b37);
+    box-shadow: 0 0 0 2px rgba(225, 91, 55, 0.12);
+  }
+
+  .edit-input.date {
+    font-size: 0.8rem;
+    color: var(--muted, #617086);
+  }
+
+  .edit-actions {
+    display: flex;
+    gap: 0.35rem;
+  }
+
+  /* ---- Modal ---- */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(30, 38, 52, 0.35);
+    backdrop-filter: blur(4px);
+    display: grid;
+    place-items: center;
+    z-index: 300;
+    padding: 1rem;
+    animation: fade-in 150ms ease;
+  }
+
+  .modal-sheet {
+    width: min(100%, 420px);
+    max-height: calc(100vh - 2rem);
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    background: #fff;
+    border-radius: var(--radius-xl, 20px);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+    display: grid;
+    gap: 0;
+    animation: pop-in 200ms ease;
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    border: none;
+    background: rgba(0, 0, 0, 0.05);
+    font-size: 1.3rem;
+    color: #666;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    width: 1.8rem;
+    height: 1.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    z-index: 1;
+  }
+
+  .modal-close:active {
+    background: rgba(0, 0, 0, 0.1);
+  }
+
+  /* ---- Print-friendly setlist (black & white) ---- */
+  .print-setlist {
+    padding: 0.75rem;
+    display: grid;
+    gap: 0;
+    color: #000;
+    position: relative;
+  }
+
+  .print-top {
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #000;
+    margin-bottom: 0.35rem;
+  }
+
+  .print-band {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #000;
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  .print-subtitle {
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: #555;
+    margin: 0.1rem 0 0;
+  }
+
+  .print-songs {
+    display: grid;
+    gap: 0;
+  }
+
+  .print-song {
+    padding: 0.45rem 0;
+    border-bottom: 1px solid #e0e0e0;
+  }
+
+  .print-song-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+  }
+
+  .print-num {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #666;
+    min-width: 1.6rem;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .print-song-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #000;
+    flex: 1;
+  }
+
+  .print-song-key {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #444;
+    flex-shrink: 0;
+    padding: 0.05rem 0.35rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+
+  .print-changes {
+    padding-left: 2rem;
+    padding-top: 0.15rem;
+    display: grid;
+    gap: 0.05rem;
+  }
+
+  .print-change {
+    display: flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    font-size: 0.72rem;
+    color: #333;
+  }
+
+  .print-change.setup {
+    color: #666;
+  }
+
+  .print-change-member {
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .print-change-detail {
+    font-weight: 500;
+  }
+
+
+  .modal-actions {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem 0.75rem;
+    border-top: 1px solid rgba(27, 49, 80, 0.08);
+  }
+
+  .modal-btn {
+    flex: 1;
+    min-height: 2.4rem;
+    border: 1.5px solid rgba(27, 49, 80, 0.15);
+    border-radius: var(--radius-md, 12px);
+    background: transparent;
+    color: var(--ink, #182230);
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 120ms ease, transform 80ms ease;
+  }
+
+  .modal-btn:active {
+    transform: scale(0.97);
+  }
+
+  .modal-btn.primary {
+    background: linear-gradient(140deg, #e15b37 0%, #c94020 100%);
+    color: #fff;
+    border-color: transparent;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes pop-in {
+    0% { transform: scale(0.92); opacity: 0; }
+    70% { transform: scale(1.02); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+</style>

@@ -35,15 +35,12 @@
 {/if}
 
 <header class="top-bar">
-  <span class="band-name">{store.appTitle}</span>
+  <div class="title-group">
+    <span class="conn-dot" class:connected={store.connectionStatus === 'connected'} class:syncing={store.syncActivelyRunning}></span>
+    <span class="band-name">{store.appTitle}</span>
+  </div>
 
   <div class="right">
-    {#if store.syncIndicatorVisible}
-      <div class="sync-status">
-        <span class="spinner"></span>
-        <span class="sync-label">{store.syncStatusLabel}</span>
-      </div>
-    {/if}
 
     <div class="menu-wrapper">
       <button class="menu-btn" onclick={toggleMenu} aria-label="Menu">
@@ -81,8 +78,39 @@
     z-index: 200;
   }
 
-  .band-name {
+  .title-group {
     grid-column: 2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .conn-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--line);
+    flex-shrink: 0;
+    transition: background 300ms ease, box-shadow 300ms ease;
+  }
+
+  .conn-dot.connected {
+    background: #1f8f61;
+    box-shadow: 0 0 4px rgba(31, 143, 97, 0.4);
+  }
+
+  .conn-dot.syncing {
+    background: var(--accent);
+    box-shadow: 0 0 6px rgba(225, 91, 55, 0.4);
+    animation: dot-pulse 1s ease-in-out infinite;
+  }
+
+  @keyframes dot-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.4); }
+  }
+
+  .band-name {
     font-size: 16px;
     font-weight: 700;
     color: var(--ink);
@@ -98,33 +126,6 @@
     align-items: center;
     justify-content: flex-end;
     gap: 8px;
-  }
-
-  .sync-status {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--muted);
-  }
-
-  .spinner {
-    width: 12px;
-    height: 12px;
-    border: 2px solid var(--line);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .sync-label {
-    white-space: nowrap;
   }
 
   .menu-wrapper {

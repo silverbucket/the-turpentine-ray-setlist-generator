@@ -94,7 +94,7 @@ export function formatDelimitedList(value) {
 
 export function titleForBand(bandName) {
     const clean = String(bandName || "").trim();
-    return clean ? `${clean} Setlist Generator` : "Band Setlist Generator";
+    return clean ? `${clean} — Setlist Roller` : "Setlist Roller";
 }
 
 
