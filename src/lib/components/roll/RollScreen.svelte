@@ -84,6 +84,28 @@
 
   let settingsTab = $state("constraints");
   let hasConstraints = $derived(membersWithChoices().length > 0);
+  // anxietyLevel: read from generator's pre-computed summary (avoids Svelte proxy issues)
+  let anxietyLevel = $derived.by(() => {
+    const setlist = store.generatedSetlist;
+    if (!setlist?.summary?.anxiety) return { scaled: 0, label: "" };
+
+    const { scaled, rawChanges, transitionsDisrupted, totalTransitions } = setlist.summary.anxiety;
+    const spreadNote = transitionsDisrupted > 0 ? ` across ${transitionsDisrupted} of ${totalTransitions} transitions` : "";
+    let label;
+    if (rawChanges === 0) {
+      label = "Bass player is relaxed for once. Zero gear changes — smooth sailing.";
+    } else if (scaled <= 2) {
+      label = `${rawChanges} gear change${rawChanges === 1 ? "" : "s"}${spreadNote}. Bass player barely notices.`;
+    } else if (scaled <= 5) {
+      label = `${rawChanges} gear changes${spreadNote}. Bass player is rehearsing crowd work.`;
+    } else if (scaled <= 7) {
+      label = `${rawChanges} gear changes${spreadNote}. Bass player is visibly sweating.`;
+    } else {
+      label = `${rawChanges} gear changes${spreadNote}. Bass player is writing a stand-up set to fill all the dead air.`;
+    }
+
+    return { scaled, label };
+  });
   let settingsEl = $state(null);
 
   // ---- drag-to-reorder ----
@@ -369,8 +391,8 @@
 
       <div class="roadie-score">
         <span class="roadie-label">Bass Player Anxiety</span>
-        <span class="roadie-val">{store.generatedSetlist.summary.score.toFixed(1)}</span>
-        <p class="roadie-hint">{store.generatedSetlist.summary.score === 0 ? "Bass player is relaxed for once. Smooth transitions, zero dead air." : store.generatedSetlist.summary.score < 5 ? "Bass player is calm. Might need one quick joke between songs." : store.generatedSetlist.summary.score < 15 ? "Bass player is rehearsing crowd work. A few gear swaps are going to need covering." : "Bass player is writing crowd work material as we speak. Too many tuning changes — expect nervous rambling about the weather."}</p>
+        <span class="roadie-val">{anxietyLevel.scaled}/10</span>
+        <p class="roadie-hint">{anxietyLevel.label}</p>
       </div>
     </section>
   {/if}
@@ -420,6 +442,9 @@
     padding: 0.6rem;
     display: grid;
     gap: 0.5rem;
+    max-height: calc(100vh - 48px - var(--bottom-nav-height, 56px) - var(--safe-bottom, 0px) - 1rem);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   @media (min-width: 400px) {

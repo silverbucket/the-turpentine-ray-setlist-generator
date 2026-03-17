@@ -110,6 +110,10 @@ export function createRemoteStorageRepository() {
             await client.remove(`songs/${songId}`);
         },
 
+        async deleteConfig() {
+            await client.remove("settings/app-config");
+        },
+
         async getConfig() {
             const result = await client.getObject("settings/app-config");
             return normalizeAppConfig(result);

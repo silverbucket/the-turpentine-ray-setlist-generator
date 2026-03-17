@@ -26,13 +26,13 @@ const DEFAULT_CONFIG_TEMPLATE = {
             ]
         },
         weighting: {
-            tuning: 5,
+            tuning: 4,
             capo: 2,
             instrument: 3,
             technique: 1,
             positionMiss: 8,
-            earlyCover: 6,
-            earlyInstrumental: 4
+            earlyCover: 2,
+            earlyInstrumental: 2
         },
         randomness: {
             variantJitter: 1.5,
@@ -55,7 +55,7 @@ const DEFAULT_CONFIG_TEMPLATE = {
             kind: "instrumentField",
             field: "tuning",
             summaryLabel: "tuning changes",
-            minStreak: 3,
+            minStreak: 2,
             allowChangeOnLastSong: true
         },
         capo: {
@@ -78,7 +78,7 @@ const DEFAULT_CONFIG_TEMPLATE = {
             field: "picking",
             weightKey: "technique",
             summaryLabel: "technique changes",
-            minStreak: 2,
+            minStreak: 1,
             allowChangeOnLastSong: true
         }
     },

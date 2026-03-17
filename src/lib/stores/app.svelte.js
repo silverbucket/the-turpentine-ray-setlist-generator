@@ -830,11 +830,10 @@ export function createAppStore(repo) {
             for (const song of songs) {
                 await repo.deleteSong(song.id);
             }
-            // Reset config to blank
-            appConfig = await repo.ensureConfig(appConfig?.bandName || "My Band");
-            appConfig = setByPath(appConfig, "band.members", {});
-            await persistConfigEdit(appConfig);
+            // Delete config from RS so first-run triggers on reload
+            await repo.deleteConfig();
             // Clear local state
+            appConfig = null;
             songs = [];
             generatedSetlist = null;
             setlistLocked = false;
@@ -843,7 +842,13 @@ export function createAppStore(repo) {
             persistSavedSetlists();
             persistCurrentSetlist();
             if (editorSong) closeEditor();
-            addToast("All data deleted.");
+            // Trigger first-run experience
+            showFirstRunPrompt = true;
+            firstRunBandName = "";
+            navigate("roll");
+            generationOptions = defaultGenerationOptions(DEFAULT_APP_CONFIG);
+            persistGenerationOptions();
+            addToast("All data deleted. Name your band to start fresh.");
         } catch (error) {
             addToast(error?.message || "Could not delete.", "danger");
         } finally {
