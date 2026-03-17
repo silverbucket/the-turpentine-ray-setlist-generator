@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Orange background -->
+  <rect width="512" height="512" fill="#e15b37" rx="80" ry="80"/>
+
+  <!-- Die faces (isometric cube) -->
+  <!-- Top face -->
+  <polygon points="256,66 420.5,161 256,256 91.5,161" fill="#ffffff"/>
+  <!-- Left face -->
+  <polygon points="91.5,161 256,256 256,446 91.5,351" fill="#ebebeb"/>
+  <!-- Right face -->
+  <polygon points="256,256 420.5,161 420.5,351 256,446" fill="#d9d9d9"/>
+
+  <!-- Die edges -->
+  <path d="M256,66 L420.5,161 L420.5,351 L256,446 L91.5,351 L91.5,161 Z"
+        fill="none" stroke="rgba(0,0,0,0.1)" stroke-width="2.5" stroke-linejoin="round"/>
+  <line x1="256" y1="256" x2="91.5" y2="161" stroke="rgba(0,0,0,0.08)" stroke-width="2"/>
+  <line x1="256" y1="256" x2="420.5" y2="161" stroke="rgba(0,0,0,0.08)" stroke-width="2"/>
+  <line x1="256" y1="256" x2="256" y2="446" stroke="rgba(0,0,0,0.08)" stroke-width="2"/>
+
+  <!-- Top face pips (value 5) -->
+  <!-- Transform maps unit square to top face rhombus: origin T(256,66), u-axis toward UR(+164.5,+95), v-axis toward UL(-164.5,+95) -->
+  <g transform="matrix(164.5,95,-164.5,95,256,66)">
+    <circle cx="0.25" cy="0.25" r="0.08" fill="#e15b37"/>
+    <circle cx="0.75" cy="0.25" r="0.08" fill="#e15b37"/>
+    <circle cx="0.5" cy="0.5" r="0.08" fill="#e15b37"/>
+    <circle cx="0.25" cy="0.75" r="0.08" fill="#e15b37"/>
+    <circle cx="0.75" cy="0.75" r="0.08" fill="#e15b37"/>
+  </g>
+
+  <!-- Left face pips (value 3) -->
+  <!-- Transform maps unit square to left face: origin UL(91.5,161), u-axis toward C(+164.5,+95), v-axis toward LL(0,+190) -->
+  <g transform="matrix(164.5,95,0,190,91.5,161)">
+    <circle cx="0.25" cy="0.25" r="0.08" fill="#c94020"/>
+    <circle cx="0.5" cy="0.5" r="0.08" fill="#c94020"/>
+    <circle cx="0.75" cy="0.75" r="0.08" fill="#c94020"/>
+  </g>
+
+  <!-- Right face pips (value 1) -->
+  <!-- Transform maps unit square to right face: origin C(256,256), u-axis toward UR(+164.5,-95), v-axis toward B(0,+190) -->
+  <g transform="matrix(164.5,-95,0,190,256,256)">
+    <circle cx="0.5" cy="0.5" r="0.08" fill="#b03518"/>
+  </g>
+</svg>
