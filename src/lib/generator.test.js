@@ -213,6 +213,35 @@ function scarceTuningCatalog(memberName = "nick") {
     ];
 }
 
+function overlappingInstrumentCatalog(memberName = "nick", instrumentCount = 32) {
+    const instrumentNames = Array.from({ length: instrumentCount }, (_, index) => `instrument-${index + 1}`);
+    const sharedTuning = ["Standard"];
+
+    return [
+        makeSong("Flexible Song", {
+            members: {
+                [memberName]: {
+                    instruments: instrumentNames.map((name) => ({
+                        name,
+                        tuning: sharedTuning,
+                        capo: 0,
+                        picking: []
+                    }))
+                }
+            }
+        }),
+        ...Array.from({ length: instrumentCount - 1 }, (_, index) => makeSong(`Fixed Song ${index + 1}`, {
+            members: {
+                [memberName]: {
+                    instruments: [
+                        { name: instrumentNames[0], tuning: sharedTuning, capo: 0, picking: [] }
+                    ]
+                }
+            }
+        }))
+    ];
+}
+
 
 // ===================================================================
 // Basic generation
@@ -714,6 +743,39 @@ describe("generateSetlist — minSongsPerInstrument", () => {
         }));
 
         expect(result.songs).toHaveLength(4);
+        expect(result.summary.minimumsRelaxed).toBe(true);
+    });
+
+    it("handles large overlapping instrument groups without overflow and relaxes impossible minimums", () => {
+        const songs = overlappingInstrumentCatalog();
+        const allowedInstruments = songs[0].members.nick.instruments.map((instrument) => instrument.name);
+        const config = makeConfig({
+            general: {
+                weighting: {
+                    tuning: 4,
+                    capo: 2,
+                    instrument: 0,
+                    technique: 1,
+                    positionMiss: 8,
+                    earlyCover: 2,
+                    earlyInstrumental: 2
+                }
+            }
+        });
+
+        const result = generateSetlist(songs, config, deterministicOptions({
+            count: allowedInstruments.length,
+            show: {
+                members: {
+                    nick: {
+                        allowedInstruments,
+                        minSongsPerInstrument: 1
+                    }
+                }
+            }
+        }));
+
+        expect(result.songs).toHaveLength(allowedInstruments.length);
         expect(result.summary.minimumsRelaxed).toBe(true);
     });
 });

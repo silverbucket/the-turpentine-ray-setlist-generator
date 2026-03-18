@@ -345,7 +345,7 @@ class SetList {
             if (!result[groupId]) {
                 result[groupId] = {
                     id: groupId,
-                    weight: this._weights.instrument || 3,
+                    weight: this._weights.instrument ?? 3,
                     constraints: []
                 };
             }
@@ -357,7 +357,7 @@ class SetList {
             if (!result[groupId]) {
                 result[groupId] = {
                     id: groupId,
-                    weight: this._weights.tuning || 4,
+                    weight: this._weights.tuning ?? 4,
                     constraints: []
                 };
             }
@@ -375,8 +375,8 @@ class SetList {
             return {
                 ...group,
                 keys,
-                keyToBit: keys.reduce((result, key, index) => {
-                    result[key] = (1 << index);
+                keyToIndex: keys.reduce((result, key, index) => {
+                    result[key] = index;
                     return result;
                 }, {})
             };
@@ -416,7 +416,7 @@ class SetList {
             return `${constraint.member}:${constraint.instrument}:${constraint.tuning}`;
         }));
         const totals = { instruments: {}, tunings: {} };
-        const groupMasksBySongId = {};
+        const groupCapabilitiesBySongId = {};
         const bySongId = {};
 
         for (let index = 0; index < catalog.length; index += 1) {
@@ -424,10 +424,6 @@ class SetList {
             const variants = variantCache.get(song.id) || [];
             const instrumentKeys = new Set();
             const tuningKeys = new Set();
-            const groupMasks = this._minimumGroups.reduce((result, group) => {
-                result[group.id] = 0;
-                return result;
-            }, {});
 
             for (let variantIndex = 0; variantIndex < variants.length; variantIndex += 1) {
                 const performance = variants[variantIndex].performance || {};
@@ -444,22 +440,25 @@ class SetList {
                         }
                     }
                 }
-
-                this._minimumGroups.forEach((group) => {
-                    for (let keyIndex = 0; keyIndex < group.keys.length; keyIndex += 1) {
-                        const key = group.keys[keyIndex];
-                        if (instrumentKeys.has(key) || tuningKeys.has(key)) {
-                            groupMasks[group.id] |= group.keyToBit[key];
-                        }
-                    }
-                });
             }
 
             bySongId[song.id] = {
                 instruments: Array.from(instrumentKeys),
                 tunings: Array.from(tuningKeys)
             };
-            groupMasksBySongId[song.id] = groupMasks;
+            groupCapabilitiesBySongId[song.id] = this._minimumGroups.reduce((result, group) => {
+                const capabilityIndexes = [];
+                for (let keyIndex = 0; keyIndex < group.keys.length; keyIndex += 1) {
+                    const key = group.keys[keyIndex];
+                    if (instrumentKeys.has(key) || tuningKeys.has(key)) {
+                        capabilityIndexes.push(group.keyToIndex[key]);
+                    }
+                }
+                if (capabilityIndexes.length) {
+                    result[group.id] = capabilityIndexes;
+                }
+                return result;
+            }, {});
 
             bySongId[song.id].instruments.forEach((key) => {
                 totals.instruments[key] = (totals.instruments[key] || 0) + 1;
@@ -469,7 +468,7 @@ class SetList {
             });
         }
 
-        return { bySongId, totals, groupMasksBySongId };
+        return { bySongId, totals, groupCapabilitiesBySongId };
     }
 
     _consumeRemainingPotentialCounts(remainingPotentialCounts, songId) {
@@ -489,23 +488,23 @@ class SetList {
         return next;
     }
 
-    _remainingGroupCapabilityMasks(state, consumedSongId, groupId) {
-        const masks = [];
+    _remainingGroupCapabilities(state, consumedSongId, groupId) {
+        const capabilities = [];
         for (let index = 0; index < this._catalog.length; index += 1) {
             const song = this._catalog[index];
             if (song.id === consumedSongId || state.usedIds[song.id]) {
                 continue;
             }
 
-            const mask = this._minimumGroupMasksBySongId?.[song.id]?.[groupId] || 0;
-            if (mask) {
-                masks.push(mask);
+            const capability = this._minimumGroupCapabilitiesBySongId?.[song.id]?.[groupId];
+            if (capability?.length) {
+                capabilities.push(capability);
             }
         }
-        return masks;
+        return capabilities;
     }
 
-    _canSatisfyGroupDeficits(group, deficits, remainingMasks, remainingSlots) {
+    _canSatisfyGroupDeficits(deficits, remainingCapabilities, remainingSlots) {
         const totalNeeded = deficits.reduce((sum, deficit) => sum + deficit, 0);
         if (!totalNeeded) {
             return true;
@@ -513,33 +512,53 @@ class SetList {
         if (totalNeeded > remainingSlots) {
             return false;
         }
+        if (remainingCapabilities.length < totalNeeded) {
+            return false;
+        }
 
-        const subsetCount = 1 << group.keys.length;
-        for (let subsetMask = 1; subsetMask < subsetCount; subsetMask += 1) {
-            let required = 0;
-            for (let index = 0; index < deficits.length; index += 1) {
-                if (subsetMask & (1 << index)) {
-                    required += deficits[index];
+        const slotsByKeyIndex = deficits.map(() => []);
+        let totalSlots = 0;
+        deficits.forEach((deficit, keyIndex) => {
+            for (let count = 0; count < deficit; count += 1) {
+                slotsByKeyIndex[keyIndex].push(totalSlots);
+                totalSlots += 1;
+            }
+        });
+
+        const slotToSongIndex = new Array(totalSlots).fill(-1);
+        const tryAssign = (songIndex, seenSlots) => {
+            const songCapabilities = remainingCapabilities[songIndex];
+            for (let capabilityIndex = 0; capabilityIndex < songCapabilities.length; capabilityIndex += 1) {
+                const keyIndex = songCapabilities[capabilityIndex];
+                const slotIndexes = slotsByKeyIndex[keyIndex];
+                for (let slotIndex = 0; slotIndex < slotIndexes.length; slotIndex += 1) {
+                    const slot = slotIndexes[slotIndex];
+                    if (seenSlots[slot]) {
+                        continue;
+                    }
+                    seenSlots[slot] = true;
+                    const assignedSongIndex = slotToSongIndex[slot];
+                    if (assignedSongIndex === -1 || tryAssign(assignedSongIndex, seenSlots)) {
+                        slotToSongIndex[slot] = songIndex;
+                        return true;
+                    }
                 }
             }
-            if (!required) {
-                continue;
-            }
+            return false;
+        };
 
-            let possible = 0;
-            for (let maskIndex = 0; maskIndex < remainingMasks.length; maskIndex += 1) {
-                if (remainingMasks[maskIndex] & subsetMask) {
-                    possible += 1;
+        let matched = 0;
+        for (let songIndex = 0; songIndex < remainingCapabilities.length; songIndex += 1) {
+            const seenSlots = new Array(totalSlots).fill(false);
+            if (tryAssign(songIndex, seenSlots)) {
+                matched += 1;
+                if (matched === totalNeeded) {
+                    return true;
                 }
-            }
-            possible = Math.min(possible, remainingSlots);
-
-            if (possible < required) {
-                return false;
             }
         }
 
-        return true;
+        return false;
     }
 
     _scoreMinimumPenalty(state, songId, position, usageCounts, remainingPotentialCounts) {
@@ -556,7 +575,7 @@ class SetList {
             }
             if (deficit > 0) {
                 const slack = Math.max(0, possible - deficit);
-                penalty += deficit * (this._weights.instrument || 3) * (1 + (1 / (slack + 1)));
+                penalty += deficit * (this._weights.instrument ?? 3) * (1 + (1 / (slack + 1)));
             }
         }
 
@@ -570,7 +589,7 @@ class SetList {
             }
             if (deficit > 0) {
                 const slack = Math.max(0, possible - deficit);
-                penalty += deficit * (this._weights.tuning || 4) * (1 + (1 / (slack + 1)));
+                penalty += deficit * (this._weights.tuning ?? 4) * (1 + (1 / (slack + 1)));
             }
         }
 
@@ -585,9 +604,8 @@ class SetList {
             });
 
             if (!this._canSatisfyGroupDeficits(
-                group,
                 deficits,
-                this._remainingGroupCapabilityMasks(state, songId, group.id),
+                this._remainingGroupCapabilities(state, songId, group.id),
                 remainingSlots
             )) {
                 return Infinity;
@@ -643,7 +661,7 @@ class SetList {
         const minimumPotentialContext = this._buildMinimumPotentialContext(catalog, variantCache);
         this._minimumPotentialBySongId = minimumPotentialContext.bySongId;
         this._minimumPotentialTotals = minimumPotentialContext.totals;
-        this._minimumGroupMasksBySongId = minimumPotentialContext.groupMasksBySongId;
+        this._minimumGroupCapabilitiesBySongId = minimumPotentialContext.groupCapabilitiesBySongId;
         this._minimumsRelaxed = false;
         let states = [this._initialState()];
 
