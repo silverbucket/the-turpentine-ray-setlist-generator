@@ -504,14 +504,13 @@ export function createAppStore(repo) {
         const thisGenId = ++generationId;
         const opts = clone(generationOptions);
         Object.assign(opts, overrideOptions);
-        const optionsList = [opts];
 
         const worker = new GeneratorWorker();
         activeWorker = worker;
         worker.postMessage({
             songs: clone(eligibleSongs),
             config: clone(appConfig || DEFAULT_APP_CONFIG),
-            optionsList
+            options: opts
         });
         worker.onmessage = (event) => {
             const { type, result } = event.data;
@@ -1274,32 +1273,6 @@ export function createAppStore(repo) {
         }
     }
 
-    // ---- set arc / order rules ----
-    function orderRuleValue(config, slotId, fieldName) {
-        const rules = getByPath(config, `general.order.${slotId}`, []);
-        const match = rules.find(([name]) => name === fieldName);
-        return match ? match[1] : null;
-    }
-
-    function orderToggleValue(config, slotId, fieldName) {
-        const value = orderRuleValue(config, slotId, fieldName);
-        if (value === true) return "yes";
-        if (value === false) return "no";
-        return "either";
-    }
-
-    function setOrderToggle(slotId, fieldName, value) {
-        if (value === "either") { setOrderRule(slotId, fieldName, null); return; }
-        setOrderRule(slotId, fieldName, value === "yes");
-    }
-
-    function setOrderRule(slotId, fieldName, nextValue) {
-        const rules = clone(getByPath(appConfig, `general.order.${slotId}`, []))
-            .filter(([name]) => name !== fieldName);
-        if (nextValue !== null && nextValue !== undefined) rules.push([fieldName, nextValue]);
-        appConfig = setByPath(appConfig, `general.order.${slotId}`, rules);
-    }
-
     // ---- import/export ----
     function buildExportPayload() {
         const currentSaved = savedSetlists || [];
@@ -1674,8 +1647,6 @@ export function createAppStore(repo) {
         setInstrumentDefaultTechnique,
         techniqueDraftKey,
         tuningDraftKey,
-        orderToggleValue,
-        setOrderToggle,
         exportAllData,
         importFromFile,
         performanceSummary,

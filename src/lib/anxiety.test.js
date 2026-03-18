@@ -23,30 +23,25 @@ const BAND_CONFIG = {
         tuning: {
             kind: "instrumentField",
             field: "tuning",
-            summaryLabel: "tuning changes",
             minStreak: 2,
             allowChangeOnLastSong: true
         },
         capo: {
             kind: "instrumentDelta",
             field: "capo",
-            summaryLabel: "capo steps",
             minStreak: 2,
             allowChangeOnLastSong: true
         },
         instruments: {
             kind: "instrumentSet",
             weightKey: "instrument",
-            summaryLabel: "instrument swaps",
             minStreak: 2,
-            allowChangeOnLastSong: true,
-            mutuallyExclusive: []
+            allowChangeOnLastSong: true
         },
         picking: {
             kind: "instrumentField",
             field: "picking",
             weightKey: "technique",
-            summaryLabel: "technique changes",
             minStreak: 1,
             allowChangeOnLastSong: true
         }

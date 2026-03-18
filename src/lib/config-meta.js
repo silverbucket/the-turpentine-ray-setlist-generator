@@ -114,11 +114,3 @@ export const CONFIG_SECTIONS = [
         ]
     }
 ];
-
-
-export const CONFIG_REFERENCE = CONFIG_SECTIONS.flatMap((section) => {
-    return section.fields.map((field) => ({
-        section: section.title,
-        ...field
-    }));
-});

@@ -47,60 +47,37 @@ const DEFAULT_CONFIG_TEMPLATE = {
             blockShuffleTemperature: 1.4
         }
     },
-    show: {
-        members: {}
-    },
+    show: {},
     props: {
         tuning: {
             kind: "instrumentField",
             field: "tuning",
-            summaryLabel: "tuning changes",
             minStreak: 2,
             allowChangeOnLastSong: true
         },
         capo: {
             kind: "instrumentDelta",
             field: "capo",
-            summaryLabel: "capo steps",
             minStreak: 2,
             allowChangeOnLastSong: true
         },
         instruments: {
             kind: "instrumentSet",
             weightKey: "instrument",
-            summaryLabel: "instrument swaps",
             minStreak: 2,
-            allowChangeOnLastSong: true,
-            mutuallyExclusive: []
+            allowChangeOnLastSong: true
         },
         picking: {
             kind: "instrumentField",
             field: "picking",
             weightKey: "technique",
-            summaryLabel: "technique changes",
             minStreak: 1,
             allowChangeOnLastSong: true
         }
-    },
-    band: {
-        members: {}
-    },
-    catalog: {
-        tunings: [],
-        tuningsByInstrument: {}
     }
 };
 
 export const DEFAULT_APP_CONFIG = createDefaultAppConfig();
-
-function normalizeCatalogConfig(seedConfig = {}) {
-    return {
-        tunings: Array.isArray(seedConfig.catalog?.tunings)
-            ? seedConfig.catalog.tunings.slice()
-            : [],
-        tuningsByInstrument: clone(seedConfig.catalog?.tuningsByInstrument || {})
-    };
-}
 
 export function normalizeMemberRecord(memberConfig) {
     const instruments = Array.isArray(memberConfig?.instruments)
@@ -123,20 +100,12 @@ export function normalizeMemberRecord(memberConfig) {
     };
 }
 
-function normalizeBandMembers(seedMembers = {}) {
-    return Object.entries(seedMembers || {}).reduce((result, [memberName, memberConfig]) => {
-        result[memberName] = normalizeMemberRecord(memberConfig);
-        return result;
-    }, {});
-}
-
 export function createDefaultAppConfig({ bandName = "", seedConfig = DEFAULT_CONFIG_TEMPLATE } = {}) {
     const timestamp = nowIso();
     const baseConfig = clone(seedConfig);
     baseConfig.show = baseConfig.show || {};
     delete baseConfig.show.members;
     delete baseConfig.band?.members;
-    baseConfig.catalog = normalizeCatalogConfig(baseConfig);
 
     return {
         bandName,
@@ -192,12 +161,10 @@ export function normalizeAppConfig(config) {
     }
 
     const timestamp = config.createdAt || nowIso();
-    const catalog = normalizeCatalogConfig(config);
 
     const normalized = deepMerge(createDefaultAppConfig({ bandName: config.bandName || "" }), {
         ...clone(config),
         bandName: config.bandName || "",
-        catalog,
         schemaVersion: config.schemaVersion || SCHEMA_VERSION,
         createdAt: config.createdAt || timestamp,
         updatedAt: config.updatedAt || timestamp
@@ -205,6 +172,7 @@ export function normalizeAppConfig(config) {
     // Members are now stored as individual files; strip from config
     delete normalized.band?.members;
     delete normalized.show?.members;
+    delete normalized.catalog;
     return normalized;
 }
 
