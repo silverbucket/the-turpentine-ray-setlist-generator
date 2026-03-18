@@ -13,7 +13,8 @@
  *   import { computeAnxiety } from "./anxiety.js";
  *   const result = computeAnxiety(songs, config);
  *   // result.scaled      — 0-10 integer
- *   // result.changes     — total member-changes (deduplicated per member per spot)
+ *   // result.changes     — disrupted transition spots
+ *   // result.memberChanges — total member-changes (deduplicated per member per spot)
  *   // result.spots       — how many song boundaries had a change
  *   // result.songCount   — total songs in setlist
  *   // result.weightedScore — max-weight per member, adjusted for spread
@@ -86,6 +87,67 @@ const DEFAULT_WEIGHTS = {
     earlyInstrumental: 4
 };
 
+export const ANXIETY_WEIGHT_EXPONENT = 1.35;
+
+function anxietyWeightPressure(weight) {
+    if (weight <= 0) {
+        return 0;
+    }
+    return Math.pow(weight, ANXIETY_WEIGHT_EXPONENT);
+}
+
+export function scoreAnxietyPressure(prevSong, nextSong, propNames, propConfig, weights) {
+    if (!prevSong) {
+        return { changed: false, memberChanges: 0, weightedScore: 0 };
+    }
+
+    const prevPerf = prevSong.performance || {};
+    const nextPerf = nextSong.performance || {};
+    const allMembers = new Set([...Object.keys(prevPerf), ...Object.keys(nextPerf)]);
+
+    let memberChanges = 0;
+    let weightedScore = 0;
+
+    for (const member of allMembers) {
+        let maxWeight = 0;
+
+        for (const propName of propNames) {
+            const rule = propConfig[propName] || {};
+            const kind = rule.kind || inferPropKind(propName);
+            const weightKey = rule.weightKey || propName;
+            const weight = weights[weightKey] || 0;
+            const prevMember = prevPerf[member];
+            const nextMember = nextPerf[member];
+            let changed = false;
+
+            if (kind === "instrumentSet") {
+                if (!prevMember || !nextMember) changed = true;
+                else if (prevMember.instrument !== nextMember.instrument) changed = true;
+            } else if (prevMember && nextMember) {
+                const field = rule.field || propName;
+                const left = normalizeValue(prevMember[field]);
+                const right = normalizeValue(nextMember[field]);
+                if (left !== right) changed = true;
+            }
+
+            if (changed && weight > maxWeight) {
+                maxWeight = weight;
+            }
+        }
+
+        if (maxWeight > 0) {
+            memberChanges += 1;
+            weightedScore += anxietyWeightPressure(maxWeight);
+        }
+    }
+
+    return {
+        changed: memberChanges > 0,
+        memberChanges,
+        weightedScore
+    };
+}
+
 /**
  * Compute the Bass Player Anxiety score for a fixed-order setlist.
  *
@@ -111,55 +173,11 @@ export function computeAnxiety(songs, config) {
         // Keep scoreTransition for per-prop notes/details
         const transition = scoreTransition(prev, curr, propNames, propConfig, weights);
 
-        // Per-member scoring: each member counts once at their highest-weighted
-        // changed prop. If nick changes capo (2) AND picking (1), that's 1 change
-        // scored at weight 2, not 2 changes scored at 3.
-        const prevPerf = prev.performance || {};
-        const currPerf = curr.performance || {};
-        const allMembers = new Set([...Object.keys(prevPerf), ...Object.keys(currPerf)]);
+        const pressure = scoreAnxietyPressure(prev, curr, propNames, propConfig, weights);
 
-        let spotMemberChanges = 0;
-        let spotWeighted = 0;
-
-        for (const member of allMembers) {
-            let maxWeight = 0;
-
-            for (const propName of propNames) {
-                const rule = propConfig[propName] || {};
-                const kind = rule.kind || inferPropKind(propName);
-                const weightKey = rule.weightKey || propName;
-                const w = weights[weightKey] || 0;
-
-                const prevM = prevPerf[member];
-                const currM = currPerf[member];
-
-                let changed = false;
-
-                if (kind === "instrumentSet") {
-                    if (!prevM || !currM) changed = true;
-                    else if (prevM.instrument !== currM.instrument) changed = true;
-                } else {
-                    // instrumentField or instrumentDelta — only compare shared members
-                    if (prevM && currM) {
-                        const field = rule.field || propName;
-                        const left = normalizeValue(prevM[field]);
-                        const right = normalizeValue(currM[field]);
-                        if (left !== right) changed = true;
-                    }
-                }
-
-                if (changed && w > maxWeight) maxWeight = w;
-            }
-
-            if (maxWeight > 0) {
-                spotMemberChanges++;
-                spotWeighted += maxWeight;
-            }
-        }
-
-        if (spotMemberChanges > 0) spotsWithChanges++;
-        totalWeighted += spotWeighted;
-        totalMemberChanges += spotMemberChanges;
+        if (pressure.changed) spotsWithChanges++;
+        totalWeighted += pressure.weightedScore;
+        totalMemberChanges += pressure.memberChanges;
 
         details.push({
             index: i,
@@ -167,8 +185,8 @@ export function computeAnxiety(songs, config) {
             to: curr.name || `Song ${i + 1}`,
             changes: transition.changes,
             notes: transition.notes,
-            score: spotWeighted,
-            memberChanges: spotMemberChanges
+            score: pressure.weightedScore,
+            memberChanges: pressure.memberChanges
         });
     }
 
@@ -178,36 +196,35 @@ export function computeAnxiety(songs, config) {
     const spreadRatio = totalTransitions > 0 ? spotsWithChanges / totalTransitions : 0;
     const adjustedWeighted = totalWeighted * Math.pow(spreadRatio, 0.7);
 
-    // Dynamic scale from the band's own weights
+    // Dynamic scale from the band's own weights, with heavier props contributing
+    // disproportionately more pressure than lightweight technique changes.
     let avgWeight = 0;
     if (propNames.length > 0) {
         let sumW = 0;
         for (const propName of propNames) {
             const weightKey = (propConfig[propName] || {}).weightKey || propName;
-            sumW += weights[weightKey] || 0;
+            sumW += anxietyWeightPressure(weights[weightKey] || 0);
         }
         avgWeight = sumW / propNames.length;
     }
 
-    // mediumBaseline: weighted score where anxiety hits 5/10
-    // maxBaseline: weighted score where anxiety hits 10/10
-    // Floor ensures short setlists don't spike to 10 from a single change
-    const mediumBaseline = Math.max(totalTransitions * 0.15 * avgWeight, avgWeight * 2);
-    const maxBaseline = Math.max(totalTransitions * 0.7 * avgWeight, avgWeight * 8);
-
-    let scaled;
-    if (maxBaseline <= 0) {
-        scaled = 0;
-    } else if (adjustedWeighted <= mediumBaseline) {
-        scaled = Math.round((adjustedWeighted / mediumBaseline) * 5);
-    } else {
-        scaled = 5 + Math.round(((adjustedWeighted - mediumBaseline) / (maxBaseline - mediumBaseline)) * 5);
+    // Scale against a band-relative maximum and curve the low end downward so
+    // scattered capo/technique-only sets do not read as medium anxiety.
+    const maxBaseline = Math.max(totalTransitions * 0.7 * avgWeight, avgWeight * 6);
+    let scaled = 0;
+    if (maxBaseline > 0) {
+        const normalized = Math.min(1, adjustedWeighted / maxBaseline);
+        scaled = Math.round(Math.pow(normalized, 0.8) * 10);
+        if (normalized > 0 && scaled === 0) {
+            scaled = 1;
+        }
     }
     scaled = Math.max(0, Math.min(10, scaled));
 
     return {
         scaled,
-        changes: totalMemberChanges,
+        changes: spotsWithChanges,
+        memberChanges: totalMemberChanges,
         spots: spotsWithChanges,
         songCount: songs.length,
         weightedScore: Math.round(adjustedWeighted * 10) / 10,
@@ -244,10 +261,13 @@ export function anxietyLabel(result) {
 
 // Export internals for testing
 export const _internals = {
+    ANXIETY_WEIGHT_EXPONENT,
     normalizeValue,
     displayValue,
     detectInstrumentSetChange,
     detectFieldChange,
+    scoreAnxietyPressure,
     scoreTransition,
-    inferPropKind
+    inferPropKind,
+    anxietyWeightPressure
 };

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { computeAnxiety, anxietyLabel, _internals } from "./anxiety.js";
 
-const { normalizeValue, displayValue, detectInstrumentSetChange, detectFieldChange, scoreTransition } = _internals;
+const { normalizeValue, displayValue, detectInstrumentSetChange, detectFieldChange, scoreTransition, anxietyWeightPressure } = _internals;
 
 // ---------------------------------------------------------------------------
 // Test config matching the user's real band setup
@@ -447,9 +447,8 @@ describe("computeAnxiety — low-anxiety 15-song setlist", () => {
     it("scores 1-3 for a setlist with only low-weight changes", () => {
         const result = computeAnxiety(lowSetlist, BAND_CONFIG);
         expect(result.spots).toBe(3);
-        // Per-member: T1 nick technique (1), T2 nick technique (1),
-        // T3 mark capo (1 member) + nick capo (1 member, max of capo vs no other change)
-        expect(result.changes).toBe(4);
+        expect(result.changes).toBe(3);
+        expect(result.memberChanges).toBe(4);
         expect(result.scaled).toBeGreaterThanOrEqual(1);
         expect(result.scaled).toBeLessThanOrEqual(3);
     });
@@ -508,13 +507,14 @@ describe("computeAnxiety — per-member deduplication", () => {
         expect(result.changes).toBe(1);
     });
 
-    it("two members each changing = 2 changes", () => {
+    it("two members each changing still counts as one disrupted spot", () => {
         const songs = [
             song("A", "G", { mark: { tuning: "Standard" }, nick: { tuning: "Open G" } }),
             song("B", "G", { mark: { tuning: "DADDAD" }, nick: { tuning: "Open D" } })
         ];
         const result = computeAnxiety(songs, BAND_CONFIG);
-        expect(result.changes).toBe(2);
+        expect(result.changes).toBe(1);
+        expect(result.memberChanges).toBe(2);
     });
 });
 
@@ -782,8 +782,8 @@ describe("transition-by-transition detail verification", () => {
         expect(t.changes.tuning.changed).toBe(true);
         expect(t.changes.picking.changed).toBe(true);
         expect(t.changes.capo.changed).toBe(false);
-        // Per-member: nick changes 3 things, score = max weight (tuning=4)
-        expect(t.score).toBe(4);
+        // Per-member: nick changes 3 things, score = transformed max weight (tuning=4)
+        expect(t.score).toBeCloseTo(anxietyWeightPressure(4), 5);
         expect(t.memberChanges).toBe(1);
     });
 
@@ -795,8 +795,8 @@ describe("transition-by-transition detail verification", () => {
         expect(t.changes.instruments.changed).toBe(false);
         expect(t.changes.tuning.changed).toBe(false);
         expect(t.changes.picking.changed).toBe(false);
-        // Per-member: nick changes capo only, score = capo weight (2)
-        expect(t.score).toBe(2);
+        // Per-member: nick changes capo only, score = transformed capo pressure
+        expect(t.score).toBeCloseTo(anxietyWeightPressure(2), 5);
         expect(t.memberChanges).toBe(1);
     });
 
@@ -807,20 +807,21 @@ describe("transition-by-transition detail verification", () => {
         expect(t.changes.tuning.changed).toBe(true);
         expect(t.changes.capo.changed).toBe(true);
         expect(t.changes.picking.changed).toBe(true);
-        // Per-member: nick changes everything, score = max weight (tuning=4)
-        expect(t.score).toBe(4);
+        // Per-member: nick changes everything, score = transformed max weight (tuning=4)
+        expect(t.score).toBeCloseTo(anxietyWeightPressure(4), 5);
         expect(t.memberChanges).toBe(1);
     });
 
-    it("total changes matches sum of detail memberChanges", () => {
+    it("total memberChanges matches sum of detail memberChanges", () => {
         const result = computeAnxiety(setlist, BAND_CONFIG);
         const sumFromDetails = result.details.reduce((sum, d) => sum + d.memberChanges, 0);
-        expect(result.changes).toBe(sumFromDetails);
+        expect(result.memberChanges).toBe(sumFromDetails);
     });
 
     it("spots matches count of non-zero detail entries", () => {
         const result = computeAnxiety(setlist, BAND_CONFIG);
         const spots = result.details.filter(d => d.memberChanges > 0).length;
         expect(result.spots).toBe(spots);
+        expect(result.changes).toBe(spots);
     });
 });

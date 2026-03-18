@@ -1,5 +1,5 @@
 import { deepMerge, toArray } from "./utils.js";
-import { computeAnxiety } from "./anxiety.js";
+import { computeAnxiety, scoreAnxietyPressure } from "./anxiety.js";
 import {
     normalizeValue,
     displayValue,
@@ -25,6 +25,11 @@ function clampFloat(value, fallback, minimum) {
         return fallback;
     }
     return Math.max(minimum, parsed);
+}
+
+
+function clampUnit(value) {
+    return Math.max(0, Math.min(1, value));
 }
 
 
@@ -216,6 +221,7 @@ class SetList {
         this._rng = createRng(this._seed);
         this._randomness = merge(DEFAULT_RANDOMNESS, this._config.general?.randomness || {});
         this._randomness = merge(this._randomness, this._options.randomness || {});
+        this._chaosLevel = clampUnit((clampFloat(this._randomness.temperature, 0.85, 0.01) - 0.3) / 1.7);
         if (this._options.fixedSongIds) {
             const idSet = new Set(this._options.fixedSongIds);
             this._catalog = this._songs.all().filter(s => idSet.has(s.id));
@@ -305,6 +311,20 @@ class SetList {
 
     _songBias(songId) {
         return this._songBiasById[songId] || 0;
+    }
+
+    _chaosAdjustment(prevItem, nextVariant) {
+        const centeredChaos = (this._chaosLevel * 2) - 1;
+        if (!prevItem || centeredChaos === 0) {
+            return 0;
+        }
+
+        const pressure = scoreAnxietyPressure(prevItem, nextVariant, this._propNames, this._propConfig, this._weights);
+        if (!pressure.changed) {
+            return centeredChaos > 0 ? centeredChaos * 1.5 : 0;
+        }
+
+        return -(pressure.weightedScore + 1.5) * centeredChaos;
     }
 
     /**
@@ -1010,10 +1030,11 @@ class SetList {
 
             const positionScore = this._scorePositionLite(variant, position);
             const transitionScore = propTransition.score;
+            const chaosAdjustment = this._chaosAdjustment(prevItem, variant);
 
             if (minimumPenalty === Infinity) {
                 // Track as fallback in case all variants are impossible
-                const fbScore = transitionScore + positionScore + this._songBias(variant.id);
+                const fbScore = transitionScore + positionScore + this._songBias(variant.id) + chaosAdjustment;
                 if (fbScore < fallbackScore) {
                     fallbackScore = fbScore;
                     fallback = {
@@ -1029,7 +1050,7 @@ class SetList {
                 continue;
             }
 
-            const incrementalScore = transitionScore + positionScore + this._songBias(variant.id) + minimumPenalty;
+            const incrementalScore = transitionScore + positionScore + this._songBias(variant.id) + minimumPenalty + chaosAdjustment;
             const exploratoryScore = incrementalScore + this._randomJitter(this._randomness.variantJitter);
 
             if (exploratoryScore < bestScore) {

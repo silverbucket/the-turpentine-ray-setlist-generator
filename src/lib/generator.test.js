@@ -242,6 +242,28 @@ function overlappingInstrumentCatalog(memberName = "nick", instrumentCount = 32)
     ];
 }
 
+function anxietyPressureCatalog() {
+    return Array.from({ length: 9 }, (_, songIndex) => makeSong(`Pressure ${songIndex + 1}`, {
+        id: `pressure-${songIndex + 1}`,
+        members: {
+            mark: {
+                instruments: [
+                    { name: "guitar", tuning: ["Standard"], capo: 0, picking: [] },
+                    { name: "guitar", tuning: ["DADDAD"], capo: 0, picking: [] },
+                    { name: "mandolin", tuning: ["Standard"], capo: 0, picking: [] }
+                ]
+            },
+            nick: {
+                instruments: [
+                    { name: "banjo", tuning: ["Open G"], capo: 0, picking: ["picking"] },
+                    { name: "banjo", tuning: ["Open D"], capo: 0, picking: ["clawhammer"] },
+                    { name: "guitar", tuning: ["Standard"], capo: 2, picking: ["picking"] }
+                ]
+            }
+        }
+    }));
+}
+
 
 // ===================================================================
 // Basic generation
@@ -837,6 +859,52 @@ describe("generateSetlist — minSongsPerTuning", () => {
             expect(counts.DADGAD).toBe(2);
             expect(result.summary.minimumsRelaxed).toBe(false);
         }
+    });
+});
+
+describe("generateSetlist — chaos slider anxiety bias", () => {
+    it("keeps low chaos calmer and high chaos much more anxious on a transition-heavy catalog", () => {
+        const songs = anxietyPressureCatalog();
+        const config = makeConfig();
+        const seeds = [1, 2, 3, 4, 5, 6];
+        const lowScores = [];
+        const highScores = [];
+
+        for (const seed of seeds) {
+            const low = generateSetlist(songs, config, deterministicOptions({
+                count: songs.length,
+                seed,
+                randomness: {
+                    shuffleCatalog: false,
+                    songBias: 0,
+                    variantJitter: 0,
+                    stateJitter: 0,
+                    temperature: 0.3,
+                    finalChoicePool: 1
+                }
+            }));
+            const high = generateSetlist(songs, config, deterministicOptions({
+                count: songs.length,
+                seed,
+                randomness: {
+                    shuffleCatalog: false,
+                    songBias: 0,
+                    variantJitter: 0,
+                    stateJitter: 0,
+                    temperature: 2.0,
+                    finalChoicePool: 1
+                }
+            }));
+
+            lowScores.push(low.summary.anxiety.scaled);
+            highScores.push(high.summary.anxiety.scaled);
+        }
+
+        const average = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
+
+        expect(average(lowScores)).toBeLessThanOrEqual(3);
+        expect(average(highScores)).toBeGreaterThanOrEqual(7);
+        expect(Math.min(...highScores)).toBeGreaterThan(Math.max(...lowScores));
     });
 });
 
