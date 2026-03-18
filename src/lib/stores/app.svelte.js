@@ -539,8 +539,8 @@ export function createAppStore(repo) {
                 setlistSaved = false;
             }
             persistCurrentSetlist();
-            if (!validateConstraintMinimums(result)) {
-                addToast("Close enough! Some constraints bent but didn't break.", "warning");
+            if (result.summary?.minimumsRelaxed || !validateConstraintMinimums(result)) {
+                addToast("Couldn't meet every demand, but it got close.", "warning");
             }
             const n = generatedSetlist.songs.length;
             addToast(randomFrom([

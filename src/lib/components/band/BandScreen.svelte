@@ -394,7 +394,7 @@
         <div class="section-block">
             <h3 class="section-label">Config</h3>
             <button class="card link-card" onclick={() => { store.bandSubView = "advanced"; }}>
-                <span class="link-card-label">Generation settings, weights, and order rules</span>
+                <span class="link-card-label">Transition costs and switching rules</span>
                 <span class="link-card-arrow">&rsaquo;</span>
             </button>
         </div>
