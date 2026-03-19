@@ -252,22 +252,16 @@ export function anxietyLabel(result) {
     if (changes === 0) {
         return "Bass player is relaxed for once. Zero gear changes — smooth sailing.";
     }
-    if (scaled <= 1) {
+    if (scaled <= 2) {
         return `${changes} change${changes === 1 ? "" : "s"}${spotNote}. Bass player barely notices.`;
     }
-    if (scaled <= 3) {
-        return `${changes} change${changes === 1 ? "" : "s"}${spotNote}. Bass player is keeping one eye on the tuner.`;
+    if (scaled <= 5) {
+        return `${changes} change${changes === 1 ? "" : "s"}${spotNote}. Bass player is rehearsing crowd work.`;
     }
-    if (scaled <= 4) {
-        return `${changes} change${changes === 1 ? "" : "s"}${spotNote}. Bass player is starting to sweat.`;
+    if (scaled <= 7) {
+        return `${changes} change${changes === 1 ? "" : "s"}${spotNote}. Bass player is visibly sweating.`;
     }
-    if (scaled <= 6) {
-        return `${changes} change${changes === 1 ? "" : "s"}${spotNote}. Bass player is counting setup moves before the song ends.`;
-    }
-    if (scaled <= 8) {
-        return `${changes} change${changes === 1 ? "" : "s"}${spotNote}. Bass player is visibly sweating and stalling for time.`;
-    }
-    return `${changes} change${changes === 1 ? "" : "s"}${spotNote}. Bass player is looking for the fuse box and composing a farewell note.`;
+    return `${changes} change${changes === 1 ? "" : "s"}${spotNote}. Bass player is writing a stand-up set to fill all the dead air.`;
 }
 
 

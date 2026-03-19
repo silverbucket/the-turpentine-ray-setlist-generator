@@ -850,30 +850,20 @@ describe("anxietyLabel", () => {
         expect(label).toContain("1 spot over 15 songs");
     });
 
-    it("returns 'one eye on the tuner' for light mid anxiety", () => {
-        const label = anxietyLabel({ scaled: 3, changes: 5, spots: 3, songCount: 15 });
-        expect(label).toContain("one eye on the tuner");
-        expect(label).toContain("3 spots over 15 songs");
-    });
-
-    it("returns 'starting to sweat' for a 4/10 set", () => {
+    it("returns 'crowd work' for medium anxiety", () => {
         const label = anxietyLabel({ scaled: 4, changes: 4, spots: 4, songCount: 15 });
-        expect(label).toContain("starting to sweat");
-    });
-
-    it("returns 'counting setup moves' for solid mid-high anxiety", () => {
-        const label = anxietyLabel({ scaled: 6, changes: 7, spots: 6, songCount: 15 });
-        expect(label).toContain("counting setup moves");
+        expect(label).toContain("crowd work");
+        expect(label).toContain("4 spots over 15 songs");
     });
 
     it("returns 'sweating' for high anxiety", () => {
         const label = anxietyLabel({ scaled: 7, changes: 10, spots: 7, songCount: 15 });
-        expect(label).toContain("stalling for time");
+        expect(label).toContain("sweating");
     });
 
-    it("returns 'fuse box' for extreme anxiety", () => {
+    it("returns 'stand-up set' for extreme anxiety", () => {
         const label = anxietyLabel({ scaled: 9, changes: 18, spots: 12, songCount: 15 });
-        expect(label).toContain("fuse box");
+        expect(label).toContain("stand-up set");
     });
 
     it("pluralizes 'change' correctly", () => {
