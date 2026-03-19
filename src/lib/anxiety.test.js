@@ -474,6 +474,24 @@ describe("computeAnxiety — mixed mid-anxiety sets", () => {
         song("Run Along", "C", { mark: { ...guitarStd }, nick: { ...banjoPick } }),
     ];
 
+    const oneTuningCapoAndTechniqueSpots = [
+        song("Jackass Travels", "A", { mark: { ...guitarStd }, nick: { ...banjoCapo2Pick } }),
+        song("Pumpin' Gas", "A", { mark: { ...guitarStd }, nick: { ...banjoCapo2Pick } }),
+        song("Aerial Jones", "E", { mark: { ...guitarStd }, nick: { ...banjoCapo2Pick } }),
+        song("Break Man", "A", { mark: { ...guitarStd }, nick: { ...banjoCapo2Pick } }),
+        song("Run Along", "C", { mark: { ...guitarStd }, nick: { ...banjoPick } }),
+        song("Every Pyro in the Class", "G", { mark: { ...guitarStd }, nick: { ...banjoPick } }),
+        song("Courtroom Sketch Artist", "G", { mark: { ...guitarStd }, nick: { ...banjoPick } }),
+        song("In a Station Wagon", "G", { mark: { ...guitarStd }, nick: { ...banjoClaw } }),
+        song("Redwing", "G", { mark: { ...guitarStd }, nick: { ...banjoClaw } }),
+        song("High", "D", { mark: { ...guitarStd }, nick: { ...banjoPick } }),
+        song("Put Some Gravy", "D", { mark: { ...guitarStd }, nick: { ...banjoPick } }),
+        song("Euglena", "D", { mark: { ...guitarDaddad }, nick: { ...banjoPick } }),
+        song("O' the Topside", "E", { mark: { ...guitarDaddad }, nick: { ...banjoPickSlide } }),
+        song("Bottle of Soot", "D", { mark: { ...guitarDaddad }, nick: { ...banjoPickSlide } }),
+        song("The Corporeal Races", "G", { mark: { ...guitarDaddad }, nick: { ...banjoClaw } }),
+    ];
+
     it("keeps sparse low-change sets calmer than tuning-plus-churn sets", () => {
         const low = computeAnxiety(sparseLow, BAND_CONFIG);
         const mixed = computeAnxiety(oneTuningPlusChurn, BAND_CONFIG);
@@ -487,6 +505,12 @@ describe("computeAnxiety — mixed mid-anxiety sets", () => {
         const result = computeAnxiety(oneTuningManyTechniqueSpots, BAND_CONFIG);
         expect(result.scaled).toBeGreaterThanOrEqual(5);
         expect(result.changes).toBe(8);
+    });
+
+    it("keeps a tuning change plus capo and technique churn out of the low band", () => {
+        const result = computeAnxiety(oneTuningCapoAndTechniqueSpots, BAND_CONFIG);
+        expect(result.scaled).toBeGreaterThanOrEqual(5);
+        expect(result.changes).toBe(6);
     });
 });
 

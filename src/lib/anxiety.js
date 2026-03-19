@@ -211,7 +211,7 @@ export function computeAnxiety(songs, config) {
     }
 
     const severityBoost = peakWeighted * 0.55;
-    const cadenceBoost = Math.max(0, spotsWithChanges - 2) * avgWeight * 0.1;
+    const cadenceBoost = Math.max(0, spotsWithChanges - 2) * avgWeight * 0.16;
     const compositeWeighted = adjustedWeighted + severityBoost + cadenceBoost;
 
     // Scale against a band-relative maximum and curve the low end downward so
