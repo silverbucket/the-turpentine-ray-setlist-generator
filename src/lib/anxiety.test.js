@@ -850,10 +850,20 @@ describe("anxietyLabel", () => {
         expect(label).toContain("1 spot over 15 songs");
     });
 
-    it("returns 'crowd work' for medium anxiety", () => {
-        const label = anxietyLabel({ scaled: 4, changes: 5, spots: 3, songCount: 15 });
+    it("returns 'crowd work' for light mid anxiety", () => {
+        const label = anxietyLabel({ scaled: 3, changes: 5, spots: 3, songCount: 15 });
         expect(label).toContain("crowd work");
         expect(label).toContain("3 spots over 15 songs");
+    });
+
+    it("returns 'starting to sweat' for a 4/10 set", () => {
+        const label = anxietyLabel({ scaled: 4, changes: 4, spots: 4, songCount: 15 });
+        expect(label).toContain("starting to sweat");
+    });
+
+    it("returns 'checking the tuner' for solid mid-high anxiety", () => {
+        const label = anxietyLabel({ scaled: 6, changes: 7, spots: 6, songCount: 15 });
+        expect(label).toContain("checking the tuner");
     });
 
     it("returns 'sweating' for high anxiety", () => {
