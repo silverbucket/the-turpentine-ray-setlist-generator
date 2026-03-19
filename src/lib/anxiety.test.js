@@ -492,6 +492,24 @@ describe("computeAnxiety — mixed mid-anxiety sets", () => {
         song("The Corporeal Races", "G", { mark: { ...guitarDaddad }, nick: { ...banjoClaw } }),
     ];
 
+    const oneTuningFourSpotSet = [
+        song("O' the Topside", "E", { mark: { ...guitarDaddad }, nick: { ...banjoPickSlide } }),
+        song("Bottle of Soot", "D", { mark: { ...guitarDaddad }, nick: { ...banjoPickSlide } }),
+        song("Redwing", "G", { mark: { ...guitarDaddad }, nick: { ...banjoClaw } }),
+        song("In a Station Wagon", "G", { mark: { ...guitarDaddad }, nick: { ...banjoClaw } }),
+        song("The Corporeal Races", "G", { mark: { ...guitarDaddad }, nick: { ...banjoClaw } }),
+        song("Euglena", "D", { mark: { ...guitarDaddad }, nick: { ...banjoPick } }),
+        song("Every Pyro in the Class", "G", { mark: { ...guitarStd }, nick: { ...banjoPick } }),
+        song("High", "D", { mark: { ...guitarStd }, nick: { ...banjoPick } }),
+        song("Put Some Gravy", "D", { mark: { ...guitarStd }, nick: { ...banjoPick } }),
+        song("Courtroom Sketch Artist", "G", { mark: { ...guitarStd }, nick: { ...banjoPick } }),
+        song("Run Along", "C", { mark: { ...guitarStd }, nick: { ...banjoPick } }),
+        song("Jackass Travels", "A", { mark: { ...guitarStd }, nick: { ...banjoCapo2Pick } }),
+        song("Aerial Jones", "E", { mark: { ...guitarStd }, nick: { ...banjoCapo2Pick } }),
+        song("Pumpin' Gas", "A", { mark: { ...guitarStd }, nick: { ...banjoCapo2Pick } }),
+        song("Break Man", "A", { mark: { ...guitarStd }, nick: { ...banjoCapo2Pick } }),
+    ];
+
     it("keeps sparse low-change sets calmer than tuning-plus-churn sets", () => {
         const low = computeAnxiety(sparseLow, BAND_CONFIG);
         const mixed = computeAnxiety(oneTuningPlusChurn, BAND_CONFIG);
@@ -511,6 +529,12 @@ describe("computeAnxiety — mixed mid-anxiety sets", () => {
         const result = computeAnxiety(oneTuningCapoAndTechniqueSpots, BAND_CONFIG);
         expect(result.scaled).toBeGreaterThanOrEqual(5);
         expect(result.changes).toBe(6);
+    });
+
+    it("keeps a four-spot set with one tuning hit above the low band", () => {
+        const result = computeAnxiety(oneTuningFourSpotSet, BAND_CONFIG);
+        expect(result.scaled).toBeGreaterThanOrEqual(4);
+        expect(result.changes).toBe(4);
     });
 });
 

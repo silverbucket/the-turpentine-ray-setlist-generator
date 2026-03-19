@@ -210,7 +210,7 @@ export function computeAnxiety(songs, config) {
         avgWeight = sumW / propNames.length;
     }
 
-    const severityBoost = peakWeighted * 0.55;
+    const severityBoost = peakWeighted * 0.62;
     const cadenceBoost = Math.max(0, spotsWithChanges - 2) * avgWeight * 0.16;
     const compositeWeighted = adjustedWeighted + severityBoost + cadenceBoost;
 
