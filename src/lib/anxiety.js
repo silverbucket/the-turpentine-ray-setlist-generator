@@ -164,6 +164,7 @@ export function computeAnxiety(songs, config) {
     let totalWeighted = 0;
     let totalMemberChanges = 0;
     let spotsWithChanges = 0;
+    let peakWeighted = 0;
     const details = [];
 
     for (let i = 1; i < songs.length; i++) {
@@ -178,6 +179,7 @@ export function computeAnxiety(songs, config) {
         if (pressure.changed) spotsWithChanges++;
         totalWeighted += pressure.weightedScore;
         totalMemberChanges += pressure.memberChanges;
+        peakWeighted = Math.max(peakWeighted, pressure.weightedScore);
 
         details.push({
             index: i,
@@ -195,6 +197,8 @@ export function computeAnxiety(songs, config) {
     // while dense disruption (most spots affected) stays close to full weight.
     const spreadRatio = totalTransitions > 0 ? spotsWithChanges / totalTransitions : 0;
     const adjustedWeighted = totalWeighted * Math.pow(spreadRatio, 0.7);
+    const severityBoost = peakWeighted * 0.55;
+    const compositeWeighted = adjustedWeighted + severityBoost;
 
     // Dynamic scale from the band's own weights, with heavier props contributing
     // disproportionately more pressure than lightweight technique changes.
@@ -213,7 +217,7 @@ export function computeAnxiety(songs, config) {
     const maxBaseline = Math.max(totalTransitions * 0.7 * avgWeight, avgWeight * 6);
     let scaled = 0;
     if (maxBaseline > 0) {
-        const normalized = Math.min(1, adjustedWeighted / maxBaseline);
+        const normalized = Math.min(1, compositeWeighted / maxBaseline);
         scaled = Math.round(Math.pow(normalized, 0.8) * 10);
         if (normalized > 0 && scaled === 0) {
             scaled = 1;
@@ -227,7 +231,7 @@ export function computeAnxiety(songs, config) {
         memberChanges: totalMemberChanges,
         spots: spotsWithChanges,
         songCount: songs.length,
-        weightedScore: Math.round(adjustedWeighted * 10) / 10,
+        weightedScore: Math.round(compositeWeighted * 10) / 10,
         totalTransitions,
         details
     };
