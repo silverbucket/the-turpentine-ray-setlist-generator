@@ -197,8 +197,6 @@ export function computeAnxiety(songs, config) {
     // while dense disruption (most spots affected) stays close to full weight.
     const spreadRatio = totalTransitions > 0 ? spotsWithChanges / totalTransitions : 0;
     const adjustedWeighted = totalWeighted * Math.pow(spreadRatio, 0.7);
-    const severityBoost = peakWeighted * 0.55;
-    const compositeWeighted = adjustedWeighted + severityBoost;
 
     // Dynamic scale from the band's own weights, with heavier props contributing
     // disproportionately more pressure than lightweight technique changes.
@@ -211,6 +209,10 @@ export function computeAnxiety(songs, config) {
         }
         avgWeight = sumW / propNames.length;
     }
+
+    const severityBoost = peakWeighted * 0.55;
+    const cadenceBoost = Math.max(0, spotsWithChanges - 2) * avgWeight * 0.1;
+    const compositeWeighted = adjustedWeighted + severityBoost + cadenceBoost;
 
     // Scale against a band-relative maximum and curve the low end downward so
     // scattered capo/technique-only sets do not read as medium anxiety.
