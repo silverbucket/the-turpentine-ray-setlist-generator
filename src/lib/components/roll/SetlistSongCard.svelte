@@ -3,6 +3,17 @@
 
   let expanded = $state(false);
 
+  function normalizeTechniqueValue(value) {
+    if (!Array.isArray(value)) return String(value || "");
+    return value.filter((technique) => technique && technique !== "none").slice().sort().join(",");
+  }
+
+  function techniqueDisplay(value) {
+    if (!Array.isArray(value)) return value || null;
+    const normalized = value.filter((technique) => technique && technique !== "none").slice().sort();
+    return normalized.length ? normalized.join(", ") : null;
+  }
+
   function toggleExpand() {
     expanded = !expanded;
   }
@@ -22,11 +33,11 @@
       if (curr.capo) changes.push(`capo ${curr.capo}`);
       else if (prev?.capo) changes.push("capo off");
     }
-    const currTech = String(curr.picking || "");
-    const prevTech = prev ? String(prev.picking || "") : "";
+    const currTech = normalizeTechniqueValue(curr.picking);
+    const prevTech = prev ? normalizeTechniqueValue(prev.picking) : "";
     if (currTech !== prevTech && currTech) {
-      const techDisplay = Array.isArray(curr.picking) ? curr.picking.filter(t => t !== "none").join(", ") : currTech;
-      if (techDisplay) changes.push(techDisplay);
+      const tech = techniqueDisplay(curr.picking);
+      if (tech) changes.push(tech);
     }
     return changes;
   }
@@ -77,7 +88,7 @@
       {:else if song.performance}
         <div class="change-lines">
           {#each Object.entries(song.performance) as [memberName, perf]}
-            {@const techStr = Array.isArray(perf.picking) && perf.picking.length ? perf.picking.filter(t => t !== "none").join(", ") || null : null}
+            {@const techStr = techniqueDisplay(perf.picking)}
             {@const parts = [perf.instrument, perf.tuning, perf.capo ? `capo ${perf.capo}` : null, techStr].filter(Boolean)}
             {#if parts.length > 0}
               <div class="change-line first-song">

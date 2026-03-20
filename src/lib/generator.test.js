@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { generateSetlist, scoreFixedOrder, buildDefaultPerformance } from "./generator.js";
 
 
@@ -62,37 +62,31 @@ function makeConfig(overrides = {}) {
             tuning: {
                 kind: "instrumentField",
                 field: "tuning",
-                summaryLabel: "tuning changes",
                 minStreak: 2,
                 allowChangeOnLastSong: true
             },
             capo: {
                 kind: "instrumentDelta",
                 field: "capo",
-                summaryLabel: "capo steps",
                 minStreak: 2,
                 allowChangeOnLastSong: true
             },
             instruments: {
                 kind: "instrumentSet",
                 weightKey: "instrument",
-                summaryLabel: "instrument swaps",
                 minStreak: 2,
-                allowChangeOnLastSong: true,
-                mutuallyExclusive: []
+                allowChangeOnLastSong: true
             },
             picking: {
                 kind: "instrumentField",
                 field: "picking",
                 weightKey: "technique",
-                summaryLabel: "technique changes",
                 minStreak: 1,
                 allowChangeOnLastSong: true
             }
         },
         show: overrides.show || { members: {} },
-        band: overrides.band || { members: {} },
-        catalog: overrides.catalog || { tunings: [], tuningsByInstrument: {} }
+        band: overrides.band || { members: {} }
     };
 }
 
@@ -149,6 +143,125 @@ function twoTuningCatalog(count, memberName = "nick") {
             }
         })
     );
+}
+
+/** Generate a catalog where only the first two songs can satisfy the alternate instrument */
+function scarceInstrumentCatalog(memberName = "nick") {
+    return [
+        makeSong("Song A", {
+            members: {
+                [memberName]: {
+                    instruments: [
+                        { name: "guitar", tuning: ["Standard"], capo: 0, picking: [] },
+                        { name: "banjo", tuning: ["Open G"], capo: 0, picking: [] }
+                    ]
+                }
+            }
+        }),
+        makeSong("Song B", {
+            members: {
+                [memberName]: {
+                    instruments: [
+                        { name: "guitar", tuning: ["Standard"], capo: 0, picking: [] },
+                        { name: "banjo", tuning: ["Open G"], capo: 0, picking: [] }
+                    ]
+                }
+            }
+        }),
+        ...Array.from({ length: 4 }, (_, i) => makeSong(`Song ${String.fromCharCode(67 + i)}`, {
+            members: {
+                [memberName]: {
+                    instruments: [
+                        { name: "guitar", tuning: ["Standard"], capo: 0, picking: [] }
+                    ]
+                }
+            }
+        }))
+    ];
+}
+
+/** Generate a catalog where only the first two songs can satisfy the alternate tuning */
+function scarceTuningCatalog(memberName = "nick") {
+    return [
+        makeSong("Song A", {
+            members: {
+                [memberName]: {
+                    instruments: [
+                        { name: "guitar", tuning: ["Standard", "DADGAD"], capo: 0, picking: [] }
+                    ]
+                }
+            }
+        }),
+        makeSong("Song B", {
+            members: {
+                [memberName]: {
+                    instruments: [
+                        { name: "guitar", tuning: ["Standard", "DADGAD"], capo: 0, picking: [] }
+                    ]
+                }
+            }
+        }),
+        ...Array.from({ length: 4 }, (_, i) => makeSong(`Song ${String.fromCharCode(67 + i)}`, {
+            members: {
+                [memberName]: {
+                    instruments: [
+                        { name: "guitar", tuning: ["Standard"], capo: 0, picking: [] }
+                    ]
+                }
+            }
+        }))
+    ];
+}
+
+function overlappingInstrumentCatalog(memberName = "nick", instrumentCount = 32) {
+    const instrumentNames = Array.from({ length: instrumentCount }, (_, index) => `instrument-${index + 1}`);
+    const sharedTuning = ["Standard"];
+
+    return [
+        makeSong("Flexible Song", {
+            members: {
+                [memberName]: {
+                    instruments: instrumentNames.map((name) => ({
+                        name,
+                        tuning: sharedTuning,
+                        capo: 0,
+                        picking: []
+                    }))
+                }
+            }
+        }),
+        ...Array.from({ length: instrumentCount - 1 }, (_, index) => makeSong(`Fixed Song ${index + 1}`, {
+            members: {
+                [memberName]: {
+                    instruments: [
+                        { name: instrumentNames[0], tuning: sharedTuning, capo: 0, picking: [] }
+                    ]
+                }
+            }
+        }))
+    ];
+}
+
+function anxietyPressureCatalog() {
+    return Array.from({ length: 9 }, (_, songIndex) => makeSong(`Pressure ${songIndex + 1}`, {
+        id: `pressure-${songIndex + 1}`,
+        members: {
+            mark: {
+                instruments: [
+                    { name: "guitar", tuning: ["Standard"], capo: 0, picking: [] },
+                    { name: "guitar", tuning: ["DADDAD"], capo: 0, picking: [] },
+                    { name: "mandolin", tuning: ["Standard"], capo: 0, picking: [] }
+                ]
+            },
+            nick: {
+                instruments: [
+                    { name: "banjo", tuning: ["Open G"], capo: 0, picking: ["picking"] },
+                    { name: "banjo", tuning: ["Open D"], capo: 0, picking: ["clawhammer"] },
+                    { name: "guitar", tuning: ["Standard"], capo: 2, picking: ["picking"] }
+                ]
+            }
+        }
+    }));
 }
 
 
@@ -221,6 +334,20 @@ describe("generateSetlist — determinism", () => {
         const ids1 = r1.songs.map(s => s.id).join(",");
         const ids2 = r2.songs.map(s => s.id).join(",");
         expect(ids1).not.toBe(ids2);
+    });
+
+    it("treats seed=0 as random to match the Roll UI intent", () => {
+        const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_000);
+        const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.25);
+
+        try {
+            const songs = simpleCatalog(8);
+            const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 5, seed: 0 }));
+            expect(result.seed).toBe(251000);
+        } finally {
+            nowSpy.mockRestore();
+            randomSpy.mockRestore();
+        }
     });
 });
 
@@ -572,6 +699,107 @@ describe("generateSetlist — minSongsPerInstrument", () => {
         }
         expect(hasBoth).toBeGreaterThanOrEqual(8);
     });
+
+    it("treats the requirement as hard when a satisfying set exists", () => {
+        const songs = scarceInstrumentCatalog();
+        const config = makeConfig();
+        const opts = deterministicOptions({
+            count: 4,
+            show: {
+                members: {
+                    nick: {
+                        allowedInstruments: ["guitar", "banjo"],
+                        minSongsPerInstrument: 2
+                    }
+                }
+            }
+        });
+
+        for (let seed = 1; seed <= 10; seed++) {
+            const result = generateSetlist(songs, config, { ...opts, seed });
+            const counts = result.songs.reduce((acc, song) => {
+                const instrument = song.performance.nick?.instrument;
+                acc[instrument] = (acc[instrument] || 0) + 1;
+                return acc;
+            }, {});
+
+            expect(counts.guitar).toBe(2);
+            expect(counts.banjo).toBe(2);
+            expect(result.summary.minimumsRelaxed).toBe(false);
+        }
+    });
+
+    it("falls back to best effort only when the requirement is impossible", () => {
+        const songs = [
+            makeSong("Song A", {
+                members: {
+                    nick: {
+                        instruments: [
+                            { name: "guitar", tuning: ["Standard"], capo: 0, picking: [] },
+                            { name: "banjo", tuning: ["Open G"], capo: 0, picking: [] }
+                        ]
+                    }
+                }
+            }),
+            ...Array.from({ length: 3 }, (_, i) => makeSong(`Song ${i + 2}`, {
+                members: {
+                    nick: {
+                        instruments: [
+                            { name: "guitar", tuning: ["Standard"], capo: 0, picking: [] }
+                        ]
+                    }
+                }
+            }))
+        ];
+        const config = makeConfig();
+        const result = generateSetlist(songs, config, deterministicOptions({
+            count: 4,
+            show: {
+                members: {
+                    nick: {
+                        allowedInstruments: ["guitar", "banjo"],
+                        minSongsPerInstrument: 2
+                    }
+                }
+            }
+        }));
+
+        expect(result.songs).toHaveLength(4);
+        expect(result.summary.minimumsRelaxed).toBe(true);
+    });
+
+    it("handles large overlapping instrument groups without overflow and relaxes impossible minimums", () => {
+        const songs = overlappingInstrumentCatalog();
+        const allowedInstruments = songs[0].members.nick.instruments.map((instrument) => instrument.name);
+        const config = makeConfig({
+            general: {
+                weighting: {
+                    tuning: 4,
+                    capo: 2,
+                    instrument: 0,
+                    technique: 1,
+                    positionMiss: 8,
+                    earlyCover: 2,
+                    earlyInstrumental: 2
+                }
+            }
+        });
+
+        const result = generateSetlist(songs, config, deterministicOptions({
+            count: allowedInstruments.length,
+            show: {
+                members: {
+                    nick: {
+                        allowedInstruments,
+                        minSongsPerInstrument: 1
+                    }
+                }
+            }
+        }));
+
+        expect(result.songs).toHaveLength(allowedInstruments.length);
+        expect(result.summary.minimumsRelaxed).toBe(true);
+    });
 });
 
 
@@ -602,6 +830,81 @@ describe("generateSetlist — minSongsPerTuning", () => {
             if (standardCount >= 2 && dadgadCount >= 2) bothMet++;
         }
         expect(bothMet).toBeGreaterThanOrEqual(7);
+    });
+
+    it("treats tuning minimums as hard when a satisfying set exists", () => {
+        const songs = scarceTuningCatalog();
+        const config = makeConfig();
+        const opts = deterministicOptions({
+            count: 4,
+            show: {
+                members: {
+                    nick: {
+                        allowedTunings: { guitar: ["Standard", "DADGAD"] },
+                        minSongsPerTuning: { guitar: 2 }
+                    }
+                }
+            }
+        });
+
+        for (let seed = 1; seed <= 10; seed++) {
+            const result = generateSetlist(songs, config, { ...opts, seed });
+            const counts = result.songs.reduce((acc, song) => {
+                const tuning = song.performance.nick?.tuning;
+                acc[tuning] = (acc[tuning] || 0) + 1;
+                return acc;
+            }, {});
+
+            expect(counts.Standard).toBe(2);
+            expect(counts.DADGAD).toBe(2);
+            expect(result.summary.minimumsRelaxed).toBe(false);
+        }
+    });
+});
+
+describe("generateSetlist — chaos slider anxiety bias", () => {
+    it("keeps low chaos calmer and high chaos much more anxious on a transition-heavy catalog", () => {
+        const songs = anxietyPressureCatalog();
+        const config = makeConfig();
+        const seeds = [1, 2, 3, 4, 5, 6];
+        const lowScores = [];
+        const highScores = [];
+
+        for (const seed of seeds) {
+            const low = generateSetlist(songs, config, deterministicOptions({
+                count: songs.length,
+                seed,
+                randomness: {
+                    shuffleCatalog: false,
+                    songBias: 0,
+                    variantJitter: 0,
+                    stateJitter: 0,
+                    temperature: 0.3,
+                    finalChoicePool: 1
+                }
+            }));
+            const high = generateSetlist(songs, config, deterministicOptions({
+                count: songs.length,
+                seed,
+                randomness: {
+                    shuffleCatalog: false,
+                    songBias: 0,
+                    variantJitter: 0,
+                    stateJitter: 0,
+                    temperature: 2.0,
+                    finalChoicePool: 1
+                }
+            }));
+
+            lowScores.push(low.summary.anxiety.scaled);
+            highScores.push(high.summary.anxiety.scaled);
+        }
+
+        const average = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
+
+        expect(average(lowScores)).toBeLessThanOrEqual(3);
+        expect(average(highScores)).toBeGreaterThanOrEqual(7);
+        expect(Math.min(...highScores)).toBeGreaterThan(Math.max(...lowScores));
     });
 });
 
