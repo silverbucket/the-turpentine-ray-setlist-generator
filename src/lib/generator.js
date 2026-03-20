@@ -581,7 +581,7 @@ class SetList {
         return false;
     }
 
-    _scoreMinimumPenalty(state, songId, position, usageCounts, remainingPotentialCounts) {
+    _scoreMinimumPenalty(state, songId, position, usageCounts, remainingPotentialCounts, remainingGroupCapabilitiesById = null) {
         const remainingSlots = this._count - position;
         let penalty = 0;
 
@@ -622,10 +622,14 @@ class SetList {
                 const usageBucket = "tuning" in constraint ? usageCounts.tunings : usageCounts.instruments;
                 return Math.max(0, constraint.min - (usageBucket[key] || 0));
             });
+            const totalNeeded = deficits.reduce((sum, deficit) => sum + deficit, 0);
+            if (!totalNeeded) {
+                continue;
+            }
 
             if (!this._canSatisfyGroupDeficits(
                 deficits,
-                this._remainingGroupCapabilities(state, songId, group.id),
+                remainingGroupCapabilitiesById?.[group.id] ?? this._remainingGroupCapabilities(state, songId, group.id),
                 remainingSlots
             )) {
                 return Infinity;
@@ -1017,6 +1021,7 @@ class SetList {
 
         const variants = this._variantCache.get(song.id);
         const nextRemainingPotentialCounts = this._consumeRemainingPotentialCounts(state.remainingPotentialCounts, song.id);
+        let remainingGroupCapabilitiesById = null;
         for (let vi = 0; vi < variants.length; vi++) {
             const variant = variants[vi];
             const propTransition = this._scoreConfiguredPropsLite(prevItem, variant);
@@ -1026,7 +1031,21 @@ class SetList {
 
             const nextPropState = this._advancePropState(state, propTransition.changes, prevItem);
             const nextUsageCounts = this._updateUsageCounts(state.usageCounts, variant);
-            const minimumPenalty = this._scoreMinimumPenalty(state, song.id, position, nextUsageCounts, nextRemainingPotentialCounts);
+            if (!remainingGroupCapabilitiesById && this._minimumGroups.length) {
+                remainingGroupCapabilitiesById = Object.create(null);
+                for (let groupIndex = 0; groupIndex < this._minimumGroups.length; groupIndex += 1) {
+                    const group = this._minimumGroups[groupIndex];
+                    remainingGroupCapabilitiesById[group.id] = this._remainingGroupCapabilities(state, song.id, group.id);
+                }
+            }
+            const minimumPenalty = this._scoreMinimumPenalty(
+                state,
+                song.id,
+                position,
+                nextUsageCounts,
+                nextRemainingPotentialCounts,
+                remainingGroupCapabilitiesById
+            );
 
             const positionScore = this._scorePositionLite(variant, position);
             const transitionScore = propTransition.score;
