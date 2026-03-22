@@ -256,6 +256,13 @@
           </div>
         </div>
 
+        <div class="toggle-row">
+          <ChipToggle
+            checked={store.generationOptions.keyFlow}
+            onchange={(e) => store.updateGenerationField("keyFlow", e.currentTarget.checked)}
+          >Smooth key flow</ChipToggle>
+        </div>
+
         <label class="adv-field">
           <span>Seed <span class="field-hint">(leave 0 for random)</span></span>
           <input

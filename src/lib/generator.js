@@ -1,4 +1,5 @@
 import { deepMerge, toArray } from "./utils.js";
+import { keyDistance, fifthsDirection } from "./keys.js";
 import { computeAnxiety, scoreAnxietyPressure } from "./anxiety.js";
 import {
     normalizeValue,
@@ -216,6 +217,7 @@ class SetList {
         this._propConfig = this._config.props || {};
         this._weights = merge(DEFAULT_WEIGHTS, this._config.general?.weighting || {});
         this._options = this._normalizeOptions(options);
+        this._keyFlowEnabled = Boolean(this._options.keyFlow);
         this._show = deepMerge(this._config.show || {}, this._options.show || {});
         this._seed = this._normalizeSeed(this._options.seed);
         this._rng = createRng(this._seed);
@@ -325,6 +327,29 @@ class SetList {
         }
 
         return -(pressure.weightedScore + 1.5) * centeredChaos;
+    }
+
+    _scoreKeyFlow(prevItem, nextVariant, prevDir) {
+        if (!this._keyFlowEnabled || !prevItem) return { score: 0, dir: prevDir };
+        const dist = keyDistance(prevItem.key, nextVariant.key);
+        if (dist === null) return { score: 0, dir: prevDir };
+
+        const weight = this._weights.keyFlow ?? 2;
+        let score = dist * weight;
+
+        // Penalize direction reversals on the circle of fifths
+        const dir = fifthsDirection(prevItem.key, nextVariant.key);
+        if (dir !== null && dir !== 0 && prevDir !== 0) {
+            const prevSign = prevDir > 0 ? 1 : -1;
+            const currSign = dir > 0 ? 1 : -1;
+            if (prevSign !== currSign) {
+                // Reversal penalty scales with the weight
+                score += weight * 1.5;
+            }
+        }
+
+        const nextDir = (dir !== null && dir !== 0) ? dir : prevDir;
+        return { score, dir: nextDir };
     }
 
     /**
@@ -658,7 +683,8 @@ class SetList {
             remainingPotentialCounts: {
                 instruments: { ...(this._minimumPotentialTotals?.instruments || {}) },
                 tunings: { ...(this._minimumPotentialTotals?.tunings || {}) }
-            }
+            },
+            keyFifthsDir: 0
         };
     }
 
@@ -915,7 +941,8 @@ class SetList {
             const nextPropState = this._advancePropState(state, propTransition.changes, prevItem);
             const positionScore = this._scorePosition(variant, position);
             const transitionScore = propTransition.score;
-            const incrementalScore = transitionScore + positionScore.score + this._songBias(variant.id);
+            const keyFlow = this._scoreKeyFlow(prevItem, variant, state.keyFifthsDir);
+            const incrementalScore = transitionScore + positionScore.score + this._songBias(variant.id) + keyFlow.score;
 
             const finalized = {
                 id: variant.id,
@@ -943,7 +970,8 @@ class SetList {
                 instrumentalCount: state.instrumentalCount + Number(Boolean(variant.instrumental)),
                 propChangeCounts: nextPropState.propChangeCounts,
                 propStreaks: nextPropState.propStreaks,
-                changeTotals: nextPropState.changeTotals
+                changeTotals: nextPropState.changeTotals,
+                keyFifthsDir: keyFlow.dir
             };
         });
 
@@ -1001,7 +1029,8 @@ class SetList {
                 propStreaks: variantState.propStreaks,
                 changeTotals: variantState.changeTotals,
                 usageCounts: variantState.usageCounts,
-                remainingPotentialCounts: variantState.remainingPotentialCounts
+                remainingPotentialCounts: variantState.remainingPotentialCounts,
+                keyFifthsDir: variantState.keyFifthsDir ?? 0
             };
         };
 
@@ -1050,10 +1079,11 @@ class SetList {
             const positionScore = this._scorePositionLite(variant, position);
             const transitionScore = propTransition.score;
             const chaosAdjustment = this._chaosAdjustment(prevItem, variant);
+            const keyFlow = this._scoreKeyFlow(prevItem, variant, state.keyFifthsDir);
 
             if (minimumPenalty === Infinity) {
                 // Track as fallback in case all variants are impossible
-                const fbScore = transitionScore + positionScore + this._songBias(variant.id) + chaosAdjustment;
+                const fbScore = transitionScore + positionScore + this._songBias(variant.id) + chaosAdjustment + keyFlow.score;
                 if (fbScore < fallbackScore) {
                     fallbackScore = fbScore;
                     fallback = {
@@ -1063,13 +1093,14 @@ class SetList {
                         usageCounts: nextUsageCounts,
                         remainingPotentialCounts: nextRemainingPotentialCounts,
                         incrementalScore: fbScore,
+                        keyFifthsDir: keyFlow.dir,
                         item: variant
                     };
                 }
                 continue;
             }
 
-            const incrementalScore = transitionScore + positionScore + this._songBias(variant.id) + minimumPenalty + chaosAdjustment;
+            const incrementalScore = transitionScore + positionScore + this._songBias(variant.id) + minimumPenalty + chaosAdjustment + keyFlow.score;
             const exploratoryScore = incrementalScore + this._randomJitter(this._randomness.variantJitter);
 
             if (exploratoryScore < bestScore) {
@@ -1081,6 +1112,7 @@ class SetList {
                     usageCounts: nextUsageCounts,
                     remainingPotentialCounts: nextRemainingPotentialCounts,
                     incrementalScore,
+                    keyFifthsDir: keyFlow.dir,
                     item: variant
                 };
             }

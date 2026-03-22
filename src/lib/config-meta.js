@@ -47,6 +47,14 @@ export const CONFIG_SECTIONS = [
                 min: 0,
                 max: 50,
                 description: "How much to avoid switching playing technique (e.g. fingerpicks to clawhammer) between songs."
+            },
+            {
+                path: "general.weighting.keyFlow",
+                label: "Key distance",
+                type: "number",
+                min: 0,
+                max: 50,
+                description: "How much to prefer smooth key transitions between songs (circle of fifths proximity). Only applies when 'Smooth key flow' is enabled on the roll screen."
             }
         ]
     },

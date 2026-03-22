@@ -108,6 +108,7 @@ export function createAppStore(repo) {
             beamWidth: source.general?.beamWidth || 20,
             maxCovers: source.general?.limits?.covers || 0,
             maxInstrumentals: source.general?.limits?.instrumentals || 0,
+            keyFlow: false,
             seed: "",
             randomness: {
                 temperature: source.general?.randomness?.temperature || 0.85,
