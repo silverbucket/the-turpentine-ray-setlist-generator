@@ -395,6 +395,12 @@
         {/each}
       </div>
 
+      <div class="roadie-score">
+        <span class="roadie-label">Bass Player Anxiety</span>
+        <span class="roadie-val">{anxietyLevel.scaled}/10</span>
+        <p class="roadie-hint">{anxietyLevel.label}</p>
+      </div>
+
       <div class="setlist-actions">
         <button class="save-set-btn add-song-btn" onclick={() => { showAddSongPicker = true; }}>+ Add song</button>
         {#if store.setlistLocked}
@@ -409,11 +415,6 @@
         {/if}
       </div>
 
-      <div class="roadie-score">
-        <span class="roadie-label">Bass Player Anxiety</span>
-        <span class="roadie-val">{anxietyLevel.scaled}/10</span>
-        <p class="roadie-hint">{anxietyLevel.label}</p>
-      </div>
     </section>
   {/if}
 
@@ -988,13 +989,13 @@
   }
 
   .roadie-label {
-    font-size: 0.72rem;
+    font-size: 0.90rem;
     font-weight: 700;
-    color: var(--muted, #8a95a5);
+    color: var(--muted, #575d67);
   }
 
   .roadie-val {
-    font-size: 0.82rem;
+    font-size: 1rem;
     font-weight: 800;
     color: var(--ink, #182230);
   }
@@ -1002,9 +1003,9 @@
   .roadie-hint {
     flex-basis: 100%;
     margin: 0;
-    font-size: 0.68rem;
+    font-size: 0.82rem;
     line-height: 1.35;
-    color: var(--muted, #8a95a5);
+    color: var(--muted, #575d67);
   }
 
   .song-list {
