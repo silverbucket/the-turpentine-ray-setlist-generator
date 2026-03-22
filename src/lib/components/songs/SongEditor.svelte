@@ -2,8 +2,10 @@
     import { getContext } from "svelte";
     import ChipToggle from "../shared/ChipToggle.svelte";
     import NumberStepper from "../shared/NumberStepper.svelte";
+    import { MAJOR_KEYS, MINOR_KEYS, ALL_KEYS } from "../../keys.js";
 
     const store = getContext("app");
+    let isNonCanonicalKey = $derived(store.editorSong?.key && !ALL_KEYS.includes(store.editorSong.key));
 
     let expandedMember = $state("");
     let confirmingDelete = $state(false);
@@ -204,12 +206,26 @@
 
             <label class="field">
                 <span class="field-label">Key</span>
-                <input
+                <select
                     class="field-input"
                     value={store.editorSong.key}
-                    placeholder="e.g. G, Am, Bb"
-                    oninput={(e) => store.updateSongField("key", e.currentTarget.value)}
-                />
+                    onchange={(e) => store.updateSongField("key", e.currentTarget.value)}
+                >
+                    <option value="">None</option>
+                    {#if isNonCanonicalKey}
+                        <option value={store.editorSong.key}>{store.editorSong.key} (custom)</option>
+                    {/if}
+                    <optgroup label="Major">
+                        {#each MAJOR_KEYS as k}
+                            <option value={k}>{k}</option>
+                        {/each}
+                    </optgroup>
+                    <optgroup label="Minor">
+                        {#each MINOR_KEYS as k}
+                            <option value={k}>{k}</option>
+                        {/each}
+                    </optgroup>
+                </select>
             </label>
 
             <div class="toggle-row">

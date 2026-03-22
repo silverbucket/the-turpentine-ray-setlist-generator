@@ -30,6 +30,7 @@ const DEFAULT_CONFIG_TEMPLATE = {
             capo: 2,
             instrument: 3,
             technique: 1,
+            keyFlow: 2,
             positionMiss: 8,
             earlyCover: 2,
             earlyInstrumental: 2

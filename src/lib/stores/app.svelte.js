@@ -108,6 +108,7 @@ export function createAppStore(repo) {
             beamWidth: source.general?.beamWidth || 20,
             maxCovers: source.general?.limits?.covers || 0,
             maxInstrumentals: source.general?.limits?.instrumentals || 0,
+            keyFlow: false,
             seed: "",
             randomness: {
                 temperature: source.general?.randomness?.temperature || 0.85,
@@ -656,7 +657,7 @@ export function createAppStore(repo) {
         const songList = clone(generatedSetlist.songs);
         const [moved] = songList.splice(fromIndex, 1);
         songList.splice(toIndex, 0, moved);
-        const rescored = scoreFixedOrder(songList, appConfig);
+        const rescored = scoreFixedOrder(songList, appConfig, { keyFlow: generationOptions.keyFlow });
         generatedSetlist = { ...generatedSetlist, songs: rescored.songs, summary: rescored.summary, _reordered: true };
         setlistSaved = false;
         persistCurrentSetlist();
@@ -673,7 +674,7 @@ export function createAppStore(repo) {
             persistCurrentSetlist();
             return;
         }
-        const rescored = scoreFixedOrder(songList, appConfig);
+        const rescored = scoreFixedOrder(songList, appConfig, { keyFlow: generationOptions.keyFlow });
         generatedSetlist = { ...generatedSetlist, songs: rescored.songs, summary: rescored.summary };
         setlistSaved = false;
         persistCurrentSetlist();
@@ -700,7 +701,7 @@ export function createAppStore(repo) {
             positionNotes: [],
             contextNotes: [],
         });
-        const rescored = scoreFixedOrder(songList, appConfig);
+        const rescored = scoreFixedOrder(songList, appConfig, { keyFlow: generationOptions.keyFlow });
         generatedSetlist = { ...generatedSetlist, songs: rescored.songs, summary: rescored.summary };
         setlistSaved = false;
         persistCurrentSetlist();
