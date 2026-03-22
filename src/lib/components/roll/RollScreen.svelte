@@ -995,7 +995,7 @@
   }
 
   .roadie-val {
-    font-size: 1rem;
+    font-size: 0.90rem;
     font-weight: 800;
     color: var(--ink, #182230);
   }
@@ -1003,7 +1003,7 @@
   .roadie-hint {
     flex-basis: 100%;
     margin: 0;
-    font-size: 0.82rem;
+    font-size: 0.85rem;
     line-height: 1.35;
     color: var(--muted, #575d67);
   }
