@@ -1362,10 +1362,11 @@ export function generateSetlist(songs, config, options = {}) {
     return generator.toJSON();
 }
 
-export function scoreFixedOrder(fixedSongs, config) {
+export function scoreFixedOrder(fixedSongs, config, options = {}) {
     const weights = Object.assign({}, DEFAULT_WEIGHTS, config?.general?.weighting || {});
     const propNames = Object.keys(config?.props || {});
     const propConfig = config?.props || {};
+    const keyFlowEnabled = Boolean(options.keyFlow);
 
     function getPropWeight(propName) {
         const rule = propConfig[propName] || {};
@@ -1409,16 +1410,40 @@ export function scoreFixedOrder(fixedSongs, config) {
         return { score, notes, changes };
     }
 
+    function scoreKeyFlowTransition(prevItem, nextItem, prevDir) {
+        if (!keyFlowEnabled || !prevItem) return { score: 0, dir: prevDir };
+        const dist = keyDistance(prevItem.key, nextItem.key);
+        if (dist === null) return { score: 0, dir: prevDir };
+
+        const weight = weights.keyFlow ?? 2;
+        let score = dist * weight;
+
+        const dir = fifthsDirection(prevItem.key, nextItem.key);
+        if (dir !== null && dir !== 0 && prevDir !== 0) {
+            const prevSign = prevDir > 0 ? 1 : -1;
+            const currSign = dir > 0 ? 1 : -1;
+            if (prevSign !== currSign) {
+                score += weight * 1.5;
+            }
+        }
+
+        const nextDir = (dir !== null && dir !== 0) ? dir : prevDir;
+        return { score, dir: nextDir };
+    }
+
     const items = [];
     let totalScore = 0;
     let coverCount = 0;
     let instrumentalCount = 0;
+    let keyDir = 0;
 
     fixedSongs.forEach((song, index) => {
         const prevItem = items[items.length - 1] || null;
         const propTransition = scorePropTransition(prevItem, song);
+        const keyFlow = scoreKeyFlowTransition(prevItem, song, keyDir);
+        keyDir = keyFlow.dir;
 
-        const incrementalScore = propTransition.score;
+        const incrementalScore = propTransition.score + keyFlow.score;
         totalScore += incrementalScore;
         coverCount += Number(Boolean(song.cover));
         instrumentalCount += Number(Boolean(song.instrumental));

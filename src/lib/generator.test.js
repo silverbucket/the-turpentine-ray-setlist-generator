@@ -15,7 +15,7 @@ function makeSong(name, opts = {}) {
         notGoodOpener: opts.notGoodOpener || false,
         notGoodCloser: opts.notGoodCloser || false,
         unpracticed: false,
-        key: opts.key || "G",
+        key: opts.key ?? "G",
         schemaVersion: 1,
         createdAt: "2025-01-01T00:00:00Z",
         updatedAt: "2025-01-01T00:00:00Z",
@@ -977,6 +977,19 @@ describe("scoreFixedOrder", () => {
         // nick reappears in song 3
         expect(result.songs[2].propChanges.instruments.changed).toBe(true);
     });
+
+    it("includes key flow scoring when options.keyFlow is true", () => {
+        const perf = { nick: { instrument: "guitar", tuning: "Standard", capo: 0, picking: [] } };
+        const songs = [
+            { id: "1", name: "A", key: "C", performance: perf },
+            { id: "2", name: "B", key: "F#", performance: perf }
+        ];
+        const withFlow = scoreFixedOrder(songs, config, { keyFlow: true });
+        const withoutFlow = scoreFixedOrder(songs, config, { keyFlow: false });
+
+        // Key flow should add penalty for distant keys (C to F# = tritone = distance 6)
+        expect(withFlow.summary.score).toBeGreaterThan(withoutFlow.summary.score);
+    });
 });
 
 
@@ -1176,26 +1189,25 @@ describe("generateSetlist — key flow", () => {
 
     it("penalizes direction reversals on the circle of fifths", () => {
         const members = { alice: { instruments: [{ name: "guitar", tuning: ["Standard"], capo: 0, picking: ["flatpick"] }] } };
+        const perf = { alice: { instrument: "guitar", tuning: "Standard", capo: 0, picking: "flatpick" } };
         // Progressive: C → G → D → A (all clockwise on circle of fifths)
         const progressive = [
-            makeSong("S1", { key: "C", members }),
-            makeSong("S2", { key: "G", members }),
-            makeSong("S3", { key: "D", members }),
-            makeSong("S4", { key: "A", members }),
+            { ...makeSong("S1", { key: "C", members }), performance: perf },
+            { ...makeSong("S2", { key: "G", members }), performance: perf },
+            { ...makeSong("S3", { key: "D", members }), performance: perf },
+            { ...makeSong("S4", { key: "A", members }), performance: perf },
         ];
         // Zigzag: C → G → F → D (reverses direction: clockwise then counterclockwise then clockwise)
         const zigzag = [
-            makeSong("S1", { key: "C", members }),
-            makeSong("S2", { key: "G", members }),
-            makeSong("S3", { key: "F", members }),
-            makeSong("S4", { key: "D", members }),
+            { ...makeSong("S1", { key: "C", members }), performance: perf },
+            { ...makeSong("S2", { key: "G", members }), performance: perf },
+            { ...makeSong("S3", { key: "F", members }), performance: perf },
+            { ...makeSong("S4", { key: "D", members }), performance: perf },
         ];
         const config = makeConfig({ general: { count: 4, weighting: { keyFlow: 4 } } });
-        const ids = ["s1", "s2", "s3", "s4"];
-        const opts = { seed: 42, keyFlow: true, count: 4, fixedSongIds: ids };
 
-        const progResult = generateSetlist(progressive, config, opts);
-        const zigResult = generateSetlist(zigzag, config, opts);
+        const progResult = scoreFixedOrder(progressive, config, { keyFlow: true });
+        const zigResult = scoreFixedOrder(zigzag, config, { keyFlow: true });
 
         // Progressive should score lower (better) than zigzag due to no direction reversals
         expect(progResult.summary.score).toBeLessThan(zigResult.summary.score);

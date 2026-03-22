@@ -2,9 +2,10 @@
     import { getContext } from "svelte";
     import ChipToggle from "../shared/ChipToggle.svelte";
     import NumberStepper from "../shared/NumberStepper.svelte";
-    import { MAJOR_KEYS, MINOR_KEYS } from "../../keys.js";
+    import { MAJOR_KEYS, MINOR_KEYS, ALL_KEYS } from "../../keys.js";
 
     const store = getContext("app");
+    let isNonCanonicalKey = $derived(store.editorSong?.key && !ALL_KEYS.includes(store.editorSong.key));
 
     let expandedMember = $state("");
     let confirmingDelete = $state(false);
@@ -211,6 +212,9 @@
                     onchange={(e) => store.updateSongField("key", e.currentTarget.value)}
                 >
                     <option value="">None</option>
+                    {#if isNonCanonicalKey}
+                        <option value={store.editorSong.key}>{store.editorSong.key} (custom)</option>
+                    {/if}
                     <optgroup label="Major">
                         {#each MAJOR_KEYS as k}
                             <option value={k}>{k}</option>
