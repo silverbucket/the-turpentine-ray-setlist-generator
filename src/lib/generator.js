@@ -1,5 +1,5 @@
 import { deepMerge, toArray } from "./utils.js";
-import { keyDistance, fifthsDirection } from "./keys.js";
+import { scoreKeyTransition } from "./keys.js";
 import { computeAnxiety, scoreAnxietyPressure } from "./anxiety.js";
 import {
     normalizeValue,
@@ -331,25 +331,7 @@ class SetList {
 
     _scoreKeyFlow(prevItem, nextVariant, prevDir) {
         if (!this._keyFlowEnabled || !prevItem) return { score: 0, dir: prevDir };
-        const dist = keyDistance(prevItem.key, nextVariant.key);
-        if (dist === null) return { score: 0, dir: prevDir };
-
-        const weight = this._weights.keyFlow ?? 2;
-        let score = dist * weight;
-
-        // Penalize direction reversals on the circle of fifths
-        const dir = fifthsDirection(prevItem.key, nextVariant.key);
-        if (dir !== null && dir !== 0 && prevDir !== 0) {
-            const prevSign = prevDir > 0 ? 1 : -1;
-            const currSign = dir > 0 ? 1 : -1;
-            if (prevSign !== currSign) {
-                // Reversal penalty scales with the weight
-                score += weight * 1.5;
-            }
-        }
-
-        const nextDir = (dir !== null && dir !== 0) ? dir : prevDir;
-        return { score, dir: nextDir };
+        return scoreKeyTransition(prevItem.key, nextVariant.key, prevDir, this._weights.keyFlow ?? 2);
     }
 
     /**
@@ -1410,26 +1392,7 @@ export function scoreFixedOrder(fixedSongs, config, options = {}) {
         return { score, notes, changes };
     }
 
-    function scoreKeyFlowTransition(prevItem, nextItem, prevDir) {
-        if (!keyFlowEnabled || !prevItem) return { score: 0, dir: prevDir };
-        const dist = keyDistance(prevItem.key, nextItem.key);
-        if (dist === null) return { score: 0, dir: prevDir };
-
-        const weight = weights.keyFlow ?? 2;
-        let score = dist * weight;
-
-        const dir = fifthsDirection(prevItem.key, nextItem.key);
-        if (dir !== null && dir !== 0 && prevDir !== 0) {
-            const prevSign = prevDir > 0 ? 1 : -1;
-            const currSign = dir > 0 ? 1 : -1;
-            if (prevSign !== currSign) {
-                score += weight * 1.5;
-            }
-        }
-
-        const nextDir = (dir !== null && dir !== 0) ? dir : prevDir;
-        return { score, dir: nextDir };
-    }
+    const keyFlowWeight = weights.keyFlow ?? 2;
 
     const items = [];
     let totalScore = 0;
@@ -1440,7 +1403,9 @@ export function scoreFixedOrder(fixedSongs, config, options = {}) {
     fixedSongs.forEach((song, index) => {
         const prevItem = items[items.length - 1] || null;
         const propTransition = scorePropTransition(prevItem, song);
-        const keyFlow = scoreKeyFlowTransition(prevItem, song, keyDir);
+        const keyFlow = (keyFlowEnabled && prevItem)
+            ? scoreKeyTransition(prevItem.key, song.key, keyDir, keyFlowWeight)
+            : { score: 0, dir: keyDir };
         keyDir = keyFlow.dir;
 
         const incrementalScore = propTransition.score + keyFlow.score;

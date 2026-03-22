@@ -56,6 +56,7 @@ export function fifthsPosition(keyStr) {
 /**
  * Returns the signed shortest direction on the circle of fifths from keyA to keyB.
  * Positive = clockwise (sharps direction), negative = counterclockwise (flats direction).
+ * Range is [-6, 5]; the tritone (6 steps) always returns -6 since both directions are equal.
  * Returns 0 for same position, null if either key is invalid.
  */
 export function fifthsDirection(keyA, keyB) {
@@ -85,4 +86,34 @@ export function keyDistance(keyA, keyB) {
 
     const diff = ((aPitch - bPitch) % 12 + 12) % 12;
     return FIFTHS_DISTANCE[diff];
+}
+
+/**
+ * Score a key transition between two items for setlist optimization.
+ * Returns { score, dir } where score is the penalty and dir is the
+ * updated fifths direction for tracking progression.
+ *
+ * @param {string|null} prevKey - key of the previous song
+ * @param {string|null} nextKey - key of the next song
+ * @param {number} prevDir - direction from the previous transition (0 if none)
+ * @param {number} weight - key flow weight (penalty multiplier)
+ * @returns {{ score: number, dir: number }}
+ */
+export function scoreKeyTransition(prevKey, nextKey, prevDir, weight) {
+    const dist = keyDistance(prevKey, nextKey);
+    if (dist === null) return { score: 0, dir: prevDir };
+
+    let score = dist * weight;
+
+    const dir = fifthsDirection(prevKey, nextKey);
+    if (dir !== null && dir !== 0 && prevDir !== 0) {
+        const prevSign = prevDir > 0 ? 1 : -1;
+        const currSign = dir > 0 ? 1 : -1;
+        if (prevSign !== currSign) {
+            score += weight * 1.5;
+        }
+    }
+
+    const nextDir = (dir !== null && dir !== 0) ? dir : prevDir;
+    return { score, dir: nextDir };
 }

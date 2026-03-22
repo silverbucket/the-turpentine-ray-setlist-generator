@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseKey, keyDistance, fifthsPosition, fifthsDirection, MAJOR_KEYS, MINOR_KEYS, ALL_KEYS } from "./keys.js";
+import { parseKey, keyDistance, fifthsPosition, fifthsDirection, scoreKeyTransition, MAJOR_KEYS, MINOR_KEYS, ALL_KEYS } from "./keys.js";
 
 describe("parseKey", () => {
     it("parses major keys", () => {
@@ -138,9 +138,10 @@ describe("fifthsDirection", () => {
         expect(fifthsDirection("Am", "C")).toBe(0); // relative major/minor
     });
 
-    it("takes shortest path (max ±6)", () => {
-        // C to F# = ±6 (tritone, equidistant)
-        expect(Math.abs(fifthsDirection("C", "F#"))).toBe(6);
+    it("takes shortest path, tritone always returns -6", () => {
+        // C to F# = tritone, both directions equal, always returns -6
+        expect(fifthsDirection("C", "F#")).toBe(-6);
+        expect(fifthsDirection("C", "Gb")).toBe(-6);
     });
 
     it("is antisymmetric (except tritone)", () => {
@@ -153,6 +154,34 @@ describe("fifthsDirection", () => {
     it("returns null for invalid keys", () => {
         expect(fifthsDirection("C", "")).toBeNull();
         expect(fifthsDirection("", "G")).toBeNull();
+    });
+});
+
+describe("scoreKeyTransition", () => {
+    it("returns zero score for null keys", () => {
+        expect(scoreKeyTransition("C", "", 0, 2)).toEqual({ score: 0, dir: 0 });
+        expect(scoreKeyTransition("", "G", 0, 2)).toEqual({ score: 0, dir: 0 });
+    });
+
+    it("scores based on distance times weight", () => {
+        // C to G = distance 1, weight 4 → score 4
+        const result = scoreKeyTransition("C", "G", 0, 4);
+        expect(result.score).toBe(4);
+        expect(result.dir).toBe(1); // clockwise
+    });
+
+    it("adds reversal penalty when direction flips", () => {
+        // Both G→D and G→C are 1 fifth apart (distance 1), but G→C reverses direction
+        const noReversal = scoreKeyTransition("G", "D", 1, 4); // continues clockwise, dist 1
+        const reversal = scoreKeyTransition("G", "C", 1, 4);   // reverses counterclockwise, dist 1
+        // Same distance, so the difference is purely the reversal penalty (weight * 1.5 = 6)
+        expect(reversal.score - noReversal.score).toBe(6);
+    });
+
+    it("preserves previous direction when current keys are the same", () => {
+        const result = scoreKeyTransition("C", "Am", 3, 2); // relative major/minor = distance 0
+        expect(result.score).toBe(0);
+        expect(result.dir).toBe(3); // preserved
     });
 });
 
