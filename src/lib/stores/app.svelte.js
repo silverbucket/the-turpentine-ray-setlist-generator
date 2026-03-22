@@ -657,6 +657,7 @@ export function createAppStore(repo) {
         songList.splice(toIndex, 0, moved);
         const rescored = scoreFixedOrder(songList, appConfig);
         generatedSetlist = { ...generatedSetlist, songs: rescored.songs, summary: rescored.summary, _reordered: true };
+        setlistSaved = false;
         persistCurrentSetlist();
     }
 
