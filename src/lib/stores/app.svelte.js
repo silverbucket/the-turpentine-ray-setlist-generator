@@ -646,6 +646,7 @@ export function createAppStore(repo) {
             seed: saved.seed,
         };
         setlistLocked = true;
+        setlistSaved = true;
         persistCurrentSetlist();
         addToast(`Loaded ${saved.songs?.length || 0}-song set.`);
     }
