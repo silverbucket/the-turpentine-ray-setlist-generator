@@ -100,7 +100,7 @@
         </div>
       {/if}
 
-      {#if song.notes}
+      {#if song.notes?.trim()}
         <div class="song-notes">{song.notes}</div>
       {/if}
     </div>

@@ -1213,3 +1213,32 @@ describe("generateSetlist — key flow", () => {
         expect(progResult.summary.score).toBeLessThan(zigResult.summary.score);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Notes pass-through
+// ---------------------------------------------------------------------------
+describe("notes field", () => {
+    it("round-trips through generateSetlist", () => {
+        const songs = simpleCatalog(5);
+        songs[0].notes = "Start with a bang";
+        songs[2].notes = "Slow it down here";
+        const config = makeConfig({ general: { count: 5 } });
+        const result = generateSetlist(songs, config, deterministicOptions({ count: 5 }));
+        const withNotes = result.songs.filter(s => s.notes);
+        expect(withNotes.length).toBe(2);
+        expect(result.songs.find(s => s.name === "Song 1").notes).toBe("Start with a bang");
+        expect(result.songs.find(s => s.name === "Song 3").notes).toBe("Slow it down here");
+    });
+
+    it("round-trips through scoreFixedOrder", () => {
+        const songs = simpleCatalog(3).map((s, i) => ({
+            ...s,
+            notes: i === 1 ? "Middle note" : "",
+            performance: {}
+        }));
+        const config = makeConfig({ general: { count: 3 } });
+        const result = scoreFixedOrder(songs, config);
+        expect(result.songs[1].notes).toBe("Middle note");
+        expect(result.songs[0].notes).toBe("");
+    });
+});

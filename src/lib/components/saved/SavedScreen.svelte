@@ -257,7 +257,7 @@
                   {/each}
                 </div>
               {/if}
-              {#if song.notes}
+              {#if song.notes?.trim()}
                 <div class="print-notes">{song.notes}</div>
               {/if}
             </div>
