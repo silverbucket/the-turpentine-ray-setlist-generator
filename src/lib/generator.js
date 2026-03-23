@@ -203,6 +203,7 @@ class SongsCatalog {
             notGoodOpener: Boolean(song.notGoodOpener),
             notGoodCloser: Boolean(song.notGoodCloser),
             key: song.key || null,
+            notes: song.notes || "",
             performance
         };
     }
@@ -916,6 +917,7 @@ class SetList {
                 cover: item.cover,
                 instrumental: item.instrumental,
                 key: item.key,
+                notes: item.notes || "",
                 performance: item.performance
             };
             const prevItem = finalizedItems[finalizedItems.length - 1] || null;
@@ -932,6 +934,7 @@ class SetList {
                 cover: variant.cover,
                 instrumental: variant.instrumental,
                 key: variant.key,
+                notes: variant.notes,
                 performance: variant.performance,
                 position,
                 incrementalScore,
@@ -1419,6 +1422,7 @@ export function scoreFixedOrder(fixedSongs, config, options = {}) {
             cover: song.cover,
             instrumental: song.instrumental,
             key: song.key,
+            notes: song.notes || "",
             performance: song.performance,
             position: index + 1,
             incrementalScore,

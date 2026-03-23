@@ -99,6 +99,10 @@
           {/each}
         </div>
       {/if}
+
+      {#if song.notes}
+        <div class="song-notes">{song.notes}</div>
+      {/if}
     </div>
   </div>
 
@@ -196,7 +200,7 @@
     display: flex;
     align-items: baseline;
     gap: 0.35rem;
-    font-size: 0.75rem;
+    font-size: 0.85rem;
   }
 
   .change-member {
@@ -216,6 +220,16 @@
 
   .first-song .change-detail {
     color: var(--muted, #8a95a5);
+    font-weight: 500;
+  }
+
+  .song-notes {
+    padding-left: 1.4rem;
+    font-size: 0.85rem;
+    font-style: italic;
+    color: var(--muted, #8a95a5);
+    line-height: 1.45;
+    white-space: pre-line;
     font-weight: 500;
   }
 

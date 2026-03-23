@@ -228,6 +228,16 @@
                 </select>
             </label>
 
+            <label class="field">
+                <span class="field-label">Notes</span>
+                <textarea
+                    class="field-input notes-input"
+                    value={store.editorSong.notes || ""}
+                    placeholder="Anything to remember on stage..."
+                    oninput={(e) => store.updateSongField("notes", e.currentTarget.value)}
+                ></textarea>
+            </label>
+
             <div class="toggle-row">
                 <ChipToggle
                     checked={store.editorSong.cover}
@@ -585,6 +595,13 @@
         font: inherit;
         box-sizing: border-box;
         width: 100%;
+    }
+
+    .notes-input {
+        min-height: 4rem;
+        resize: vertical;
+        line-height: 1.45;
+        font-family: inherit;
     }
 
 .flex-1 {
