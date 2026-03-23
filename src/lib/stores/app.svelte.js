@@ -693,6 +693,7 @@ export function createAppStore(repo) {
             cover: song.cover || false,
             instrumental: song.instrumental || false,
             key: song.key || "",
+            notes: song.notes || "",
             performance,
             position: songList.length + 1,
             incrementalScore: 0,

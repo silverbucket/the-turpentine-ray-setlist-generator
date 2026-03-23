@@ -102,6 +102,7 @@
   .print-change.setup { color: #666; }
   .print-change-member { font-weight: 700; }
   .print-change-detail { font-weight: 500; }
+  .print-notes { padding-left: 2.5rem; padding-top: 2px; font-size: 12pt; font-weight: 500; font-style: italic; color: #666; line-height: 1.45; white-space: pre-line; }
   .print-anxiety { margin-top: 8px; padding-top: 8px; border-top: 2px solid #000; display: flex; align-items: baseline; gap: 5px; font-size: 11pt; }
   .print-anxiety-title { font-weight: 700; }
   .print-anxiety-score { font-weight: 800; }
@@ -255,6 +256,9 @@
                     </div>
                   {/each}
                 </div>
+              {/if}
+              {#if song.notes?.trim()}
+                <div class="print-notes">{song.notes}</div>
               {/if}
             </div>
           {/each}
@@ -618,6 +622,16 @@
     font-weight: 500;
   }
 
+  .print-notes {
+    padding-left: 2rem;
+    padding-top: 0.15rem;
+    font-size: 0.72rem;
+    font-style: italic;
+    color: #666;
+    line-height: 1.45;
+    white-space: pre-line;
+    font-weight: 500;
+  }
 
   .print-anxiety {
     margin-top: 0.5rem;
