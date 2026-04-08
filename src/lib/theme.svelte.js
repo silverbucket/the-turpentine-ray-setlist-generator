@@ -1,3 +1,4 @@
+// SYNC: key + resolution logic duplicated in index.html inline script to avoid FOITC
 const STORAGE_KEY = "setlist-roller-theme";
 const PREFS = ["system", "light", "dark"];
 const mq = window.matchMedia("(prefers-color-scheme: dark)");

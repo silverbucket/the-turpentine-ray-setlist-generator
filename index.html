@@ -9,6 +9,7 @@
     />
     <title>Setlist Roller</title>
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <!-- SYNC: key + resolution logic duplicated from src/lib/theme.svelte.js to avoid FOITC -->
     <script>
       try {
         var p = localStorage.getItem("setlist-roller-theme") || "system";
