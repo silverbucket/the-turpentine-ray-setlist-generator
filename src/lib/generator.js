@@ -19,6 +19,14 @@ function clampInteger(value, fallback, minimum) {
     return Math.max(minimum, parsed);
 }
 
+function normalizeLimitField(value, fallback) {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isNaN(parsed)) {
+        return fallback;
+    }
+    return parsed < 0 ? -1 : parsed;
+}
+
 
 function clampFloat(value, fallback, minimum) {
     const parsed = Number.parseFloat(value);
@@ -263,12 +271,8 @@ class SetList {
 
         normalized.count = clampInteger(normalized.count, this._config.general?.count || 15, 1);
         normalized.beamWidth = clampInteger(normalized.beamWidth, this._config.general?.beamWidth || 20, 1);
-        if (normalized.maxCovers >= 0) {
-            normalized.maxCovers = clampInteger(normalized.maxCovers, limits.covers ?? -1, 0);
-        }
-        if (normalized.maxInstrumentals >= 0) {
-            normalized.maxInstrumentals = clampInteger(normalized.maxInstrumentals, limits.instrumentals ?? -1, 0);
-        }
+        normalized.maxCovers = normalizeLimitField(normalized.maxCovers, limits.covers ?? -1);
+        normalized.maxInstrumentals = normalizeLimitField(normalized.maxInstrumentals, limits.instrumentals ?? -1);
         normalized.show = deepMerge(this._config.show || {}, normalized.show || {});
         return normalized;
     }

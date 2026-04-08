@@ -221,6 +221,7 @@
             <input
               type="number"
               min="0"
+              aria-label="Max covers"
               disabled={store.generationOptions.maxCovers < 0}
               value={store.generationOptions.maxCovers < 0 ? "" : store.generationOptions.maxCovers}
               oninput={(e) => store.updateGenerationField("maxCovers", Number(e.currentTarget.value))}
@@ -229,7 +230,7 @@
               <input
                 type="checkbox"
                 checked={store.generationOptions.maxCovers < 0}
-                onchange={(e) => store.updateGenerationField("maxCovers", e.currentTarget.checked ? -1 : 2)}
+                onchange={(e) => store.updateGenerationField("maxCovers", e.currentTarget.checked ? -1 : (store.appConfig?.general?.limits?.covers ?? 2))}
               />
               <span>No limit</span>
             </label>
@@ -239,6 +240,7 @@
             <input
               type="number"
               min="0"
+              aria-label="Max instrumentals"
               disabled={store.generationOptions.maxInstrumentals < 0}
               value={store.generationOptions.maxInstrumentals < 0 ? "" : store.generationOptions.maxInstrumentals}
               oninput={(e) => store.updateGenerationField("maxInstrumentals", Number(e.currentTarget.value))}
@@ -247,7 +249,7 @@
               <input
                 type="checkbox"
                 checked={store.generationOptions.maxInstrumentals < 0}
-                onchange={(e) => store.updateGenerationField("maxInstrumentals", e.currentTarget.checked ? -1 : 2)}
+                onchange={(e) => store.updateGenerationField("maxInstrumentals", e.currentTarget.checked ? -1 : (store.appConfig?.general?.limits?.instrumentals ?? 2))}
               />
               <span>No limit</span>
             </label>

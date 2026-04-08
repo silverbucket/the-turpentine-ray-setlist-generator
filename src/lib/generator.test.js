@@ -390,6 +390,16 @@ describe("generateSetlist — cover and instrumental limits", () => {
         expect(result.songs.length).toBe(10);
     });
 
+    it("NaN maxCovers falls back to config default", () => {
+        const songs = Array.from({ length: 10 }, (_, i) =>
+            makeSong(`Song ${i + 1}`, { cover: true })
+        );
+        const config = makeConfig({ general: { limits: { covers: 1, instrumentals: -1 } } });
+        const result = generateSetlist(songs, config, deterministicOptions({ count: 10, maxCovers: NaN }));
+        const covers = result.songs.filter(s => s.cover);
+        expect(covers.length).toBeLessThanOrEqual(1);
+    });
+
     it("maxCovers=0 means no covers allowed", () => {
         const songs = [
             ...Array.from({ length: 5 }, (_, i) => makeSong(`Cover ${i + 1}`, { cover: true })),
