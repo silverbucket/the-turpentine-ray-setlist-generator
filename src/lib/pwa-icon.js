@@ -22,16 +22,21 @@ export function generateDieSvgString(color) {
 }
 
 function svgToPngDataUrl(svgString, size) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => {
             const canvas = document.createElement("canvas");
             canvas.width = size;
             canvas.height = size;
             const ctx = canvas.getContext("2d");
+            if (!ctx) {
+                reject(new Error("Failed to get 2d canvas context"));
+                return;
+            }
             ctx.drawImage(img, 0, 0, size, size);
             resolve(canvas.toDataURL("image/png"));
         };
+        img.onerror = () => reject(new Error("Failed to load SVG for PNG conversion"));
         img.src = `data:image/svg+xml,${encodeURIComponent(svgString)}`;
     });
 }
@@ -58,8 +63,10 @@ function upsertMeta(name, content) {
 }
 
 let prevManifestUrl = null;
+let requestId = 0;
 
 export async function updatePwaIcons(dieColor) {
+    const currentRequest = ++requestId;
     const svg = generateDieSvgString(dieColor);
 
     const [png180, png192, png512] = await Promise.all([
@@ -67,6 +74,8 @@ export async function updatePwaIcons(dieColor) {
         svgToPngDataUrl(svg, 192),
         svgToPngDataUrl(svg, 512),
     ]);
+
+    if (currentRequest !== requestId) return;
 
     upsertLink("apple-touch-icon", { href: png180 });
 

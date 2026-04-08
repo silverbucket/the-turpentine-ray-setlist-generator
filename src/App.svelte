@@ -28,7 +28,7 @@
     );
 
     $effect(() => {
-        updatePwaIcons(dieColor);
+        void updatePwaIcons(dieColor).catch((e) => console.error("PWA icon update failed", e));
     });
 </script>
 
