@@ -22,13 +22,12 @@
  */
 
 import {
-    normalizeValue,
-    displayValue,
-    detectInstrumentSetChange,
     detectFieldChange,
-    inferPropKind
+    detectInstrumentSetChange,
+    displayValue,
+    inferPropKind,
+    normalizeValue,
 } from "./detection.js";
-
 
 // ---------------------------------------------------------------------------
 // Per-transition scoring
@@ -76,7 +75,6 @@ function scoreTransition(prevSong, nextSong, propNames, propConfig, weights) {
     return { score, notes, changes };
 }
 
-
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -84,7 +82,7 @@ function scoreTransition(prevSong, nextSong, propNames, propConfig, weights) {
 const DEFAULT_WEIGHTS = {
     positionMiss: 8,
     earlyCover: 6,
-    earlyInstrumental: 4
+    earlyInstrumental: 4,
 };
 
 export const ANXIETY_WEIGHT_EXPONENT = 1.35;
@@ -93,7 +91,7 @@ function anxietyWeightPressure(weight) {
     if (weight <= 0) {
         return 0;
     }
-    return Math.pow(weight, ANXIETY_WEIGHT_EXPONENT);
+    return weight ** ANXIETY_WEIGHT_EXPONENT;
 }
 
 export function scoreAnxietyPressure(prevSong, nextSong, propNames, propConfig, weights) {
@@ -144,7 +142,7 @@ export function scoreAnxietyPressure(prevSong, nextSong, propNames, propConfig, 
     return {
         changed: memberChanges > 0,
         memberChanges,
-        weightedScore
+        weightedScore,
     };
 }
 
@@ -188,7 +186,7 @@ export function computeAnxiety(songs, config) {
             changes: transition.changes,
             notes: transition.notes,
             score: pressure.weightedScore,
-            memberChanges: pressure.memberChanges
+            memberChanges: pressure.memberChanges,
         });
     }
 
@@ -196,7 +194,7 @@ export function computeAnxiety(songs, config) {
     // Using power curve so sparse changes (e.g. 3/14) are meaningfully dampened,
     // while dense disruption (most spots affected) stays close to full weight.
     const spreadRatio = totalTransitions > 0 ? spotsWithChanges / totalTransitions : 0;
-    const adjustedWeighted = totalWeighted * Math.pow(spreadRatio, 0.7);
+    const adjustedWeighted = totalWeighted * spreadRatio ** 0.7;
 
     // Dynamic scale from the band's own weights, with heavier props contributing
     // disproportionately more pressure than lightweight technique changes.
@@ -204,7 +202,7 @@ export function computeAnxiety(songs, config) {
     if (propNames.length > 0) {
         let sumW = 0;
         for (const propName of propNames) {
-            const weightKey = (propConfig[propName] || {}).weightKey || propName;
+            const weightKey = propConfig[propName]?.weightKey || propName;
             sumW += anxietyWeightPressure(weights[weightKey] || 0);
         }
         avgWeight = sumW / propNames.length;
@@ -220,7 +218,7 @@ export function computeAnxiety(songs, config) {
     let scaled = 0;
     if (maxBaseline > 0) {
         const normalized = Math.min(1, compositeWeighted / maxBaseline);
-        scaled = Math.round(Math.pow(normalized, 0.8) * 10);
+        scaled = Math.round(normalized ** 0.8 * 10);
         if (normalized > 0 && scaled === 0) {
             scaled = 1;
         }
@@ -235,19 +233,16 @@ export function computeAnxiety(songs, config) {
         songCount: songs.length,
         weightedScore: Math.round(compositeWeighted * 10) / 10,
         totalTransitions,
-        details
+        details,
     };
 }
-
 
 /**
  * Generate a human-readable label for a given anxiety result.
  */
 export function anxietyLabel(result) {
     const { scaled, changes, spots, songCount } = result;
-    const spotNote = spots > 0
-        ? ` in ${spots} spot${spots === 1 ? "" : "s"} over ${songCount} songs`
-        : "";
+    const spotNote = spots > 0 ? ` in ${spots} spot${spots === 1 ? "" : "s"} over ${songCount} songs` : "";
 
     if (changes === 0) {
         return "Bass player is relaxed for once. Zero gear changes — smooth sailing.";
@@ -264,7 +259,6 @@ export function anxietyLabel(result) {
     return `${changes} change${changes === 1 ? "" : "s"}${spotNote}. Bass player is writing a stand-up set to fill all the dead air.`;
 }
 
-
 // Export internals for testing
 export const _internals = {
     ANXIETY_WEIGHT_EXPONENT,
@@ -275,5 +269,5 @@ export const _internals = {
     scoreAnxietyPressure,
     scoreTransition,
     inferPropKind,
-    anxietyWeightPressure
+    anxietyWeightPressure,
 };

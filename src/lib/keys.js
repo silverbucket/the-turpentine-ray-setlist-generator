@@ -1,17 +1,26 @@
 // Pitch class indices (0–11), handling enharmonic equivalents
 const PITCH_MAP = {
-    "C": 0, "B#": 0,
-    "C#": 1, "Db": 1,
-    "D": 2,
-    "D#": 3, "Eb": 3,
-    "E": 4, "Fb": 4,
-    "F": 5, "E#": 5,
-    "F#": 6, "Gb": 6,
-    "G": 7,
-    "G#": 8, "Ab": 8,
-    "A": 9,
-    "A#": 10, "Bb": 10,
-    "B": 11, "Cb": 11
+    C: 0,
+    "B#": 0,
+    "C#": 1,
+    Db: 1,
+    D: 2,
+    "D#": 3,
+    Eb: 3,
+    E: 4,
+    Fb: 4,
+    F: 5,
+    "E#": 5,
+    "F#": 6,
+    Gb: 6,
+    G: 7,
+    "G#": 8,
+    Ab: 8,
+    A: 9,
+    "A#": 10,
+    Bb: 10,
+    B: 11,
+    Cb: 11,
 };
 
 // Semitone difference → circle-of-fifths distance (0–6)
@@ -66,7 +75,7 @@ export function fifthsDirection(keyA, keyB) {
 
     const raw = posB - posA;
     // Wrap to [-6, 6]: shortest path around the circle
-    const wrapped = ((raw + 6) % 12 + 12) % 12 - 6;
+    const wrapped = ((((raw + 6) % 12) + 12) % 12) - 6;
     return wrapped;
 }
 
@@ -84,7 +93,7 @@ export function keyDistance(keyA, keyB) {
     const aPitch = a.minor ? (a.pitch + 3) % 12 : a.pitch;
     const bPitch = b.minor ? (b.pitch + 3) % 12 : b.pitch;
 
-    const diff = ((aPitch - bPitch) % 12 + 12) % 12;
+    const diff = (((aPitch - bPitch) % 12) + 12) % 12;
     return FIFTHS_DISTANCE[diff];
 }
 
@@ -114,6 +123,6 @@ export function scoreKeyTransition(prevKey, nextKey, prevDir, weight) {
         }
     }
 
-    const nextDir = (dir !== null && dir !== 0) ? dir : prevDir;
+    const nextDir = dir !== null && dir !== 0 ? dir : prevDir;
     return { score, dir: nextDir };
 }

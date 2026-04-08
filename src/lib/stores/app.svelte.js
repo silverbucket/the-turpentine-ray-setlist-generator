@@ -1,9 +1,26 @@
-import { DEFAULT_APP_CONFIG, blankSong, normalizeAppConfig, normalizeMemberRecord, normalizeSongRecord } from "../defaults.js";
-import { migrator } from "../migrations.js";
 import { CONFIG_SECTIONS } from "../config-meta.js";
-import { scoreFixedOrder, buildDefaultPerformance } from "../generator.js";
-import { clone, deepMerge, formatDelimitedList, getByPath, nowIso, parseDelimitedList, setByPath, titleForBand, tryParseJson, uid } from "../utils.js";
+import {
+    blankSong,
+    DEFAULT_APP_CONFIG,
+    normalizeAppConfig,
+    normalizeMemberRecord,
+    normalizeSongRecord,
+} from "../defaults.js";
+import { buildDefaultPerformance, scoreFixedOrder } from "../generator.js";
 import GeneratorWorker from "../generator.worker.js?worker";
+import { migrator } from "../migrations.js";
+import {
+    clone,
+    deepMerge,
+    formatDelimitedList,
+    getByPath,
+    nowIso,
+    parseDelimitedList,
+    setByPath,
+    titleForBand,
+    tryParseJson,
+    uid,
+} from "../utils.js";
 
 const STORAGE_PREFIX = "setlist-roller";
 const MAX_SAVED_SETS = 5;
@@ -19,17 +36,21 @@ function scopedKey(base, userAddress) {
     return `${STORAGE_PREFIX}-${base}-${(h >>> 0).toString(36)}`;
 }
 
-function randomFrom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function randomFrom(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+}
 
 export function createAppStore(repo) {
     // ---- per-user localStorage scoping ----
     let currentUserAddress = "";
-    function storageKey(base) { return scopedKey(base, currentUserAddress); }
+    function storageKey(base) {
+        return scopedKey(base, currentUserAddress);
+    }
 
     // ---- core state ----
     let songs = $state([]);
     let appConfig = $state(null);
-    let bootstrapMeta = $state(null);
+    let _bootstrapMeta = $state(null);
     let generatedSetlist = $state(null);
     let isGenerating = $state(false);
     let activeWorker = null;
@@ -80,24 +101,21 @@ export function createAppStore(repo) {
     let importMode = $state("skip");
     let importFile = $state(null);
 
-
     // ---- advanced config sub-view ----
     let bandSubView = $state("main"); // "main" | "advanced" | "member-edit"
     let editingMemberName = $state("");
 
     // ---- derived ----
-    let appTitle = $derived(titleForBand(appConfig?.bandName));
-    let emptyCatalog = $derived(connectionStatus === "connected" && songs.length === 0);
-    let bandMemberEntries = $derived(
-        Object.entries(bandMembers || {}).sort(([a], [b]) => a.localeCompare(b))
-    );
-    let availableMemberNames = $derived(buildAvailableMemberNames());
-    let memberInstrumentChoicesByMember = $derived(buildMemberInstrumentChoicesByMember());
-    let memberTuningChoicesByMember = $derived(buildMemberTuningChoicesByMember());
-    let defaultTuningByMemberInstrument = $derived(buildDefaultTuningByMemberInstrument());
-    let allInstrumentNamesList = $derived(buildAllInstrumentNames());
-    let instrumentTypeCount = $derived(allInstrumentNamesList.length);
-    let visibleSongs = $derived(computeVisibleSongs());
+    const appTitle = $derived(titleForBand(appConfig?.bandName));
+    const emptyCatalog = $derived(connectionStatus === "connected" && songs.length === 0);
+    const bandMemberEntries = $derived(Object.entries(bandMembers || {}).sort(([a], [b]) => a.localeCompare(b)));
+    const availableMemberNames = $derived(buildAvailableMemberNames());
+    const memberInstrumentChoicesByMember = $derived(buildMemberInstrumentChoicesByMember());
+    const memberTuningChoicesByMember = $derived(buildMemberTuningChoicesByMember());
+    const defaultTuningByMemberInstrument = $derived(buildDefaultTuningByMemberInstrument());
+    const allInstrumentNamesList = $derived(buildAllInstrumentNames());
+    const instrumentTypeCount = $derived(allInstrumentNamesList.length);
+    const visibleSongs = $derived(computeVisibleSongs());
 
     // ---- helpers ----
 
@@ -112,11 +130,11 @@ export function createAppStore(repo) {
             seed: "",
             randomness: {
                 temperature: source.general?.randomness?.temperature || 0.85,
-                finalChoicePool: source.general?.randomness?.finalChoicePool || 12
+                finalChoicePool: source.general?.randomness?.finalChoicePool || 12,
             },
             show: {
-                members: clone(source.show?.members || {})
-            }
+                members: clone(source.show?.members || {}),
+            },
         };
     }
 
@@ -124,7 +142,7 @@ export function createAppStore(repo) {
         const names = new Set([
             ...Object.keys(bandMembers || {}),
             ...Object.keys(generationOptions.show?.members || {}),
-            ...songs.flatMap((song) => Object.keys(song.members || {}))
+            ...songs.flatMap((song) => Object.keys(song.members || {})),
         ]);
         return Array.from(names).sort();
     }
@@ -132,7 +150,7 @@ export function createAppStore(repo) {
     function buildMemberInstrumentChoicesByMember() {
         return availableMemberNames.reduce((result, memberName) => {
             const fromSongs = songs.flatMap((song) =>
-                (song.members?.[memberName]?.instruments || []).map((o) => o.name)
+                (song.members?.[memberName]?.instruments || []).map((o) => o.name),
             );
             const fromConfig = generationOptions.show?.members?.[memberName]?.allowedInstruments || [];
             const fromBand = (bandMembers?.[memberName]?.instruments || []).map((i) => i.name);
@@ -144,9 +162,11 @@ export function createAppStore(repo) {
     function buildMemberTuningChoicesByMember() {
         return availableMemberNames.reduce((result, memberName) => {
             result[memberName] = (memberInstrumentChoicesByMember[memberName] || []).reduce((ir, instrumentName) => {
-                const fromBand = (bandMembers?.[memberName]?.instruments || [])
-                    .find((i) => i.name === instrumentName)?.tunings || [];
-                const fromConfig = generationOptions.show?.members?.[memberName]?.allowedTunings?.[instrumentName] || [];
+                const fromBand =
+                    (bandMembers?.[memberName]?.instruments || []).find((i) => i.name === instrumentName)?.tunings ||
+                    [];
+                const fromConfig =
+                    generationOptions.show?.members?.[memberName]?.allowedTunings?.[instrumentName] || [];
                 ir[instrumentName] = Array.from(new Set([...fromBand, ...fromConfig].filter(Boolean))).sort();
                 return ir;
             }, {});
@@ -167,7 +187,7 @@ export function createAppStore(repo) {
     function buildAllInstrumentNames() {
         const names = new Set();
         Object.values(memberInstrumentChoicesByMember || {}).forEach((instruments) => {
-            (instruments || []).forEach((name) => names.add(name));
+            for (const name of instruments || []) names.add(name);
         });
         return Array.from(names).sort();
     }
@@ -180,13 +200,26 @@ export function createAppStore(repo) {
         const reasons = [];
         for (const name of memberNames) {
             const memberSetup = songMembers[name];
-            if (!memberSetup) { reasons.push(`${name}: not set up`); continue; }
+            if (!memberSetup) {
+                reasons.push(`${name}: not set up`);
+                continue;
+            }
             const instruments = memberSetup.instruments || [];
-            if (instruments.length === 0) { reasons.push(`${name}: needs instrument`); continue; }
+            if (instruments.length === 0) {
+                reasons.push(`${name}: needs instrument`);
+                continue;
+            }
             for (const inst of instruments) {
-                if (!inst.name) { reasons.push(`${name}: instrument not selected`); continue; }
+                if (!inst.name) {
+                    reasons.push(`${name}: instrument not selected`);
+                    continue;
+                }
                 const bandInst = (members[name].instruments || []).find((i) => i.name === inst.name);
-                if (bandInst && (bandInst.techniques || []).length > 0 && (!Array.isArray(inst.picking) || inst.picking.length === 0)) {
+                if (
+                    bandInst &&
+                    (bandInst.techniques || []).length > 0 &&
+                    (!Array.isArray(inst.picking) || inst.picking.length === 0)
+                ) {
                     reasons.push(`${name}: ${inst.name} needs technique`);
                 }
             }
@@ -207,8 +240,7 @@ export function createAppStore(repo) {
             if (songFilter === "incomplete" && !isSongIncomplete(song)) return false;
             if (songFilter === "unpracticed" && !song.unpracticed) return false;
             if (!query) return true;
-            return [song.name, song.key, ...Object.keys(song.members || {})]
-                .join(" ").toLowerCase().includes(query);
+            return [song.name, song.key, ...Object.keys(song.members || {})].join(" ").toLowerCase().includes(query);
         });
     }
 
@@ -245,7 +277,7 @@ export function createAppStore(repo) {
         return tryParseJson(localStorage.getItem(storageKey("current-set")), null);
     }
 
-    function loadCurrentSetlistLocked() {
+    function _loadCurrentSetlistLocked() {
         if (typeof localStorage === "undefined") return false;
         const data = tryParseJson(localStorage.getItem(storageKey("current-set")), null);
         return data?._locked || false;
@@ -254,7 +286,10 @@ export function createAppStore(repo) {
     function persistCurrentSetlist() {
         if (typeof localStorage === "undefined") return;
         if (generatedSetlist) {
-            localStorage.setItem(storageKey("current-set"), JSON.stringify({ ...generatedSetlist, _locked: setlistLocked }));
+            localStorage.setItem(
+                storageKey("current-set"),
+                JSON.stringify({ ...generatedSetlist, _locked: setlistLocked }),
+            );
         } else {
             localStorage.removeItem(storageKey("current-set"));
         }
@@ -361,14 +396,14 @@ export function createAppStore(repo) {
             loadError = "";
             const data = await repo.loadAll();
             songs = data.songs.map(normalizeSongRecord);
-            bootstrapMeta = data.bootstrap;
+            _bootstrapMeta = data.bootstrap;
             appConfig = data.config ? normalizeAppConfig(data.config) : null;
             if (data.setlists) {
                 savedSetlists = stripEnergy(data.setlists);
             }
             if (data.members) {
                 bandMembers = Object.fromEntries(
-                    Object.entries(data.members).map(([name, data]) => [name, normalizeMemberRecord(data)])
+                    Object.entries(data.members).map(([name, data]) => [name, normalizeMemberRecord(data)]),
                 );
             }
 
@@ -421,7 +456,9 @@ export function createAppStore(repo) {
             const minPerInst = constraints.minSongsPerInstrument ?? 2;
             if (allowed.length >= 2) {
                 const counts = {};
-                allowed.forEach((inst) => { counts[inst] = 0; });
+                allowed.forEach((inst) => {
+                    counts[inst] = 0;
+                });
                 (result.songs || []).forEach((song) => {
                     const inst = song.performance?.[memberName]?.instrument;
                     if (inst && inst in counts) counts[inst]++;
@@ -434,10 +471,13 @@ export function createAppStore(repo) {
                 const minT = minPerTuning[instName] ?? 2;
                 if (tunings.length >= 2) {
                     const counts = {};
-                    tunings.forEach((t) => { counts[t] = 0; });
+                    tunings.forEach((t) => {
+                        counts[t] = 0;
+                    });
                     (result.songs || []).forEach((song) => {
                         const perf = song.performance?.[memberName];
-                        if (perf?.instrument === instName && perf.tuning && perf.tuning in counts) counts[perf.tuning]++;
+                        if (perf?.instrument === instName && perf.tuning && perf.tuning in counts)
+                            counts[perf.tuning]++;
                     });
                     if (Object.values(counts).some((c) => c < minT)) return false;
                 }
@@ -465,10 +505,10 @@ export function createAppStore(repo) {
         if (!generatedSetlist) return;
         pendingRollConfirm = false;
         const currentSongs = generatedSetlist.songs;
-        const currentCovers = currentSongs.filter(s => s.cover).length;
-        const currentInstrumentals = currentSongs.filter(s => s.instrumental).length;
+        const currentCovers = currentSongs.filter((s) => s.cover).length;
+        const currentInstrumentals = currentSongs.filter((s) => s.instrumental).length;
         generate({
-            fixedSongIds: currentSongs.map(s => s.id),
+            fixedSongIds: currentSongs.map((s) => s.id),
             count: currentSongs.length,
             maxCovers: Math.max(currentCovers, generationOptions.maxCovers),
             maxInstrumentals: Math.max(currentInstrumentals, generationOptions.maxInstrumentals),
@@ -511,7 +551,7 @@ export function createAppStore(repo) {
         worker.postMessage({
             songs: clone(eligibleSongs),
             config: clone(appConfig || DEFAULT_APP_CONFIG),
-            options: opts
+            options: opts,
         });
         worker.onmessage = (event) => {
             const { type, result } = event.data;
@@ -525,11 +565,14 @@ export function createAppStore(repo) {
             }
             isGenerating = false;
             if (!result) {
-                addToast(randomFrom([
-                    "The generator tripped over a cable.",
-                    "Something went sideways. Blame the bassist.",
-                    "Critical fumble — try again?",
-                ]), "danger");
+                addToast(
+                    randomFrom([
+                        "The generator tripped over a cable.",
+                        "Something went sideways. Blame the bassist.",
+                        "Critical fumble — try again?",
+                    ]),
+                    "danger",
+                );
                 return;
             }
             generatedSetlist = result;
@@ -544,23 +587,28 @@ export function createAppStore(repo) {
                 addToast("Couldn't meet every demand, but it got close.", "warning");
             }
             const n = generatedSetlist.songs.length;
-            addToast(randomFrom([
-                `🎲 The dice have spoken. ${n} songs.`,
-                `${n} songs, rolled fresh. No refunds.`,
-                `Behold: ${n} tracks of pure destiny.`,
-                `${n} songs. Trust the roll.`,
-                `The rock gods have decided. ${n} songs.`,
-            ]));
+            addToast(
+                randomFrom([
+                    `🎲 The dice have spoken. ${n} songs.`,
+                    `${n} songs, rolled fresh. No refunds.`,
+                    `Behold: ${n} tracks of pure destiny.`,
+                    `${n} songs. Trust the roll.`,
+                    `The rock gods have decided. ${n} songs.`,
+                ]),
+            );
         };
-        worker.onerror = (err) => {
+        worker.onerror = (_err) => {
             worker.terminate();
             if (worker === activeWorker) activeWorker = null;
             isGenerating = false;
-            addToast(randomFrom([
-                "The generator tripped over a cable.",
-                "Something went sideways. Blame the bassist.",
-                "Critical fumble — try again?",
-            ]), "danger");
+            addToast(
+                randomFrom([
+                    "The generator tripped over a cable.",
+                    "Something went sideways. Blame the bassist.",
+                    "Critical fumble — try again?",
+                ]),
+                "danger",
+            );
         };
     }
 
@@ -569,29 +617,40 @@ export function createAppStore(repo) {
         if (setlistLocked) return;
         setlistLocked = true;
         persistCurrentSetlist();
-        addToast(randomFrom([
-            "Setlist locked in. No take-backs.",
-            "It's canon now.",
-            "Sealed. This one's going on stage.",
-        ]));
+        addToast(
+            randomFrom(["Setlist locked in. No take-backs.", "It's canon now.", "Sealed. This one's going on stage."]),
+        );
     }
 
     async function saveCurrentSetlist() {
         if (!generatedSetlist) return;
         const currentSaved = savedSetlists || [];
-        const songNames = generatedSetlist.songs.map(s => s.name || s.title || "?");
+        const songNames = generatedSetlist.songs.map((s) => s.name || s.title || "?");
         const funNames = [
-            "The Unhinged Encore", "Chaos Theory",
-            "No Refunds", "The One That Slaps", "Certified Banger",
-            "Tuesday Night Special", "Blame the Dice", "Accidentally Perfect",
-            "The Hot Mess Express", "Trust the Process", "Vibe Check",
-            "Sound & Fury", "The Audacity", "Full Send",
-            "Controlled Chaos", "Plot Twist", "The Good Stuff",
-            "Questionable Choices", "Send It", "No Notes",
+            "The Unhinged Encore",
+            "Chaos Theory",
+            "No Refunds",
+            "The One That Slaps",
+            "Certified Banger",
+            "Tuesday Night Special",
+            "Blame the Dice",
+            "Accidentally Perfect",
+            "The Hot Mess Express",
+            "Trust the Process",
+            "Vibe Check",
+            "Sound & Fury",
+            "The Audacity",
+            "Full Send",
+            "Controlled Chaos",
+            "Plot Twist",
+            "The Good Stuff",
+            "Questionable Choices",
+            "Send It",
+            "No Notes",
         ];
         // Pick a random name, avoid recently used names
-        const usedNames = new Set(currentSaved.slice(0, 5).map(s => s.name));
-        const available = funNames.filter(n => !usedNames.has(n));
+        const usedNames = new Set(currentSaved.slice(0, 5).map((s) => s.name));
+        const available = funNames.filter((n) => !usedNames.has(n));
         const pool = available.length > 0 ? available : funNames;
         const randomName = pool[Math.floor(Math.random() * pool.length)];
         const entry = {
@@ -602,7 +661,7 @@ export function createAppStore(repo) {
             songs: clone(generatedSetlist.songs),
             songNames,
             seed: generatedSetlist.seed,
-            songCount: generatedSetlist.songs.length
+            songCount: generatedSetlist.songs.length,
         };
         try {
             // Enforce limit: remove oldest if at max
@@ -632,7 +691,7 @@ export function createAppStore(repo) {
         const merged = { ...existing, ...fields };
         try {
             await withSync("Updating setlist", () => repo.putSetlist(merged));
-            savedSetlists = savedSetlists.map((s) => s.id === id ? merged : s);
+            savedSetlists = savedSetlists.map((s) => (s.id === id ? merged : s));
         } catch (error) {
             addToast(error?.message || "Could not update setlist.", "danger");
         }
@@ -708,7 +767,7 @@ export function createAppStore(repo) {
         persistCurrentSetlist();
     }
 
-    let songsNotInSetlist = $derived.by(() => {
+    const songsNotInSetlist = $derived.by(() => {
         if (!generatedSetlist?.songs) return songs.filter((s) => !s.unpracticed);
         const usedIds = new Set(generatedSetlist.songs.map((s) => s.id));
         return songs.filter((s) => !s.unpracticed && !usedIds.has(s.id));
@@ -722,9 +781,7 @@ export function createAppStore(repo) {
 
     function toggleListValue(path, value) {
         const current = getByPath(generationOptions, path, []);
-        const next = current.includes(value)
-            ? current.filter((e) => e !== value)
-            : current.concat(value);
+        const next = current.includes(value) ? current.filter((e) => e !== value) : current.concat(value);
         updateGenerationField(path, next);
     }
 
@@ -732,11 +789,10 @@ export function createAppStore(repo) {
         if (generationOptions.show?.members?.[memberName]) return;
         generationOptions = setByPath(generationOptions, `show.members.${memberName}`, {
             allowedInstruments: [],
-            allowedTunings: {}
+            allowedTunings: {},
         });
         persistGenerationOptions();
     }
-
 
     // ---- song editor ----
     function openNewSong() {
@@ -745,7 +801,12 @@ export function createAppStore(repo) {
             const defaultInstName = config.defaultInstrument || "";
             const defaultInst = (config.instruments || []).find((i) => i.name === defaultInstName);
             const inst = defaultInst
-                ? { name: defaultInst.name, tuning: defaultInst.defaultTuning ? [defaultInst.defaultTuning] : [], capo: 0, picking: defaultInst.defaultTechnique ? [defaultInst.defaultTechnique] : [] }
+                ? {
+                      name: defaultInst.name,
+                      tuning: defaultInst.defaultTuning ? [defaultInst.defaultTuning] : [],
+                      capo: 0,
+                      picking: defaultInst.defaultTechnique ? [defaultInst.defaultTechnique] : [],
+                  }
                 : { name: "", tuning: [], capo: 0, picking: [] };
             song.members[name] = { instruments: [inst] };
         });
@@ -773,7 +834,9 @@ export function createAppStore(repo) {
     }
 
     function updateSongField(key, value) {
-        updateEditor((s) => { s[key] = value; });
+        updateEditor((s) => {
+            s[key] = value;
+        });
     }
 
     function renameMember(prev, next) {
@@ -782,7 +845,9 @@ export function createAppStore(repo) {
         updateEditor((song) => {
             const entries = Object.entries(song.members || {});
             const rebuilt = {};
-            entries.forEach(([name, val]) => { rebuilt[name === prev ? clean : name] = val; });
+            entries.forEach(([name, val]) => {
+                rebuilt[name === prev ? clean : name] = val;
+            });
             song.members = rebuilt;
         });
     }
@@ -794,7 +859,10 @@ export function createAppStore(repo) {
                 const base = `member${Object.keys(song.members || {}).length + 1}`;
                 name = base;
                 let c = 1;
-                while (song.members[name]) { c++; name = `${base}-${c}`; }
+                while (song.members[name]) {
+                    c++;
+                    name = `${base}-${c}`;
+                }
             }
             if (song.members[name]) return; // already in this song
             // Seed instruments from band config if this member exists there
@@ -805,12 +873,14 @@ export function createAppStore(repo) {
                 const defaultTuning = inst?.defaultTuning;
                 const defaultTechnique = inst?.defaultTechnique;
                 song.members[name] = {
-                    instruments: [{
-                        name: inst.name,
-                        tuning: defaultTuning ? [defaultTuning] : [],
-                        capo: 0,
-                        picking: defaultTechnique ? [defaultTechnique] : []
-                    }]
+                    instruments: [
+                        {
+                            name: inst.name,
+                            tuning: defaultTuning ? [defaultTuning] : [],
+                            capo: 0,
+                            picking: defaultTechnique ? [defaultTechnique] : [],
+                        },
+                    ],
                 };
             } else {
                 song.members[name] = { instruments: [{ name: "", tuning: [], capo: 0, picking: [] }] };
@@ -819,24 +889,30 @@ export function createAppStore(repo) {
     }
 
     function removeMember(memberName) {
-        updateEditor((song) => { delete song.members[memberName]; });
+        updateEditor((song) => {
+            delete song.members[memberName];
+        });
     }
 
     function addInstrumentOption(memberName) {
         updateEditor((song) => {
             song.members[memberName].instruments.push({
-                name: "", tuning: [], capo: 0, picking: []
+                name: "",
+                tuning: [],
+                capo: 0,
+                picking: [],
             });
         });
     }
 
     function removeInstrumentOption(memberName, index) {
-        updateEditor((song) => { song.members[memberName].instruments.splice(index, 1); });
+        updateEditor((song) => {
+            song.members[memberName].instruments.splice(index, 1);
+        });
     }
 
     function instrumentConfigFor(memberName, instrumentName) {
-        return (bandMembers?.[memberName]?.instruments || [])
-            .find((i) => i.name === instrumentName) || null;
+        return (bandMembers?.[memberName]?.instruments || []).find((i) => i.name === instrumentName) || null;
     }
 
     function updateInstrumentOption(memberName, index, key, value) {
@@ -859,10 +935,16 @@ export function createAppStore(repo) {
         }
         try {
             busyMessage = `Saving "${editorSong.name}"...`;
-            const saved = await withSync("Saving song", () => repo.putSong({
-                ...editorSong, updatedAt: nowIso()
-            }));
-            songs = songs.filter((s) => s.id !== saved.id).concat(saved).sort((a, b) => a.name.localeCompare(b.name));
+            const saved = await withSync("Saving song", () =>
+                repo.putSong({
+                    ...editorSong,
+                    updatedAt: nowIso(),
+                }),
+            );
+            songs = songs
+                .filter((s) => s.id !== saved.id)
+                .concat(saved)
+                .sort((a, b) => a.name.localeCompare(b.name));
 
             // Sync member names and instruments from the song into band members
             const dirtyMembers = new Map();
@@ -875,19 +957,22 @@ export function createAppStore(repo) {
                     dirty = true;
                 }
                 if (!member.instruments) member.instruments = [];
-                for (const inst of (memberSetup.instruments || [])) {
+                for (const inst of memberSetup.instruments || []) {
                     if (!inst.name) continue;
                     const existing = member.instruments.find((i) => i.name === inst.name);
                     if (!existing) {
                         member.instruments.push({
-                            name: inst.name, tunings: [], defaultTuning: "",
-                            techniques: [], defaultTechnique: ""
+                            name: inst.name,
+                            tunings: [],
+                            defaultTuning: "",
+                            techniques: [],
+                            defaultTechnique: "",
                         });
                         dirty = true;
                     }
                     // Sync tunings that appear in songs but not in band members
                     const bandInst = member.instruments.find((i) => i.name === inst.name);
-                    for (const tuning of (inst.tuning || [])) {
+                    for (const tuning of inst.tuning || []) {
                         if (tuning && !(bandInst.tunings || []).includes(tuning)) {
                             if (!bandInst.tunings) bandInst.tunings = [];
                             bandInst.tunings.push(tuning);
@@ -913,8 +998,11 @@ export function createAppStore(repo) {
 
     function duplicateSong(song) {
         const copy = normalizeSongRecord({
-            ...clone(song), id: uid("song"), name: `${song.name} (Copy)`,
-            createdAt: nowIso(), updatedAt: nowIso()
+            ...clone(song),
+            id: uid("song"),
+            name: `${song.name} (Copy)`,
+            createdAt: nowIso(),
+            updatedAt: nowIso(),
         });
         editorSong = copy;
         selectedSongId = "";
@@ -937,7 +1025,12 @@ export function createAppStore(repo) {
     }
 
     async function deleteAllData() {
-        if (!window.confirm("This will delete ALL songs, band config, and saved setlists. This cannot be undone.\n\nAre you sure?")) return;
+        if (
+            !window.confirm(
+                "This will delete ALL songs, band config, and saved setlists. This cannot be undone.\n\nAre you sure?",
+            )
+        )
+            return;
         if (!window.confirm("Really? Everything will be gone forever.")) return;
         try {
             busyMessage = "Deleting everything...";
@@ -1019,7 +1112,7 @@ export function createAppStore(repo) {
         }
     }
 
-    async function persistConfigEdit(nextConfig, errorMessage = "Could not save config.") {
+    async function _persistConfigEdit(nextConfig, errorMessage = "Could not save config.") {
         const normalized = normalizeAppConfig({ ...clone(nextConfig), updatedAt: nowIso() });
         appConfig = normalized;
         try {
@@ -1048,8 +1141,14 @@ export function createAppStore(repo) {
 
     async function addBandMember() {
         const clean = newMemberName.trim();
-        if (!clean) { addToast("Name the member first.", "danger"); return; }
-        if (bandMemberEntries.some(([n]) => n === clean)) { addToast("Already exists.", "danger"); return; }
+        if (!clean) {
+            addToast("Name the member first.", "danger");
+            return;
+        }
+        if (bandMemberEntries.some(([n]) => n === clean)) {
+            addToast("Already exists.", "danger");
+            return;
+        }
         if (await persistMemberEdit(clean, { instruments: [] }, "Could not add member.")) {
             expandedBandMember = clean;
             newMemberName = "";
@@ -1082,35 +1181,39 @@ export function createAppStore(repo) {
     }
 
     function songsUsingInstrument(memberName, instrumentName) {
-        return songs.filter((s) =>
-            (s.members?.[memberName]?.instruments || []).some((i) => i.name === instrumentName)
-        );
+        return songs.filter((s) => (s.members?.[memberName]?.instruments || []).some((i) => i.name === instrumentName));
     }
 
     function songsUsingTuning(memberName, instrumentName, tuning) {
         return songs.filter((s) =>
-            (s.members?.[memberName]?.instruments || []).some((i) =>
-                i.name === instrumentName && (i.tuning || []).includes(tuning)
-            )
+            (s.members?.[memberName]?.instruments || []).some(
+                (i) => i.name === instrumentName && (i.tuning || []).includes(tuning),
+            ),
         );
     }
 
     function songsUsingTechnique(memberName, instrumentName, technique) {
         return songs.filter((s) =>
-            (s.members?.[memberName]?.instruments || []).some((i) =>
-                i.name === instrumentName && (Array.isArray(i.picking) ? i.picking : []).includes(technique)
-            )
+            (s.members?.[memberName]?.instruments || []).some(
+                (i) => i.name === instrumentName && (Array.isArray(i.picking) ? i.picking : []).includes(technique),
+            ),
         );
     }
 
     async function removeBandMember(memberName) {
         const usedIn = songsUsingMember(memberName);
         if (usedIn.length > 0) {
-            const names = usedIn.slice(0, 5).map((s) => s.name).join(", ");
+            const names = usedIn
+                .slice(0, 5)
+                .map((s) => s.name)
+                .join(", ");
             const extra = usedIn.length > 5 ? ` and ${usedIn.length - 5} more` : "";
-            if (!window.confirm(
-                `"${memberName}" is referenced in ${usedIn.length} song${usedIn.length === 1 ? "" : "s"}: ${names}${extra}.\n\nRemoving this member from the band config won't change existing songs, but new setlists won't account for their setup.\n\nAre you sure?`
-            )) return;
+            if (
+                !window.confirm(
+                    `"${memberName}" is referenced in ${usedIn.length} song${usedIn.length === 1 ? "" : "s"}: ${names}${extra}.\n\nRemoving this member from the band config won't change existing songs, but new setlists won't account for their setup.\n\nAre you sure?`,
+                )
+            )
+                return;
         } else {
             if (!window.confirm(`Remove "${memberName}" from the band?`)) return;
         }
@@ -1128,11 +1231,26 @@ export function createAppStore(repo) {
 
     async function addBandMemberInstrument(memberName) {
         const draft = (newInstrumentByMember[memberName] || "").trim();
-        if (!draft) { addToast("Type an instrument name first.", "danger"); return; }
+        if (!draft) {
+            addToast("Type an instrument name first.", "danger");
+            return;
+        }
         const member = bandMembers[memberName] || { instruments: [] };
         const current = member.instruments || [];
-        if (current.some((i) => i.name === draft)) { addToast("Already on this member.", "danger"); return; }
-        const updated = { ...member, instruments: current.concat({ name: draft, tunings: [], defaultTuning: "", techniques: [], defaultTechnique: "" }) };
+        if (current.some((i) => i.name === draft)) {
+            addToast("Already on this member.", "danger");
+            return;
+        }
+        const updated = {
+            ...member,
+            instruments: current.concat({
+                name: draft,
+                tunings: [],
+                defaultTuning: "",
+                techniques: [],
+                defaultTechnique: "",
+            }),
+        };
         if (await persistMemberEdit(memberName, updated)) {
             newInstrumentByMember = { ...newInstrumentByMember, [memberName]: "" };
             addToast(`Added ${draft} for ${memberName}.`);
@@ -1142,11 +1260,17 @@ export function createAppStore(repo) {
     async function removeBandMemberInstrument(memberName, instrumentName) {
         const usedIn = songsUsingInstrument(memberName, instrumentName);
         if (usedIn.length > 0) {
-            const names = usedIn.slice(0, 5).map((s) => s.name).join(", ");
+            const names = usedIn
+                .slice(0, 5)
+                .map((s) => s.name)
+                .join(", ");
             const extra = usedIn.length > 5 ? ` and ${usedIn.length - 5} more` : "";
-            if (!window.confirm(
-                `"${instrumentName}" for ${memberName} is used in ${usedIn.length} song${usedIn.length === 1 ? "" : "s"}: ${names}${extra}.\n\nRemoving it from the band config won't change existing songs, but the instrument won't appear as a choice for new songs.\n\nAre you sure?`
-            )) return;
+            if (
+                !window.confirm(
+                    `"${instrumentName}" for ${memberName} is used in ${usedIn.length} song${usedIn.length === 1 ? "" : "s"}: ${names}${extra}.\n\nRemoving it from the band config won't change existing songs, but the instrument won't appear as a choice for new songs.\n\nAre you sure?`,
+                )
+            )
+                return;
         } else {
             if (!window.confirm(`Remove "${instrumentName}" from ${memberName}?`)) return;
         }
@@ -1170,7 +1294,13 @@ export function createAppStore(repo) {
         }
         if (!member.instruments) member.instruments = [];
         if (!member.instruments.find((i) => i.name === instrumentName)) {
-            member.instruments.push({ name: instrumentName, tunings: [], defaultTuning: "", techniques: [], defaultTechnique: "" });
+            member.instruments.push({
+                name: instrumentName,
+                tunings: [],
+                defaultTuning: "",
+                techniques: [],
+                defaultTechnique: "",
+            });
             dirty = true;
         }
         if (dirty) await persistMemberEdit(memberName, member);
@@ -1179,13 +1309,24 @@ export function createAppStore(repo) {
     async function addTuningChoice(memberName, instrumentName) {
         const draftKey = tuningDraftKey(memberName, instrumentName);
         const clean = (newTuningByInstrument[draftKey] || "").trim();
-        if (!clean) { addToast("Type a tuning name first.", "danger"); return; }
+        if (!clean) {
+            addToast("Type a tuning name first.", "danger");
+            return;
+        }
         await ensureBandInstrument(memberName, instrumentName);
         const member = bandMembers[memberName] || { instruments: [] };
         const currentInstruments = member.instruments || [];
         const current = currentInstruments.find((i) => i.name === instrumentName);
-        if ((current?.tunings || []).includes(clean)) { addToast("Already exists.", "danger"); return; }
-        const updated = { ...member, instruments: currentInstruments.map((i) => i.name !== instrumentName ? i : { ...i, tunings: (i.tunings || []).concat(clean) }) };
+        if ((current?.tunings || []).includes(clean)) {
+            addToast("Already exists.", "danger");
+            return;
+        }
+        const updated = {
+            ...member,
+            instruments: currentInstruments.map((i) =>
+                i.name !== instrumentName ? i : { ...i, tunings: (i.tunings || []).concat(clean) },
+            ),
+        };
         if (await persistMemberEdit(memberName, updated)) {
             newTuningByInstrument = { ...newTuningByInstrument, [draftKey]: "" };
             addToast(`Added "${clean}" to ${instrumentName}.`);
@@ -1196,18 +1337,32 @@ export function createAppStore(repo) {
     async function removeTuningChoice(memberName, instrumentName, tuning) {
         const usedIn = songsUsingTuning(memberName, instrumentName, tuning);
         if (usedIn.length > 0) {
-            const names = usedIn.slice(0, 5).map((s) => s.name).join(", ");
+            const names = usedIn
+                .slice(0, 5)
+                .map((s) => s.name)
+                .join(", ");
             const extra = usedIn.length > 5 ? ` and ${usedIn.length - 5} more` : "";
-            if (!window.confirm(
-                `"${tuning}" tuning for ${memberName}'s ${instrumentName} is used in ${usedIn.length} song${usedIn.length === 1 ? "" : "s"}: ${names}${extra}.\n\nRemoving it won't change existing songs, but the tuning won't appear as a choice for new songs.\n\nAre you sure?`
-            )) return;
+            if (
+                !window.confirm(
+                    `"${tuning}" tuning for ${memberName}'s ${instrumentName} is used in ${usedIn.length} song${usedIn.length === 1 ? "" : "s"}: ${names}${extra}.\n\nRemoving it won't change existing songs, but the tuning won't appear as a choice for new songs.\n\nAre you sure?`,
+                )
+            )
+                return;
         }
         const member = bandMembers[memberName] || { instruments: [] };
         const currentInstruments = member.instruments || [];
-        const updated = { ...member, instruments: currentInstruments.map((i) => i.name !== instrumentName ? i : {
-            ...i, tunings: (i.tunings || []).filter((t) => t !== tuning),
-            defaultTuning: i.defaultTuning === tuning ? "" : (i.defaultTuning || "")
-        }) };
+        const updated = {
+            ...member,
+            instruments: currentInstruments.map((i) =>
+                i.name !== instrumentName
+                    ? i
+                    : {
+                          ...i,
+                          tunings: (i.tunings || []).filter((t) => t !== tuning),
+                          defaultTuning: i.defaultTuning === tuning ? "" : i.defaultTuning || "",
+                      },
+            ),
+        };
         if (await persistMemberEdit(memberName, updated)) addToast(`Removed "${tuning}" from ${instrumentName}.`);
     }
 
@@ -1223,7 +1378,10 @@ export function createAppStore(repo) {
     async function setInstrumentDefaultTuning(memberName, instrumentName, defaultTuning) {
         const member = bandMembers[memberName] || { instruments: [] };
         const currentInstruments = member.instruments || [];
-        const updated = { ...member, instruments: currentInstruments.map((i) => i.name !== instrumentName ? i : { ...i, defaultTuning }) };
+        const updated = {
+            ...member,
+            instruments: currentInstruments.map((i) => (i.name !== instrumentName ? i : { ...i, defaultTuning })),
+        };
         if (await persistMemberEdit(memberName, updated)) {
             addToast(defaultTuning ? `Default set to "${defaultTuning}".` : `Cleared default tuning.`);
         }
@@ -1236,13 +1394,24 @@ export function createAppStore(repo) {
     async function addTechniqueChoice(memberName, instrumentName) {
         const draftKey = techniqueDraftKey(memberName, instrumentName);
         const clean = (newTechniqueByInstrument[draftKey] || "").trim();
-        if (!clean) { addToast("Type a technique name first.", "danger"); return; }
+        if (!clean) {
+            addToast("Type a technique name first.", "danger");
+            return;
+        }
         await ensureBandInstrument(memberName, instrumentName);
         const member = bandMembers[memberName] || { instruments: [] };
         const currentInstruments = member.instruments || [];
         const current = currentInstruments.find((i) => i.name === instrumentName);
-        if ((current?.techniques || []).includes(clean)) { addToast("Already exists.", "danger"); return; }
-        const updated = { ...member, instruments: currentInstruments.map((i) => i.name !== instrumentName ? i : { ...i, techniques: (i.techniques || []).concat(clean) }) };
+        if ((current?.techniques || []).includes(clean)) {
+            addToast("Already exists.", "danger");
+            return;
+        }
+        const updated = {
+            ...member,
+            instruments: currentInstruments.map((i) =>
+                i.name !== instrumentName ? i : { ...i, techniques: (i.techniques || []).concat(clean) },
+            ),
+        };
         if (await persistMemberEdit(memberName, updated)) {
             newTechniqueByInstrument = { ...newTechniqueByInstrument, [draftKey]: "" };
             addToast(`Added "${clean}" technique to ${instrumentName}.`);
@@ -1253,27 +1422,47 @@ export function createAppStore(repo) {
     async function removeTechniqueChoice(memberName, instrumentName, technique) {
         const usedIn = songsUsingTechnique(memberName, instrumentName, technique);
         if (usedIn.length > 0) {
-            const names = usedIn.slice(0, 5).map((s) => s.name).join(", ");
+            const names = usedIn
+                .slice(0, 5)
+                .map((s) => s.name)
+                .join(", ");
             const extra = usedIn.length > 5 ? ` and ${usedIn.length - 5} more` : "";
-            if (!window.confirm(
-                `"${technique}" technique for ${memberName}'s ${instrumentName} is used in ${usedIn.length} song${usedIn.length === 1 ? "" : "s"}: ${names}${extra}.\n\nRemoving it won't change existing songs, but the technique won't appear as a choice for new songs.\n\nAre you sure?`
-            )) return;
+            if (
+                !window.confirm(
+                    `"${technique}" technique for ${memberName}'s ${instrumentName} is used in ${usedIn.length} song${usedIn.length === 1 ? "" : "s"}: ${names}${extra}.\n\nRemoving it won't change existing songs, but the technique won't appear as a choice for new songs.\n\nAre you sure?`,
+                )
+            )
+                return;
         }
         const member = bandMembers[memberName] || { instruments: [] };
         const currentInstruments = member.instruments || [];
-        const updated = { ...member, instruments: currentInstruments.map((i) => i.name !== instrumentName ? i : {
-            ...i, techniques: (i.techniques || []).filter((t) => t !== technique),
-            defaultTechnique: i.defaultTechnique === technique ? "" : (i.defaultTechnique || "")
-        }) };
-        if (await persistMemberEdit(memberName, updated)) addToast(`Removed "${technique}" technique from ${instrumentName}.`);
+        const updated = {
+            ...member,
+            instruments: currentInstruments.map((i) =>
+                i.name !== instrumentName
+                    ? i
+                    : {
+                          ...i,
+                          techniques: (i.techniques || []).filter((t) => t !== technique),
+                          defaultTechnique: i.defaultTechnique === technique ? "" : i.defaultTechnique || "",
+                      },
+            ),
+        };
+        if (await persistMemberEdit(memberName, updated))
+            addToast(`Removed "${technique}" technique from ${instrumentName}.`);
     }
 
     async function setInstrumentDefaultTechnique(memberName, instrumentName, defaultTechnique) {
         const member = bandMembers[memberName] || { instruments: [] };
         const currentInstruments = member.instruments || [];
-        const updated = { ...member, instruments: currentInstruments.map((i) => i.name !== instrumentName ? i : { ...i, defaultTechnique }) };
+        const updated = {
+            ...member,
+            instruments: currentInstruments.map((i) => (i.name !== instrumentName ? i : { ...i, defaultTechnique })),
+        };
         if (await persistMemberEdit(memberName, updated)) {
-            addToast(defaultTechnique ? `Default technique set to "${defaultTechnique}".` : `Cleared default technique.`);
+            addToast(
+                defaultTechnique ? `Default technique set to "${defaultTechnique}".` : `Cleared default technique.`,
+            );
         }
     }
 
@@ -1281,7 +1470,9 @@ export function createAppStore(repo) {
     function buildExportPayload() {
         const currentSaved = savedSetlists || [];
         return {
-            app: "setlist-roller", schemaVersion: 2, exportedAt: nowIso(),
+            app: "setlist-roller",
+            schemaVersion: 2,
+            exportedAt: nowIso(),
             songs: songs.map(normalizeSongRecord),
             config: clone(appConfig),
             bandMembers: clone(bandMembers),
@@ -1290,13 +1481,17 @@ export function createAppStore(repo) {
                 bandName: appConfig?.bandName || "",
                 songCount: songs.length,
                 savedSetlistCount: currentSaved.length,
-            }
+            },
         };
     }
 
     function exportAllData() {
         const payload = buildExportPayload();
-        const safeName = (appConfig?.bandName || "band-setlist").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "band-setlist";
+        const safeName =
+            (appConfig?.bandName || "band-setlist")
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-+|-+$/g, "") || "band-setlist";
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -1311,17 +1506,31 @@ export function createAppStore(repo) {
 
     function normalizeImportPayload(payload) {
         if (Array.isArray(payload)) {
-            return { payloadType: "songs-array", songs: payload.map(normalizeSongRecord), config: null, bandMembers: null, savedSetlists: null };
+            return {
+                payloadType: "songs-array",
+                songs: payload.map(normalizeSongRecord),
+                config: null,
+                bandMembers: null,
+                savedSetlists: null,
+            };
         }
         if (payload && Array.isArray(payload.songs)) {
             // Extract old-format members BEFORE normalizeAppConfig strips them
             let importedMembers = payload.bandMembers || null;
-            if (!importedMembers && payload.config?.band?.members && Object.keys(payload.config.band.members).length > 0) {
+            if (
+                !importedMembers &&
+                payload.config?.band?.members &&
+                Object.keys(payload.config.band.members).length > 0
+            ) {
                 importedMembers = clone(payload.config.band.members);
             }
-            const config = payload.config ? normalizeAppConfig({
-                ...clone(payload.config), bandName: payload.config.bandName || appConfig?.bandName || "", updatedAt: nowIso()
-            }) : null;
+            const config = payload.config
+                ? normalizeAppConfig({
+                      ...clone(payload.config),
+                      bandName: payload.config.bandName || appConfig?.bandName || "",
+                      updatedAt: nowIso(),
+                  })
+                : null;
             // Run rs-migrate on config to strip members
             const migratedConfig = config ? migrator.migrateDocument("config", config) : null;
             return {
@@ -1332,10 +1541,15 @@ export function createAppStore(repo) {
                 savedSetlists: Array.isArray(payload.savedSetlists) ? stripEnergy(payload.savedSetlists) : null,
             };
         }
-        if (payload && payload.general && payload.show && payload.props) {
+        if (payload?.general && payload.show && payload.props) {
             return {
-                payloadType: "config-object", songs: [],
-                config: normalizeAppConfig({ ...clone(payload), bandName: payload.bandName || appConfig?.bandName || "", updatedAt: nowIso() }),
+                payloadType: "config-object",
+                songs: [],
+                config: normalizeAppConfig({
+                    ...clone(payload),
+                    bandName: payload.bandName || appConfig?.bandName || "",
+                    updatedAt: nowIso(),
+                }),
                 bandMembers: null,
                 savedSetlists: null,
             };
@@ -1344,7 +1558,10 @@ export function createAppStore(repo) {
     }
 
     async function importFromFile() {
-        if (!importFile) { addToast("Choose a JSON file first.", "danger"); return; }
+        if (!importFile) {
+            addToast("Choose a JSON file first.", "danger");
+            return;
+        }
         try {
             busyMessage = "Importing...";
             const text = await importFile.text();
@@ -1356,7 +1573,8 @@ export function createAppStore(repo) {
             await withSync("Importing data", async () => {
                 for (const s of imported.songs) {
                     if (importMode === "skip" && existing.has(s.id)) continue;
-                    await repo.putSong(s); ws++;
+                    await repo.putSong(s);
+                    ws++;
                 }
                 if (imported.config && (importMode === "overwrite" || !appConfig)) {
                     await repo.putConfig(imported.config);
@@ -1373,16 +1591,25 @@ export function createAppStore(repo) {
                         await repo.putSetlist(migrator.migrateDocument("setlists", entry));
                     }
                 }
-                bootstrapMeta = await repo.putBootstrapMeta({
-                    source: "uploaded-json", payloadType: imported.payloadType, mode: importMode,
-                    fileName: importFile?.name || null, importedSongs: ws
+                _bootstrapMeta = await repo.putBootstrapMeta({
+                    source: "uploaded-json",
+                    payloadType: imported.payloadType,
+                    mode: importMode,
+                    fileName: importFile?.name || null,
+                    importedSongs: ws,
                 });
             });
 
             await reloadAll({ quiet: true });
             const parts = [`${ws} song${ws === 1 ? "" : "s"}`];
-            if (imported.savedSetlists?.length) parts.push(`${imported.savedSetlists.length} saved setlist${imported.savedSetlists.length === 1 ? "" : "s"}`);
-            if (imported.bandMembers) parts.push(`${Object.keys(imported.bandMembers).length} member${Object.keys(imported.bandMembers).length === 1 ? "" : "s"}`);
+            if (imported.savedSetlists?.length)
+                parts.push(
+                    `${imported.savedSetlists.length} saved setlist${imported.savedSetlists.length === 1 ? "" : "s"}`,
+                );
+            if (imported.bandMembers)
+                parts.push(
+                    `${Object.keys(imported.bandMembers).length} member${Object.keys(imported.bandMembers).length === 1 ? "" : "s"}`,
+                );
             addToast(`Imported ${parts.join(", ")}.`);
         } catch (error) {
             addToast(error?.message || "Import failed.", "danger");
@@ -1393,16 +1620,19 @@ export function createAppStore(repo) {
 
     // ---- performance summary ----
     function performanceSummary(performance) {
-        return Object.keys(performance || {}).sort().map((member) => {
-            const setup = performance[member];
-            const details = [];
-            if (setup.instrument) details.push(setup.instrument);
-            if (setup.tuning) details.push(setup.tuning);
-            if (setup.capo) details.push(`capo ${setup.capo}`);
-            const techniques = Array.isArray(setup.picking) ? setup.picking : (setup.picking ? [setup.picking] : []);
-            if (techniques.length) details.push(techniques.join(", "));
-            return `${member}: ${details.join(", ") || "default"}`;
-        }).join(" | ");
+        return Object.keys(performance || {})
+            .sort()
+            .map((member) => {
+                const setup = performance[member];
+                const details = [];
+                if (setup.instrument) details.push(setup.instrument);
+                if (setup.tuning) details.push(setup.tuning);
+                if (setup.capo) details.push(`capo ${setup.capo}`);
+                const techniques = Array.isArray(setup.picking) ? setup.picking : setup.picking ? [setup.picking] : [];
+                if (techniques.length) details.push(techniques.join(", "));
+                return `${member}: ${details.join(", ") || "default"}`;
+            })
+            .join(" | ");
     }
 
     // ---- migrations ----
@@ -1511,8 +1741,11 @@ export function createAppStore(repo) {
         repo.onChange(async (event) => {
             if (connectionStatus === "connected" && event?.origin !== "window") {
                 beginSync(event?.origin === "remote" ? "Pulling remote changes" : "Syncing");
-                try { await reloadAll({ quiet: true }); }
-                finally { endSync(); }
+                try {
+                    await reloadAll({ quiet: true });
+                } finally {
+                    endSync();
+                }
             }
         });
 
@@ -1525,74 +1758,192 @@ export function createAppStore(repo) {
 
     return {
         // state (getters)
-        get songs() { return songs; },
+        get songs() {
+            return songs;
+        },
 
+        get appConfig() {
+            return appConfig;
+        },
+        get bandMembers() {
+            return bandMembers;
+        },
+        get generatedSetlist() {
+            return generatedSetlist;
+        },
+        get isGenerating() {
+            return isGenerating;
+        },
+        get setlistLocked() {
+            return setlistLocked;
+        },
+        get setlistSaved() {
+            return setlistSaved;
+        },
+        get pendingRollConfirm() {
+            return pendingRollConfirm;
+        },
+        get savedSetlists() {
+            return savedSetlists;
+        },
+        get connectionStatus() {
+            return connectionStatus;
+        },
+        get connectAddress() {
+            return connectAddress;
+        },
+        set connectAddress(v) {
+            connectAddress = v;
+        },
+        get activeView() {
+            return activeView;
+        },
+        get loadError() {
+            return loadError;
+        },
+        get busyMessage() {
+            return busyMessage;
+        },
+        get toastMessages() {
+            return toastMessages;
+        },
+        get showFirstRunPrompt() {
+            return showFirstRunPrompt;
+        },
+        get initialSyncComplete() {
+            return initialSyncComplete;
+        },
+        get firstRunBandName() {
+            return firstRunBandName;
+        },
+        set firstRunBandName(v) {
+            firstRunBandName = v;
+        },
+        get syncIndicatorVisible() {
+            return syncIndicatorVisible;
+        },
+        get syncStatusLabel() {
+            return syncStatusLabel;
+        },
+        get syncActivelyRunning() {
+            return syncActiveCount > 0;
+        },
+        get generationOptions() {
+            return generationOptions;
+        },
+        get editorSong() {
+            return editorSong;
+        },
+        get selectedSongId() {
+            return selectedSongId;
+        },
+        get songSearch() {
+            return songSearch;
+        },
+        set songSearch(v) {
+            songSearch = v;
+        },
+        get songFilter() {
+            return songFilter;
+        },
+        set songFilter(v) {
+            songFilter = v;
+        },
+        get expandedBandMember() {
+            return expandedBandMember;
+        },
+        set expandedBandMember(v) {
+            expandedBandMember = v;
+        },
+        get newMemberName() {
+            return newMemberName;
+        },
+        set newMemberName(v) {
+            newMemberName = v;
+        },
+        get newInstrumentByMember() {
+            return newInstrumentByMember;
+        },
+        set newInstrumentByMember(v) {
+            newInstrumentByMember = v;
+        },
+        get newTuningByInstrument() {
+            return newTuningByInstrument;
+        },
+        set newTuningByInstrument(v) {
+            newTuningByInstrument = v;
+        },
+        get newTechniqueByInstrument() {
+            return newTechniqueByInstrument;
+        },
+        set newTechniqueByInstrument(v) {
+            newTechniqueByInstrument = v;
+        },
+        get importMode() {
+            return importMode;
+        },
+        set importMode(v) {
+            importMode = v;
+        },
+        get importFile() {
+            return importFile;
+        },
+        set importFile(v) {
+            importFile = v;
+        },
 
-        get appConfig() { return appConfig; },
-        get bandMembers() { return bandMembers; },
-        get generatedSetlist() { return generatedSetlist; },
-        get isGenerating() { return isGenerating; },
-        get setlistLocked() { return setlistLocked; },
-        get setlistSaved() { return setlistSaved; },
-        get pendingRollConfirm() { return pendingRollConfirm; },
-        get savedSetlists() { return savedSetlists; },
-        get connectionStatus() { return connectionStatus; },
-        get connectAddress() { return connectAddress; },
-        set connectAddress(v) { connectAddress = v; },
-        get activeView() { return activeView; },
-        get loadError() { return loadError; },
-        get busyMessage() { return busyMessage; },
-        get toastMessages() { return toastMessages; },
-        get showFirstRunPrompt() { return showFirstRunPrompt; },
-        get initialSyncComplete() { return initialSyncComplete; },
-        get firstRunBandName() { return firstRunBandName; },
-        set firstRunBandName(v) { firstRunBandName = v; },
-        get syncIndicatorVisible() { return syncIndicatorVisible; },
-        get syncStatusLabel() { return syncStatusLabel; },
-        get syncActivelyRunning() { return syncActiveCount > 0; },
-        get generationOptions() { return generationOptions; },
-        get editorSong() { return editorSong; },
-        get selectedSongId() { return selectedSongId; },
-        get songSearch() { return songSearch; },
-        set songSearch(v) { songSearch = v; },
-        get songFilter() { return songFilter; },
-        set songFilter(v) { songFilter = v; },
-        get expandedBandMember() { return expandedBandMember; },
-        set expandedBandMember(v) { expandedBandMember = v; },
-        get newMemberName() { return newMemberName; },
-        set newMemberName(v) { newMemberName = v; },
-        get newInstrumentByMember() { return newInstrumentByMember; },
-        set newInstrumentByMember(v) { newInstrumentByMember = v; },
-        get newTuningByInstrument() { return newTuningByInstrument; },
-        set newTuningByInstrument(v) { newTuningByInstrument = v; },
-        get newTechniqueByInstrument() { return newTechniqueByInstrument; },
-        set newTechniqueByInstrument(v) { newTechniqueByInstrument = v; },
-        get importMode() { return importMode; },
-        set importMode(v) { importMode = v; },
-        get importFile() { return importFile; },
-        set importFile(v) { importFile = v; },
-
-
-        get bandSubView() { return bandSubView; },
-        set bandSubView(v) { bandSubView = v; },
-        get editingMemberName() { return editingMemberName; },
-        set editingMemberName(v) { editingMemberName = v; },
+        get bandSubView() {
+            return bandSubView;
+        },
+        set bandSubView(v) {
+            bandSubView = v;
+        },
+        get editingMemberName() {
+            return editingMemberName;
+        },
+        set editingMemberName(v) {
+            editingMemberName = v;
+        },
 
         // derived
-        get appTitle() { return appTitle; },
-        get emptyCatalog() { return emptyCatalog; },
-        get bandMemberEntries() { return bandMemberEntries; },
-        get availableMemberNames() { return availableMemberNames; },
-        get memberInstrumentChoicesByMember() { return memberInstrumentChoicesByMember; },
-        get memberTuningChoicesByMember() { return memberTuningChoicesByMember; },
-        get defaultTuningByMemberInstrument() { return defaultTuningByMemberInstrument; },
-        get allInstrumentNamesList() { return allInstrumentNamesList; },
-        get instrumentTypeCount() { return instrumentTypeCount; },
-        get visibleSongs() { return visibleSongs; },
+        get appTitle() {
+            return appTitle;
+        },
+        get emptyCatalog() {
+            return emptyCatalog;
+        },
+        get bandMemberEntries() {
+            return bandMemberEntries;
+        },
+        get availableMemberNames() {
+            return availableMemberNames;
+        },
+        get memberInstrumentChoicesByMember() {
+            return memberInstrumentChoicesByMember;
+        },
+        get memberTuningChoicesByMember() {
+            return memberTuningChoicesByMember;
+        },
+        get defaultTuningByMemberInstrument() {
+            return defaultTuningByMemberInstrument;
+        },
+        get allInstrumentNamesList() {
+            return allInstrumentNamesList;
+        },
+        get instrumentTypeCount() {
+            return instrumentTypeCount;
+        },
+        get visibleSongs() {
+            return visibleSongs;
+        },
         isSongIncomplete,
         songIncompleteReasons,
-        get incompleteSongCount() { return songs.filter((s) => isSongIncomplete(s)).length; },
-        get unpracticedSongCount() { return songs.filter((s) => s.unpracticed).length; },
+        get incompleteSongCount() {
+            return songs.filter((s) => isSongIncomplete(s)).length;
+        },
+        get unpracticedSongCount() {
+            return songs.filter((s) => s.unpracticed).length;
+        },
 
         // actions
         init,
@@ -1612,17 +1963,22 @@ export function createAppStore(repo) {
         reorderSetlistSong,
         removeSetlistSong,
         addSetlistSong,
-        get songsNotInSetlist() { return songsNotInSetlist; },
+        get songsNotInSetlist() {
+            return songsNotInSetlist;
+        },
         updateGenerationField,
         toggleListValue,
         ensureMemberShowConfig,
 
-
         openNewSong,
         openSong,
         closeEditor,
-        get editReturnView() { return editReturnView; },
-        set editReturnView(v) { editReturnView = v; },
+        get editReturnView() {
+            return editReturnView;
+        },
+        set editReturnView(v) {
+            editReturnView = v;
+        },
         updateSongField,
         renameMember,
         addMember,

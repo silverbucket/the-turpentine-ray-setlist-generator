@@ -21,7 +21,6 @@ export function displayValue(value) {
     return String(value);
 }
 
-
 // ---------------------------------------------------------------------------
 // Full detection (with notes — used for finalization / display)
 // ---------------------------------------------------------------------------
@@ -35,10 +34,7 @@ export function displayValue(value) {
  * @returns {{ changed: boolean, magnitude: number, notes: string[] }}
  */
 export function detectInstrumentSetChange(prevPerf, nextPerf) {
-    const members = new Set([
-        ...Object.keys(prevPerf),
-        ...Object.keys(nextPerf)
-    ]);
+    const members = new Set([...Object.keys(prevPerf), ...Object.keys(nextPerf)]);
     const notes = [];
     let magnitude = 0;
 
@@ -72,10 +68,7 @@ export function detectInstrumentSetChange(prevPerf, nextPerf) {
  * @returns {{ changed: boolean, magnitude: number, notes: string[] }}
  */
 export function detectFieldChange(prevPerf, nextPerf, field, scaleByDelta) {
-    const allMembers = new Set([
-        ...Object.keys(prevPerf),
-        ...Object.keys(nextPerf)
-    ]);
+    const allMembers = new Set([...Object.keys(prevPerf), ...Object.keys(nextPerf)]);
     const notes = [];
     let magnitude = 0;
 
@@ -94,9 +87,7 @@ export function detectFieldChange(prevPerf, nextPerf, field, scaleByDelta) {
 
         if (left === right) continue;
 
-        const amount = scaleByDelta
-            ? Math.abs((Number(prevValue) || 0) - (Number(nextValue) || 0))
-            : 1;
+        const amount = scaleByDelta ? Math.abs((Number(prevValue) || 0) - (Number(nextValue) || 0)) : 1;
         if (!amount) continue;
 
         magnitude += amount;
@@ -105,7 +96,6 @@ export function detectFieldChange(prevPerf, nextPerf, field, scaleByDelta) {
 
     return { changed: magnitude > 0, magnitude, notes };
 }
-
 
 // ---------------------------------------------------------------------------
 // Lite detection (no notes — used during beam search for speed)
@@ -121,11 +111,18 @@ export function detectInstrumentSetChangeLite(prevPerf, nextPerf) {
 
     for (let i = 0; i < prevKeys.length; i++) {
         const m = prevKeys[i];
-        if (!nextPerf[m]) { magnitude += 1; continue; }
-        if (prevPerf[m].instrument !== nextPerf[m].instrument) { magnitude += 1; }
+        if (!nextPerf[m]) {
+            magnitude += 1;
+            continue;
+        }
+        if (prevPerf[m].instrument !== nextPerf[m].instrument) {
+            magnitude += 1;
+        }
     }
     for (let i = 0; i < nextKeys.length; i++) {
-        if (!prevPerf[nextKeys[i]]) { magnitude += 1; }
+        if (!prevPerf[nextKeys[i]]) {
+            magnitude += 1;
+        }
     }
 
     return { changed: magnitude > 0, magnitude };
@@ -137,7 +134,7 @@ export function detectInstrumentSetChangeLite(prevPerf, nextPerf) {
 export function detectFieldChangeLite(prevPerf, nextPerf, field, scaleByDelta) {
     let magnitude = 0;
     const prevKeys = Object.keys(prevPerf);
-    const nextKeys = Object.keys(nextPerf);
+    const _nextKeys = Object.keys(nextPerf);
 
     // Check members in prev
     for (let i = 0; i < prevKeys.length; i++) {
@@ -158,7 +155,6 @@ export function detectFieldChangeLite(prevPerf, nextPerf, field, scaleByDelta) {
 
     return { changed: magnitude > 0, magnitude };
 }
-
 
 // ---------------------------------------------------------------------------
 // Prop kind inference

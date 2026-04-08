@@ -7,9 +7,9 @@ export const CONFIG_SECTIONS = [
                 path: "bandName",
                 label: "Band name",
                 type: "text",
-                description: "Shown in the app header."
-            }
-        ]
+                description: "Shown in the app header.",
+            },
+        ],
     },
     {
         id: "weights",
@@ -22,7 +22,8 @@ export const CONFIG_SECTIONS = [
                 type: "number",
                 min: 0,
                 max: 50,
-                description: "How much to avoid switching tunings. At 0 the generator doesn't care; at 10+ it will group songs by tuning aggressively."
+                description:
+                    "How much to avoid switching tunings. At 0 the generator doesn't care; at 10+ it will group songs by tuning aggressively.",
             },
             {
                 path: "general.weighting.capo",
@@ -30,7 +31,7 @@ export const CONFIG_SECTIONS = [
                 type: "number",
                 min: 0,
                 max: 50,
-                description: "Cost per capo step moved. A jump from capo 0 to capo 3 costs 3× this value."
+                description: "Cost per capo step moved. A jump from capo 0 to capo 3 costs 3× this value.",
             },
             {
                 path: "general.weighting.instrument",
@@ -38,7 +39,8 @@ export const CONFIG_SECTIONS = [
                 type: "number",
                 min: 0,
                 max: 50,
-                description: "How much to avoid making someone put down one instrument and pick up another between songs."
+                description:
+                    "How much to avoid making someone put down one instrument and pick up another between songs.",
             },
             {
                 path: "general.weighting.technique",
@@ -46,7 +48,8 @@ export const CONFIG_SECTIONS = [
                 type: "number",
                 min: 0,
                 max: 50,
-                description: "How much to avoid switching playing technique (e.g. fingerpicks to clawhammer) between songs."
+                description:
+                    "How much to avoid switching playing technique (e.g. fingerpicks to clawhammer) between songs.",
             },
             {
                 path: "general.weighting.keyFlow",
@@ -54,9 +57,10 @@ export const CONFIG_SECTIONS = [
                 type: "number",
                 min: 0,
                 max: 50,
-                description: "How much to prefer smooth key transitions between songs (circle of fifths proximity). Only applies when 'Smooth key flow' is enabled on the roll screen."
-            }
-        ]
+                description:
+                    "How much to prefer smooth key transitions between songs (circle of fifths proximity). Only applies when 'Smooth key flow' is enabled on the roll screen.",
+            },
+        ],
     },
     {
         id: "props",
@@ -69,13 +73,15 @@ export const CONFIG_SECTIONS = [
                 type: "number",
                 min: 0,
                 max: 20,
-                description: "Once a tuning is set, the generator must play at least this many songs before switching. Set to 0 to allow changes at any time."
+                description:
+                    "Once a tuning is set, the generator must play at least this many songs before switching. Set to 0 to allow changes at any time.",
             },
             {
                 path: "props.tuning.allowChangeOnLastSong",
                 label: "Tuning can change on closer",
                 type: "boolean",
-                description: "Let the closing song break the tuning streak rule. Useful so the closer isn't locked out of a great song."
+                description:
+                    "Let the closing song break the tuning streak rule. Useful so the closer isn't locked out of a great song.",
             },
             {
                 path: "props.capo.minStreak",
@@ -83,13 +89,13 @@ export const CONFIG_SECTIONS = [
                 type: "number",
                 min: 0,
                 max: 20,
-                description: "Minimum songs to stay at a capo position before moving it."
+                description: "Minimum songs to stay at a capo position before moving it.",
             },
             {
                 path: "props.capo.allowChangeOnLastSong",
                 label: "Capo can change on closer",
                 type: "boolean",
-                description: "Let the closing song ignore the capo streak rule."
+                description: "Let the closing song ignore the capo streak rule.",
             },
             {
                 path: "props.instruments.minStreak",
@@ -97,13 +103,13 @@ export const CONFIG_SECTIONS = [
                 type: "number",
                 min: 0,
                 max: 20,
-                description: "Minimum songs before a member can swap to a different instrument."
+                description: "Minimum songs before a member can swap to a different instrument.",
             },
             {
                 path: "props.instruments.allowChangeOnLastSong",
                 label: "Instrument swap on closer",
                 type: "boolean",
-                description: "Let the closing song break the instrument streak rule."
+                description: "Let the closing song break the instrument streak rule.",
             },
             {
                 path: "props.picking.minStreak",
@@ -111,14 +117,14 @@ export const CONFIG_SECTIONS = [
                 type: "number",
                 min: 0,
                 max: 20,
-                description: "Minimum songs before a playing technique change is allowed."
+                description: "Minimum songs before a playing technique change is allowed.",
             },
             {
                 path: "props.picking.allowChangeOnLastSong",
                 label: "Technique can change on closer",
                 type: "boolean",
-                description: "Let the closing song ignore the technique streak rule."
-            }
-        ]
-    }
+                description: "Let the closing song ignore the technique streak rule.",
+            },
+        ],
+    },
 ];

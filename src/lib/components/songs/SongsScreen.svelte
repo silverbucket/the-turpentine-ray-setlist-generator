@@ -32,7 +32,7 @@
 <div class="songs-screen">
     <header class="screen-header">
         <h2>Songs ({store.songs.length})</h2>
-        <button class="primary add-btn" onclick={() => store.openNewSong()}>+ Add</button>
+        <button type="button" class="primary add-btn" onclick={() => store.openNewSong()}>+ Add</button>
     </header>
 
     <input
@@ -48,7 +48,7 @@
             {#each STATUS_FILTERS as sf}
                 {@const count = store[sf.countKey]}
                 {#if count > 0}
-                    <button
+                    <button type="button"
                         class="status-chip"
                         class:active={store.songFilter === sf.id}
                         onclick={() => (store.songFilter = store.songFilter === sf.id ? "all" : sf.id)}
@@ -58,7 +58,7 @@
         </div>
         <div class="type-segmented">
             {#each TYPE_FILTERS as filter}
-                <button
+                <button type="button"
                     class="seg-btn"
                     class:active={store.songFilter === filter.id}
                     onclick={() => (store.songFilter = filter.id)}
@@ -81,7 +81,7 @@
         <ul class="song-list">
             {#each store.visibleSongs as song (song.id)}
                 <li>
-                    <button class="song-row" onclick={() => store.openSong(song)}>
+                    <button type="button" class="song-row" onclick={() => store.openSong(song)}>
                         <div class="song-content">
                             <div class="song-top">
                                 <span class="song-name">{song.name || "Untitled"}</span>
@@ -112,7 +112,7 @@
                                 <div class="song-key">Key: {song.key}</div>
                             {/if}
                         </div>
-                        <svg class="row-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"></polyline></svg>
+                        <svg aria-hidden="true" class="row-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"></polyline></svg>
                     </button>
                 </li>
             {/each}

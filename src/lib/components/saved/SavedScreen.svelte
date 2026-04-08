@@ -27,7 +27,7 @@
     if (!editingId) return;
     store.updateSavedSetlist(editingId, {
       name: editName.trim() || "Untitled Set",
-      savedAt: editDate ? new Date(editDate + "T12:00:00").toISOString() : new Date().toISOString(),
+      savedAt: editDate ? new Date(`${editDate}T12:00:00`).toISOString() : new Date().toISOString(),
     });
     editingId = null;
   }
@@ -69,7 +69,7 @@
   function handlePrint() {
     if (!printEl) return;
     const clone = printEl.cloneNode(true);
-    clone.querySelectorAll(".no-print").forEach(el => el.remove());
+    for (const el of clone.querySelectorAll(".no-print")) el.remove();
     const content = clone.innerHTML;
     const appUrl = window.location.origin;
     const bandName = (store.appTitle || "").replace(/ — Setlist Roller$/, "");
@@ -156,7 +156,7 @@
     return changes;
   }
 
-  function allChanges(song, prevSong) {
+  function _allChanges(song, prevSong) {
     if (!song.performance) return [];
     const lines = [];
     for (const [memberName] of Object.entries(song.performance)) {
@@ -194,8 +194,8 @@
               <input class="edit-input" type="text" bind:value={editName} placeholder="Setlist name" onkeydown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }} />
               <input class="edit-input date" type="date" bind:value={editDate} />
               <div class="edit-actions">
-                <button class="card-btn save" onclick={saveEdit}>Save</button>
-                <button class="card-btn cancel" onclick={cancelEdit}>Cancel</button>
+                <button type="button" class="card-btn save" onclick={saveEdit}>Save</button>
+                <button type="button" class="card-btn cancel" onclick={cancelEdit}>Cancel</button>
               </div>
             </div>
           {:else}
@@ -207,14 +207,14 @@
               <span>{saved.songCount || saved.songs?.length || 0} songs</span>
             </div>
             <div class="saved-card-actions">
-              <button class="card-btn edit" onclick={(e) => startEdit(e, saved)}>Edit</button>
-              <button class="card-btn load" onclick={(e) => handleLoad(e, saved.id)}>Load</button>
+              <button type="button" class="card-btn edit" onclick={(e) => startEdit(e, saved)}>Edit</button>
+              <button type="button" class="card-btn load" onclick={(e) => handleLoad(e, saved.id)}>Load</button>
               <span class="action-spacer"></span>
               {#if confirmingRemoveId === saved.id}
-                <button class="card-btn confirm-delete" onclick={(e) => handleRemove(e, saved.id)}>Delete?</button>
-                <button class="card-btn cancel-delete" onclick={cancelRemove}>No</button>
+                <button type="button" class="card-btn confirm-delete" onclick={(e) => handleRemove(e, saved.id)}>Delete?</button>
+                <button type="button" class="card-btn cancel-delete" onclick={cancelRemove}>No</button>
               {:else}
-                <button class="card-btn remove" onclick={(e) => handleRemove(e, saved.id)} aria-label="Remove">&times;</button>
+                <button type="button" class="card-btn remove" onclick={(e) => handleRemove(e, saved.id)} aria-label="Remove">&times;</button>
               {/if}
             </div>
           {/if}
@@ -230,7 +230,7 @@
     <div class="modal-sheet" onclick={(e) => e.stopPropagation()}>
       <div class="print-setlist" bind:this={printEl}>
         <div class="print-top">
-          <button class="modal-close no-print" onclick={handleClose} aria-label="Close">&times;</button>
+          <button type="button" class="modal-close no-print" onclick={handleClose} aria-label="Close">&times;</button>
           <h2 class="print-band">{store.appTitle.replace(/ — Setlist Roller$/, "")}</h2>
           <p class="print-subtitle">{viewingSet.name || "Setlist"} &middot; {formatDate(viewingSet.savedAt)}</p>
         </div>
@@ -275,8 +275,8 @@
       </div>
 
       <div class="modal-actions">
-        <button class="modal-btn" onclick={handlePrint}>Print / Export PDF</button>
-        <button class="modal-btn primary" onclick={(e) => { handleLoad(e, viewingSet.id); viewingSet = null; }}>Load to Roll</button>
+        <button type="button" class="modal-btn" onclick={handlePrint}>Print / Export PDF</button>
+        <button type="button" class="modal-btn primary" onclick={(e) => { handleLoad(e, viewingSet.id); viewingSet = null; }}>Load to Roll</button>
       </div>
     </div>
   </div>
@@ -487,7 +487,6 @@
 
   .modal-sheet {
     width: min(100%, 420px);
-    max-height: calc(100vh - 2rem);
     max-height: calc(100dvh - 2rem);
     overflow-y: auto;
     background: #fff;

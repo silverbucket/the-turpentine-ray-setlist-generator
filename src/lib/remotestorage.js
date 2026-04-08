@@ -1,10 +1,5 @@
 import RemoteStorage from "remotestoragejs";
-import {
-    createDefaultAppConfig,
-    normalizeAppConfig,
-    normalizeSongRecord,
-    sortSongs
-} from "./defaults.js";
+import { createDefaultAppConfig, normalizeAppConfig, normalizeSongRecord, sortSongs } from "./defaults.js";
 import { clone, nowIso } from "./utils.js";
 
 const APP_SCOPE = "setlist-roller";
@@ -14,14 +9,13 @@ const TYPES = {
     config: "setlist-roller-config",
     meta: "setlist-roller-meta",
     setlist: "setlist-roller-setlist",
-    member: "setlist-roller-member"
+    member: "setlist-roller-member",
 };
 
 const OBJECT_SCHEMA = {
     type: "object",
-    additionalProperties: true
+    additionalProperties: true,
 };
-
 
 export function createRemoteStorageRepository() {
     const remoteStorage = new RemoteStorage({
@@ -29,9 +23,9 @@ export function createRemoteStorageRepository() {
             local: true,
             remote: true,
             conflict: true,
-            window: false
+            window: false,
         },
-        logging: false
+        logging: false,
     });
 
     remoteStorage.access.claim(APP_SCOPE, "rw");
@@ -82,7 +76,6 @@ export function createRemoteStorageRepository() {
             return remoteStorage.connected;
         },
 
-
         getUserAddress() {
             return remoteStorage.remote?.userAddress || "";
         },
@@ -93,7 +86,7 @@ export function createRemoteStorageRepository() {
                 this.getConfig(),
                 this.getBootstrapMeta(),
                 this.listSetlists(),
-                this.listMembers()
+                this.listMembers(),
             ]);
 
             return { songs, config, bootstrap, setlists, members };
@@ -107,7 +100,7 @@ export function createRemoteStorageRepository() {
         async putSong(song) {
             const normalized = normalizeSongRecord({
                 ...clone(song),
-                updatedAt: nowIso()
+                updatedAt: nowIso(),
             });
             await client.storeObject(TYPES.song, `songs/${normalized.id}`, normalized);
             return normalized;
@@ -144,7 +137,7 @@ export function createRemoteStorageRepository() {
         async putConfig(config) {
             const normalized = normalizeAppConfig({
                 ...clone(config),
-                updatedAt: nowIso()
+                updatedAt: nowIso(),
             });
             await client.storeObject(TYPES.config, "settings/app-config", normalized);
             return normalized;
@@ -158,7 +151,7 @@ export function createRemoteStorageRepository() {
         async putBootstrapMeta(meta) {
             const nextMeta = {
                 ...clone(meta),
-                updatedAt: nowIso()
+                updatedAt: nowIso(),
             };
             await client.storeObject(TYPES.meta, "meta/bootstrap", nextMeta);
             return nextMeta;
@@ -167,8 +160,7 @@ export function createRemoteStorageRepository() {
         // ---- setlists ----
         async listSetlists() {
             const items = await client.getAll("setlists/", false);
-            return Object.values(items || {})
-                .sort((a, b) => (b.savedAt || "").localeCompare(a.savedAt || ""));
+            return Object.values(items || {}).sort((a, b) => (b.savedAt || "").localeCompare(a.savedAt || ""));
         },
 
         async putSetlist(setlist) {
@@ -199,6 +191,6 @@ export function createRemoteStorageRepository() {
 
         async deleteMember(name) {
             await client.remove(`members/${name}`);
-        }
+        },
     };
 }

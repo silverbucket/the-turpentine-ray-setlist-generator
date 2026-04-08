@@ -1,5 +1,6 @@
 <script>
   import { getContext } from "svelte";
+
   const store = getContext("app");
 
   let menuOpen = $state(false);
@@ -43,15 +44,15 @@
   <div class="right">
 
     <div class="menu-wrapper">
-      <button class="menu-btn" onclick={toggleMenu} aria-label="Menu">
+      <button type="button" class="menu-btn" onclick={toggleMenu} aria-label="Menu">
         &middot;&middot;&middot;
       </button>
 
       {#if menuOpen}
         <div class="dropdown">
-          <button class="dropdown-item" onclick={handleExport}>Export Data</button>
-          <button class="dropdown-item" onclick={handleImport}>Import Data</button>
-          <button class="dropdown-item dropdown-item--danger" onclick={handleDisconnect}>Disconnect</button>
+          <button type="button" class="dropdown-item" onclick={handleExport}>Export Data</button>
+          <button type="button" class="dropdown-item" onclick={handleImport}>Import Data</button>
+          <button type="button" class="dropdown-item dropdown-item--danger" onclick={handleDisconnect}>Disconnect</button>
         </div>
       {/if}
     </div>

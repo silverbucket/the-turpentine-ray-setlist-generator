@@ -87,11 +87,18 @@ a {
     color: inherit;
 }
 
-h1, h2, h3, h4, h5, p {
+h1,
+h2,
+h3,
+h4,
+h5,
+p {
     margin: 0;
 }
 
-h1, h2, h3 {
+h1,
+h2,
+h3 {
     letter-spacing: -0.04em;
     line-height: 1.05;
 }
@@ -102,6 +109,6 @@ h1, h2, h3 {
     }
 
     body {
-        background: #fff !important;
+        background: #fff;
     }
 }

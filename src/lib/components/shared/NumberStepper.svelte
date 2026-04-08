@@ -9,7 +9,7 @@
     }
     function handleInput(e) {
         const n = Number(e.currentTarget.value);
-        if (!isNaN(n)) onchange(Math.max(min, Math.min(max, n)));
+        if (!Number.isNaN(n)) onchange(Math.max(min, Math.min(max, n)));
     }
 </script>
 

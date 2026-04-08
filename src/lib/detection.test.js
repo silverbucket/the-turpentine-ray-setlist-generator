@@ -1,14 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-    normalizeValue,
-    displayValue,
-    detectInstrumentSetChange,
     detectFieldChange,
-    detectInstrumentSetChangeLite,
     detectFieldChangeLite,
-    inferPropKind
+    detectInstrumentSetChange,
+    detectInstrumentSetChangeLite,
+    displayValue,
+    inferPropKind,
+    normalizeValue,
 } from "./detection.js";
-
 
 // ===================================================================
 // normalizeValue
@@ -39,7 +38,6 @@ describe("normalizeValue", () => {
     });
 });
 
-
 // ===================================================================
 // displayValue
 // ===================================================================
@@ -63,7 +61,6 @@ describe("displayValue", () => {
         expect(displayValue(2)).toBe("2");
     });
 });
-
 
 // ===================================================================
 // detectInstrumentSetChange (full)
@@ -115,7 +112,6 @@ describe("detectInstrumentSetChange", () => {
     });
 });
 
-
 // ===================================================================
 // detectInstrumentSetChangeLite
 // ===================================================================
@@ -130,10 +126,7 @@ describe("detectInstrumentSetChangeLite", () => {
     });
 
     it("detects instrument swap", () => {
-        const r = detectInstrumentSetChangeLite(
-            { nick: { instrument: "banjo" } },
-            { nick: { instrument: "guitar" } }
-        );
+        const r = detectInstrumentSetChangeLite({ nick: { instrument: "banjo" } }, { nick: { instrument: "guitar" } });
         expect(r.magnitude).toBe(1);
     });
 
@@ -148,14 +141,10 @@ describe("detectInstrumentSetChangeLite", () => {
     });
 
     it("counts both directions", () => {
-        const r = detectInstrumentSetChangeLite(
-            { nick: { instrument: "banjo" } },
-            { mark: { instrument: "guitar" } }
-        );
+        const r = detectInstrumentSetChangeLite({ nick: { instrument: "banjo" } }, { mark: { instrument: "guitar" } });
         expect(r.magnitude).toBe(2);
     });
 });
-
 
 // ===================================================================
 // detectFieldChange (full)
@@ -221,7 +210,6 @@ describe("detectFieldChange", () => {
     });
 });
 
-
 // ===================================================================
 // detectFieldChangeLite
 // ===================================================================
@@ -230,7 +218,8 @@ describe("detectFieldChangeLite", () => {
         const r = detectFieldChangeLite(
             { mark: { tuning: "DADDAD" } },
             { mark: { tuning: "Standard" } },
-            "tuning", false
+            "tuning",
+            false,
         );
         expect(r.changed).toBe(true);
         expect(r.magnitude).toBe(1);
@@ -241,7 +230,8 @@ describe("detectFieldChangeLite", () => {
         const r = detectFieldChangeLite(
             { mark: { tuning: "Standard" } },
             { mark: { tuning: "Standard" } },
-            "tuning", false
+            "tuning",
+            false,
         );
         expect(r.changed).toBe(false);
     });
@@ -250,17 +240,14 @@ describe("detectFieldChangeLite", () => {
         const r = detectFieldChangeLite(
             { nick: { picking: ["slide", "picking"] } },
             { nick: { picking: ["picking", "slide"] } },
-            "picking", false
+            "picking",
+            false,
         );
         expect(r.changed).toBe(false);
     });
 
     it("capo delta", () => {
-        const r = detectFieldChangeLite(
-            { nick: { capo: 0 } },
-            { nick: { capo: 4 } },
-            "capo", true
-        );
+        const r = detectFieldChangeLite({ nick: { capo: 0 } }, { nick: { capo: 4 } }, "capo", true);
         expect(r.magnitude).toBe(4);
     });
 
@@ -268,12 +255,12 @@ describe("detectFieldChangeLite", () => {
         const r = detectFieldChangeLite(
             { mark: { tuning: "Standard" } },
             { nick: { tuning: "Open G" } },
-            "tuning", false
+            "tuning",
+            false,
         );
         expect(r.changed).toBe(false);
     });
 });
-
 
 // ===================================================================
 // inferPropKind

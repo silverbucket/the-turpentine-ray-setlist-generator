@@ -1,5 +1,6 @@
 <script>
   import { getContext } from "svelte";
+
   const store = getContext("app");
 
   const tabs = [
@@ -13,7 +14,7 @@
 
 <nav class="bottom-nav">
   {#each tabs as tab}
-    <button
+    <button type="button"
       class="tab"
       class:active={store.activeView === tab.id}
       onclick={() => store.navigate(tab.id)}

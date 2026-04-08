@@ -1,11 +1,12 @@
 <script>
     import { getContext } from "svelte";
+
     const store = getContext("app");
 
     let bandNameDraft = $state(store.appConfig?.bandName ?? "");
     let renameDraft = $state("");
 
-    function saveBandName() {
+    function _saveBandName() {
         store.updateConfigField("bandName", bandNameDraft);
         store.saveConfig();
     }
@@ -79,7 +80,7 @@
         return (memberConfig.instruments || []).map((i) => i.name).filter(Boolean).join(", ");
     }
 
-    function renderConfigField(field) {
+    function _renderConfigField(field) {
         return field;
     }
 </script>
@@ -88,7 +89,7 @@
     {#if store.bandSubView === "member-edit"}
         <!-- MEMBER EDIT SUB-VIEW -->
         <div class="sub-header">
-            <button class="back-btn" onclick={handleBackToMain}>&larr; Back</button>
+            <button type="button" class="back-btn" onclick={handleBackToMain}>&larr; Back</button>
             <h2 class="sub-title">Edit Member</h2>
         </div>
 
@@ -121,7 +122,7 @@
                     </label>
                 {/if}
 
-                <button
+                <button type="button"
                     class="danger-btn"
                     onclick={() => { store.removeBandMember(memberName); handleBackToMain(); }}
                 >Remove member</button>
@@ -140,7 +141,7 @@
                             {#if store.songsUsingInstrument(memberName, instrument.name).length > 0}
                                 <span class="ref-count">{store.songsUsingInstrument(memberName, instrument.name).length}</span>
                             {/if}
-                            <svg class="chevron-down" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            <svg aria-hidden="true" class="chevron-down" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                         </summary>
 
                         <div class="instrument-body">
@@ -167,7 +168,7 @@
                                             {#if store.songsUsingTuning(memberName, instrument.name, tuning).length > 0}
                                                 <span class="chip-ref-count">{store.songsUsingTuning(memberName, instrument.name, tuning).length}</span>
                                             {/if}
-                                            <button
+                                            <button type="button"
                                                 class="chip-remove"
                                                 onclick={() => store.removeTuningChoice(memberName, instrument.name, tuning)}
                                                 aria-label="Remove {tuning}"
@@ -184,7 +185,7 @@
                                         oninput={(e) => { store.newTuningByInstrument = { ...store.newTuningByInstrument, [store.tuningDraftKey(memberName, instrument.name)]: e.currentTarget.value }; }}
                                         onkeydown={(e) => handleAddTuningKeydown(e, memberName, instrument.name)}
                                     />
-                                    <button class="add-sm-btn" onclick={() => handleAddTuning(memberName, instrument.name)}>Add</button>
+                                    <button type="button" class="add-sm-btn" onclick={() => handleAddTuning(memberName, instrument.name)}>Add</button>
                                 </div>
                             </div>
 
@@ -211,7 +212,7 @@
                                                 {#if store.songsUsingTechnique(memberName, instrument.name, technique).length > 0}
                                                     <span class="chip-ref-count">{store.songsUsingTechnique(memberName, instrument.name, technique).length}</span>
                                                 {/if}
-                                                <button
+                                                <button type="button"
                                                     class="chip-remove"
                                                     onclick={() => store.removeTechniqueChoice(memberName, instrument.name, technique)}
                                                     aria-label="Remove {technique}"
@@ -229,11 +230,11 @@
                                         oninput={(e) => { store.newTechniqueByInstrument = { ...store.newTechniqueByInstrument, [store.techniqueDraftKey(memberName, instrument.name)]: e.currentTarget.value }; }}
                                         onkeydown={(e) => handleAddTechniqueKeydown(e, memberName, instrument.name)}
                                     />
-                                    <button class="add-sm-btn" onclick={() => handleAddTechnique(memberName, instrument.name)}>Add</button>
+                                    <button type="button" class="add-sm-btn" onclick={() => handleAddTechnique(memberName, instrument.name)}>Add</button>
                                 </div>
                             </div>
 
-                            <button
+                            <button type="button"
                                 class="danger-btn small"
                                 onclick={() => store.removeBandMemberInstrument(memberName, instrument.name)}
                             >Remove instrument</button>
@@ -250,7 +251,7 @@
                         oninput={(e) => { store.newInstrumentByMember = { ...store.newInstrumentByMember, [memberName]: e.currentTarget.value }; }}
                         onkeydown={(e) => handleAddInstrumentKeydown(e, memberName)}
                     />
-                    <button class="add-sm-btn" onclick={() => handleAddInstrument(memberName)}>Add</button>
+                    <button type="button" class="add-sm-btn" onclick={() => handleAddInstrument(memberName)}>Add</button>
                 </div>
             </div>
         {/each}
@@ -258,13 +259,13 @@
     {:else if store.bandSubView === "advanced"}
         <!-- ADVANCED CONFIG SUB-VIEW -->
         <div class="sub-header">
-            <button class="back-btn" onclick={handleBackToMain}>&larr; Back</button>
+            <button type="button" class="back-btn" onclick={handleBackToMain}>&larr; Back</button>
             <h2 class="sub-title">Advanced Config</h2>
         </div>
 
         {#each store.CONFIG_SECTIONS.filter((s) => s.id !== "identity") as section}
             <details class="section-details">
-                <summary class="section-summary"><span class="section-summary-label">{section.title}</span><svg class="chevron-down" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
+                <summary class="section-summary"><span class="section-summary-label">{section.title}</span><svg aria-hidden="true" class="chevron-down" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
                 <div class="section-body">
                     {#if section.intro}
                         <p class="section-intro">{section.intro}</p>
@@ -309,7 +310,7 @@
         {/each}
 
         <div class="sticky-footer">
-            <button class="primary-btn" onclick={() => store.saveConfig()}>Save Settings</button>
+            <button type="button" class="primary-btn" onclick={() => store.saveConfig()}>Save Settings</button>
         </div>
 
     {:else}
@@ -360,7 +361,7 @@
 
             <div class="member-list">
                 {#each store.bandMemberEntries || [] as [memberName, memberConfig]}
-                    <button class="member-row" onclick={() => openMemberEdit(memberName)}>
+                    <button type="button" class="member-row" onclick={() => openMemberEdit(memberName)}>
                         <div class="member-info">
                             <span class="member-name">{memberName}</span>
                             {#if instrumentSummary(memberConfig)}
@@ -370,7 +371,7 @@
                         {#if store.songsUsingMember(memberName).length > 0}
                             <span class="ref-count">{store.songsUsingMember(memberName).length}</span>
                         {/if}
-                        <svg class="chevron-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"></polyline></svg>
+                        <svg aria-hidden="true" class="chevron-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"></polyline></svg>
                     </button>
                 {/each}
             </div>
@@ -384,7 +385,7 @@
                     oninput={(e) => { store.newMemberName = e.currentTarget.value; }}
                     onkeydown={handleAddMemberKeydown}
                 />
-                <button class="add-sm-btn" onclick={handleAddMember}>Add</button>
+                <button type="button" class="add-sm-btn" onclick={handleAddMember}>Add</button>
             </div>
         </div>
 
@@ -393,7 +394,7 @@
         <!-- Config Section -->
         <div class="section-block">
             <h3 class="section-label">Config</h3>
-            <button class="card link-card" onclick={() => { store.bandSubView = "advanced"; }}>
+            <button type="button" class="card link-card" onclick={() => { store.bandSubView = "advanced"; }}>
                 <span class="link-card-label">Transition costs and switching rules</span>
                 <span class="link-card-arrow">&rsaquo;</span>
             </button>
@@ -405,7 +406,7 @@
         <div class="section-block">
             <h3 class="section-label">Data</h3>
 
-            <button class="secondary-btn" onclick={() => store.exportAllData()}>Export All</button>
+            <button type="button" class="secondary-btn" onclick={() => store.exportAllData()}>Export All</button>
 
             <div class="import-group">
                 <span class="field-label">Import</span>
@@ -424,11 +425,11 @@
                         <option value="skip">Skip existing</option>
                         <option value="overwrite">Overwrite existing</option>
                     </select>
-                    <button class="add-sm-btn" onclick={() => store.importFromFile()} disabled={!store.importFile}>Import</button>
+                    <button type="button" class="add-sm-btn" onclick={() => store.importFromFile()} disabled={!store.importFile}>Import</button>
                 </div>
             </div>
 
-            <button class="danger-btn" onclick={() => store.deleteAllData()}>Delete All Data</button>
+            <button type="button" class="danger-btn" onclick={() => store.deleteAllData()}>Delete All Data</button>
         </div>
 
         <hr class="section-divider" />
@@ -442,7 +443,7 @@
                     <span class="field-label">Connected as</span>
                     <span class="connect-address">{store.connectAddress}</span>
                 </div>
-                <button class="danger-btn" onclick={() => store.disconnectStorage()}>Disconnect</button>
+                <button type="button" class="danger-btn" onclick={() => store.disconnectStorage()}>Disconnect</button>
             {:else}
                 <p class="empty-sub">Not connected.</p>
             {/if}

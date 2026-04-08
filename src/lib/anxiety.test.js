@@ -1,7 +1,14 @@
-import { describe, it, expect } from "vitest";
-import { computeAnxiety, anxietyLabel, _internals } from "./anxiety.js";
+import { describe, expect, it } from "vitest";
+import { _internals, anxietyLabel, computeAnxiety } from "./anxiety.js";
 
-const { normalizeValue, displayValue, detectInstrumentSetChange, detectFieldChange, scoreTransition, anxietyWeightPressure } = _internals;
+const {
+    normalizeValue,
+    _displayValue,
+    detectInstrumentSetChange,
+    detectFieldChange,
+    scoreTransition,
+    anxietyWeightPressure,
+} = _internals;
 
 // ---------------------------------------------------------------------------
 // Test config matching the user's real band setup
@@ -16,38 +23,37 @@ const BAND_CONFIG = {
             technique: 1,
             positionMiss: 8,
             earlyCover: 2,
-            earlyInstrumental: 2
-        }
+            earlyInstrumental: 2,
+        },
     },
     props: {
         tuning: {
             kind: "instrumentField",
             field: "tuning",
             minStreak: 2,
-            allowChangeOnLastSong: true
+            allowChangeOnLastSong: true,
         },
         capo: {
             kind: "instrumentDelta",
             field: "capo",
             minStreak: 2,
-            allowChangeOnLastSong: true
+            allowChangeOnLastSong: true,
         },
         instruments: {
             kind: "instrumentSet",
             weightKey: "instrument",
             minStreak: 2,
-            allowChangeOnLastSong: true
+            allowChangeOnLastSong: true,
         },
         picking: {
             kind: "instrumentField",
             field: "picking",
             weightKey: "technique",
             minStreak: 1,
-            allowChangeOnLastSong: true
-        }
-    }
+            allowChangeOnLastSong: true,
+        },
+    },
 };
-
 
 // ---------------------------------------------------------------------------
 // Helper: build a song with performance data
@@ -59,12 +65,11 @@ function song(name, key, members = {}) {
             instrument: setup.instrument || "guitar",
             tuning: setup.tuning || "Standard",
             capo: setup.capo || 0,
-            picking: setup.picking || []
+            picking: setup.picking || [],
         };
     }
     return { id: name.toLowerCase().replace(/\s+/g, "-"), name, key, performance };
 }
-
 
 // ===================================================================
 // normalizeValue
@@ -86,7 +91,6 @@ describe("normalizeValue", () => {
         expect(normalizeValue([])).toBe("");
     });
 });
-
 
 // ===================================================================
 // detectInstrumentSetChange
@@ -132,7 +136,6 @@ describe("detectInstrumentSetChange", () => {
         expect(result.magnitude).toBe(2);
     });
 });
-
 
 // ===================================================================
 // detectFieldChange
@@ -208,7 +211,6 @@ describe("detectFieldChange", () => {
     });
 });
 
-
 // ===================================================================
 // scoreTransition (per-prop, used for notes/details)
 // ===================================================================
@@ -265,7 +267,6 @@ describe("scoreTransition", () => {
     });
 });
 
-
 // ===================================================================
 // computeAnxiety — the user's actual setlist
 // ===================================================================
@@ -274,42 +275,42 @@ describe("computeAnxiety — real setlist", () => {
     const realSetlist = [
         song("O' the Topside", "E", {
             mark: { instrument: "guitar", tuning: "DADDAD" },
-            nick: { instrument: "banjo", tuning: "Open G", picking: ["picking", "slide"] }
+            nick: { instrument: "banjo", tuning: "Open G", picking: ["picking", "slide"] },
         }),
-        song("Bob Dylan", "D", {}),  // no members listed
+        song("Bob Dylan", "D", {}), // no members listed
         song("Tubsies Requiem", "G", {
-            nick: { picking: ["clawhammer"] }
+            nick: { picking: ["clawhammer"] },
         }),
         song("Run Along", "C", {
             mark: { tuning: "Standard" },
-            nick: { picking: ["picking"] }
+            nick: { picking: ["picking"] },
         }),
         song("In a Station Wagon", "G", {
-            nick: { picking: ["clawhammer"] }
+            nick: { picking: ["clawhammer"] },
         }),
         song("Courtroom Sketch Artist", "G", {
-            nick: { picking: ["picking"] }
+            nick: { picking: ["picking"] },
         }),
         song("Trying to get to the Port", "G", {}),
         song("Saturn V", "C", {
-            nick: { picking: ["clawhammer"] }
+            nick: { picking: ["clawhammer"] },
         }),
         song("Bottle of Soot", "D", {
-            nick: { picking: ["slide", "picking"] }
+            nick: { picking: ["slide", "picking"] },
         }),
         song("Farewell to Cheyenne", "", {
-            nick: { picking: ["picking"] }
+            nick: { picking: ["picking"] },
         }),
         song("Lester Young", "G", {
-            nick: { picking: ["slide", "picking"] }
+            nick: { picking: ["slide", "picking"] },
         }),
         song("Bad On Me", "D", {
             mark: { capo: 2 },
-            nick: { capo: 2, picking: ["picking"] }
+            nick: { capo: 2, picking: ["picking"] },
         }),
         song("Jump Down Turn Around", "E", {}),
         song("To Rob A Bank", "D", {}),
-        song("Locomotive Smoke", "D", {})
+        song("Locomotive Smoke", "D", {}),
     ];
 
     it("detects the correct number of total transitions", () => {
@@ -372,7 +373,6 @@ describe("computeAnxiety — real setlist", () => {
     });
 });
 
-
 // ===================================================================
 // computeAnxiety — tuning-heavy setlist (user's actual scenario)
 // ===================================================================
@@ -380,21 +380,66 @@ describe("computeAnxiety — tuning-heavy 15-song setlist", () => {
     // Simulates the user's setlist: 2 tuning changes (most expensive prop,
     // weight 4) plus several technique changes across 15 songs.
     const tuningSetlist = [
-        song("Song 1", "G", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G", picking: ["picking"] } }),
-        song("Song 2", "G", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G" } }),
-        song("Song 3", "D", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G" } }),
-        song("Song 4", "D", { mark: { instrument: "guitar", tuning: "DADDAD" }, nick: { instrument: "banjo", tuning: "Open D", picking: ["clawhammer"] } }),
-        song("Song 5", "D", { mark: { instrument: "guitar", tuning: "DADDAD" }, nick: { instrument: "banjo", tuning: "Open D" } }),
-        song("Song 6", "D", { mark: { instrument: "guitar", tuning: "DADDAD" }, nick: { instrument: "banjo", tuning: "Open D" } }),
-        song("Song 7", "C", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G" } }),
-        song("Song 8", "G", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G" } }),
-        song("Song 9", "G", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G" } }),
-        song("Song 10", "G", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G" } }),
-        song("Song 11", "E", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G", picking: ["slide", "picking"] } }),
-        song("Song 12", "E", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G", picking: ["picking", "slide"] } }),
-        song("Song 13", "D", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G" } }),
-        song("Song 14", "E", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G", picking: ["clawhammer", "slide"] } }),
-        song("Song 15", "D", { mark: { instrument: "guitar", tuning: "Standard" }, nick: { instrument: "banjo", tuning: "Open G", picking: ["picking"] } }),
+        song("Song 1", "G", {
+            mark: { instrument: "guitar", tuning: "Standard" },
+            nick: { instrument: "banjo", tuning: "Open G", picking: ["picking"] },
+        }),
+        song("Song 2", "G", {
+            mark: { instrument: "guitar", tuning: "Standard" },
+            nick: { instrument: "banjo", tuning: "Open G" },
+        }),
+        song("Song 3", "D", {
+            mark: { instrument: "guitar", tuning: "Standard" },
+            nick: { instrument: "banjo", tuning: "Open G" },
+        }),
+        song("Song 4", "D", {
+            mark: { instrument: "guitar", tuning: "DADDAD" },
+            nick: { instrument: "banjo", tuning: "Open D", picking: ["clawhammer"] },
+        }),
+        song("Song 5", "D", {
+            mark: { instrument: "guitar", tuning: "DADDAD" },
+            nick: { instrument: "banjo", tuning: "Open D" },
+        }),
+        song("Song 6", "D", {
+            mark: { instrument: "guitar", tuning: "DADDAD" },
+            nick: { instrument: "banjo", tuning: "Open D" },
+        }),
+        song("Song 7", "C", {
+            mark: { instrument: "guitar", tuning: "Standard" },
+            nick: { instrument: "banjo", tuning: "Open G" },
+        }),
+        song("Song 8", "G", {
+            mark: { instrument: "guitar", tuning: "Standard" },
+            nick: { instrument: "banjo", tuning: "Open G" },
+        }),
+        song("Song 9", "G", {
+            mark: { instrument: "guitar", tuning: "Standard" },
+            nick: { instrument: "banjo", tuning: "Open G" },
+        }),
+        song("Song 10", "G", {
+            mark: { instrument: "guitar", tuning: "Standard" },
+            nick: { instrument: "banjo", tuning: "Open G" },
+        }),
+        song("Song 11", "E", {
+            mark: { instrument: "guitar", tuning: "Standard" },
+            nick: { instrument: "banjo", tuning: "Open G", picking: ["slide", "picking"] },
+        }),
+        song("Song 12", "E", {
+            mark: { instrument: "guitar", tuning: "Standard" },
+            nick: { instrument: "banjo", tuning: "Open G", picking: ["picking", "slide"] },
+        }),
+        song("Song 13", "D", {
+            mark: { instrument: "guitar", tuning: "Standard" },
+            nick: { instrument: "banjo", tuning: "Open G" },
+        }),
+        song("Song 14", "E", {
+            mark: { instrument: "guitar", tuning: "Standard" },
+            nick: { instrument: "banjo", tuning: "Open G", picking: ["clawhammer", "slide"] },
+        }),
+        song("Song 15", "D", {
+            mark: { instrument: "guitar", tuning: "Standard" },
+            nick: { instrument: "banjo", tuning: "Open G", picking: ["picking"] },
+        }),
     ];
 
     it("scores 7-9 for a setlist with 2 tuning changes and technique changes", () => {
@@ -538,7 +583,6 @@ describe("computeAnxiety — mixed mid-anxiety sets", () => {
     });
 });
 
-
 // ===================================================================
 // computeAnxiety — low-anxiety setlist (few low-weight changes)
 // ===================================================================
@@ -582,7 +626,10 @@ describe("computeAnxiety — low-anxiety 15-song setlist", () => {
             song("T1", "G", { mark: { ...mk }, nick: { ...nk, picking: ["picking"] } }),
             song("T2", "G", { mark: { ...mk }, nick: { ...nk } }),
             song("T3", "D", { mark: { ...mk }, nick: { ...nk } }),
-            song("T4", "D", { mark: { ...mk, tuning: "DADDAD" }, nick: { ...nk, tuning: "Open D", picking: ["clawhammer"] } }),
+            song("T4", "D", {
+                mark: { ...mk, tuning: "DADDAD" },
+                nick: { ...nk, tuning: "Open D", picking: ["clawhammer"] },
+            }),
             song("T5", "D", { mark: { ...mk, tuning: "DADDAD" }, nick: { ...nk, tuning: "Open D" } }),
             song("T6", "D", { mark: { ...mk, tuning: "DADDAD" }, nick: { ...nk, tuning: "Open D" } }),
             song("T7", "C", { mark: { ...mk }, nick: { ...nk } }),
@@ -602,7 +649,6 @@ describe("computeAnxiety — low-anxiety 15-song setlist", () => {
     });
 });
 
-
 // ===================================================================
 // computeAnxiety — per-member dedup: one member changing multiple
 // props counts as ONE change at the highest weight
@@ -611,7 +657,7 @@ describe("computeAnxiety — per-member deduplication", () => {
     it("nick changing capo AND picking counts as 1 change at capo weight", () => {
         const songs = [
             song("A", "G", { nick: { capo: 0, picking: ["picking"] } }),
-            song("B", "G", { nick: { capo: 2, picking: ["clawhammer"] } })
+            song("B", "G", { nick: { capo: 2, picking: ["clawhammer"] } }),
         ];
         const result = computeAnxiety(songs, BAND_CONFIG);
         // One member changed — counts as 1, not 2
@@ -622,7 +668,7 @@ describe("computeAnxiety — per-member deduplication", () => {
     it("nick changing instrument + tuning + picking = 1 change at tuning weight", () => {
         const songs = [
             song("A", "G", { nick: { instrument: "banjo", tuning: "Open G", picking: ["picking"] } }),
-            song("B", "G", { nick: { instrument: "guitar", tuning: "Standard", picking: ["clawhammer"] } })
+            song("B", "G", { nick: { instrument: "guitar", tuning: "Standard", picking: ["clawhammer"] } }),
         ];
         const result = computeAnxiety(songs, BAND_CONFIG);
         // One member, multiple props, but counts as 1 change at max weight (tuning=4)
@@ -632,7 +678,7 @@ describe("computeAnxiety — per-member deduplication", () => {
     it("two members each changing still counts as one disrupted spot", () => {
         const songs = [
             song("A", "G", { mark: { tuning: "Standard" }, nick: { tuning: "Open G" } }),
-            song("B", "G", { mark: { tuning: "DADDAD" }, nick: { tuning: "Open D" } })
+            song("B", "G", { mark: { tuning: "DADDAD" }, nick: { tuning: "Open D" } }),
         ];
         const result = computeAnxiety(songs, BAND_CONFIG);
         expect(result.changes).toBe(1);
@@ -640,14 +686,13 @@ describe("computeAnxiety — per-member deduplication", () => {
     });
 });
 
-
 // ===================================================================
 // computeAnxiety — varying inputs
 // ===================================================================
 describe("computeAnxiety — no changes", () => {
     it("returns 0 for identical songs", () => {
         const songs = Array.from({ length: 10 }, (_, i) =>
-            song(`Song ${i + 1}`, "G", { nick: { instrument: "guitar", tuning: "Standard", picking: [] } })
+            song(`Song ${i + 1}`, "G", { nick: { instrument: "guitar", tuning: "Standard", picking: [] } }),
         );
         const result = computeAnxiety(songs, BAND_CONFIG);
         expect(result.scaled).toBe(0);
@@ -660,7 +705,7 @@ describe("computeAnxiety — single transition", () => {
     it("handles a 2-song setlist with one change", () => {
         const songs = [
             song("A", "G", { nick: { tuning: "Standard" } }),
-            song("B", "G", { nick: { tuning: "DADGAD" } })
+            song("B", "G", { nick: { tuning: "DADGAD" } }),
         ];
         const result = computeAnxiety(songs, BAND_CONFIG);
         expect(result.totalTransitions).toBe(1);
@@ -675,10 +720,15 @@ describe("computeAnxiety — every transition has changes", () => {
     it("returns high anxiety when every song boundary has gear swaps", () => {
         const songs = [];
         for (let i = 0; i < 10; i++) {
-            songs.push(song(`Song ${i + 1}`, "G", {
-                nick: { tuning: i % 2 === 0 ? "Standard" : "DADGAD", picking: i % 2 === 0 ? ["picking"] : ["clawhammer"] },
-                mark: { instrument: i % 2 === 0 ? "guitar" : "banjo", capo: i % 3 }
-            }));
+            songs.push(
+                song(`Song ${i + 1}`, "G", {
+                    nick: {
+                        tuning: i % 2 === 0 ? "Standard" : "DADGAD",
+                        picking: i % 2 === 0 ? ["picking"] : ["clawhammer"],
+                    },
+                    mark: { instrument: i % 2 === 0 ? "guitar" : "banjo", capo: i % 3 },
+                }),
+            );
         }
         const result = computeAnxiety(songs, BAND_CONFIG);
         expect(result.spots).toBe(9);
@@ -691,18 +741,22 @@ describe("computeAnxiety — grouped vs scattered changes", () => {
         // Scattered: change on every other transition
         const scattered = [];
         for (let i = 0; i < 10; i++) {
-            scattered.push(song(`S${i + 1}`, "G", {
-                nick: { tuning: i % 2 === 0 ? "Standard" : "DADGAD" }
-            }));
+            scattered.push(
+                song(`S${i + 1}`, "G", {
+                    nick: { tuning: i % 2 === 0 ? "Standard" : "DADGAD" },
+                }),
+            );
         }
 
         // Grouped: all changes in a burst, then stable
         const grouped = [];
         for (let i = 0; i < 10; i++) {
             const tunings = ["Standard", "DADGAD", "Open G", "Drop D", "Standard"];
-            grouped.push(song(`G${i + 1}`, "G", {
-                nick: { tuning: i < 5 ? tunings[i] : "Standard" }
-            }));
+            grouped.push(
+                song(`G${i + 1}`, "G", {
+                    nick: { tuning: i < 5 ? tunings[i] : "Standard" },
+                }),
+            );
         }
 
         const scatteredResult = computeAnxiety(scattered, BAND_CONFIG);
@@ -715,7 +769,6 @@ describe("computeAnxiety — grouped vs scattered changes", () => {
     });
 });
 
-
 // ===================================================================
 // computeAnxiety — different weight configurations
 // ===================================================================
@@ -723,7 +776,7 @@ describe("computeAnxiety — weight sensitivity", () => {
     const baseSongs = [
         song("A", "G", { nick: { tuning: "Standard", picking: ["picking"] } }),
         song("B", "G", { nick: { tuning: "DADGAD", picking: ["clawhammer"] } }),
-        song("C", "G", { nick: { tuning: "Open G", picking: ["picking"] } })
+        song("C", "G", { nick: { tuning: "Open G", picking: ["picking"] } }),
     ];
 
     it("higher tuning weight increases anxiety for tuning-heavy setlist", () => {
@@ -739,7 +792,7 @@ describe("computeAnxiety — weight sensitivity", () => {
     it("zero weight means prop changes don't affect weighted score", () => {
         const zeroConfig = {
             general: { weighting: { tuning: 0, capo: 0, instrument: 0, technique: 0 } },
-            props: BAND_CONFIG.props
+            props: BAND_CONFIG.props,
         };
 
         const result = computeAnxiety(baseSongs, zeroConfig);
@@ -750,7 +803,6 @@ describe("computeAnxiety — weight sensitivity", () => {
     });
 });
 
-
 // ===================================================================
 // computeAnxiety — no props configured
 // ===================================================================
@@ -758,14 +810,13 @@ describe("computeAnxiety — no props", () => {
     it("returns 0 anxiety when config has no props", () => {
         const songs = [
             song("A", "G", { nick: { tuning: "Standard" } }),
-            song("B", "G", { nick: { tuning: "DADGAD" } })
+            song("B", "G", { nick: { tuning: "DADGAD" } }),
         ];
         const result = computeAnxiety(songs, { general: { weighting: {} }, props: {} });
         expect(result.scaled).toBe(0);
         expect(result.changes).toBe(0);
     });
 });
-
 
 // ===================================================================
 // computeAnxiety — edge cases
@@ -795,7 +846,7 @@ describe("computeAnxiety — edge cases", () => {
         const songs = [
             song("A", "G", { nick: { instrument: "banjo" } }),
             song("B", "G", {}),
-            song("C", "G", { nick: { instrument: "banjo" } })
+            song("C", "G", { nick: { instrument: "banjo" } }),
         ];
         const result = computeAnxiety(songs, BAND_CONFIG);
         // nick disappears then reappears — instrument set changes
@@ -809,7 +860,6 @@ describe("computeAnxiety — edge cases", () => {
     });
 });
 
-
 // ===================================================================
 // computeAnxiety — large setlists
 // ===================================================================
@@ -818,8 +868,8 @@ describe("computeAnxiety — scaling", () => {
         function makeAlternating(count) {
             return Array.from({ length: count }, (_, i) =>
                 song(`S${i + 1}`, "G", {
-                    nick: { tuning: i % 2 === 0 ? "Standard" : "DADGAD" }
-                })
+                    nick: { tuning: i % 2 === 0 ? "Standard" : "DADGAD" },
+                }),
             );
         }
 
@@ -833,7 +883,6 @@ describe("computeAnxiety — scaling", () => {
         expect(Math.abs(short.scaled - long.scaled)).toBeLessThanOrEqual(2);
     });
 });
-
 
 // ===================================================================
 // anxietyLabel
@@ -867,13 +916,10 @@ describe("anxietyLabel", () => {
     });
 
     it("pluralizes 'change' correctly", () => {
-        expect(anxietyLabel({ scaled: 1, changes: 1, spots: 1, songCount: 5 }))
-            .toContain("1 change ");
-        expect(anxietyLabel({ scaled: 2, changes: 3, spots: 2, songCount: 5 }))
-            .toContain("3 changes");
+        expect(anxietyLabel({ scaled: 1, changes: 1, spots: 1, songCount: 5 })).toContain("1 change ");
+        expect(anxietyLabel({ scaled: 2, changes: 3, spots: 2, songCount: 5 })).toContain("3 changes");
     });
 });
-
 
 // ===================================================================
 // Comprehensive transition-by-transition verification
@@ -884,7 +930,7 @@ describe("transition-by-transition detail verification", () => {
         song("Song 2", "G", { nick: { instrument: "guitar", tuning: "DADGAD", capo: 0, picking: ["picking"] } }),
         song("Song 3", "G", { nick: { instrument: "banjo", tuning: "Open G", capo: 0, picking: ["clawhammer"] } }),
         song("Song 4", "G", { nick: { instrument: "banjo", tuning: "Open G", capo: 2, picking: ["clawhammer"] } }),
-        song("Song 5", "G", { nick: { instrument: "guitar", tuning: "Standard", capo: 0, picking: ["picking"] } })
+        song("Song 5", "G", { nick: { instrument: "guitar", tuning: "Standard", capo: 0, picking: ["picking"] } }),
     ];
 
     it("transition 1→2: tuning change only", () => {
@@ -942,7 +988,7 @@ describe("transition-by-transition detail verification", () => {
 
     it("spots matches count of non-zero detail entries", () => {
         const result = computeAnxiety(setlist, BAND_CONFIG);
-        const spots = result.details.filter(d => d.memberChanges > 0).length;
+        const spots = result.details.filter((d) => d.memberChanges > 0).length;
         expect(result.spots).toBe(spots);
         expect(result.changes).toBe(spots);
     });
