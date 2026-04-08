@@ -346,28 +346,30 @@
                     onkeydown={handleBandNameKeydown}
                 />
             </label>
-            <div class="field-group">
-                <span class="field-label">Die color</span>
-                <div class="pip-color-swatches">
-                    {#each PIP_COLOR_OPTIONS as color}
+            {#if store.connectionStatus === 'connected'}
+                <div class="field-group">
+                    <span class="field-label">Die color</span>
+                    <div class="pip-color-swatches">
+                        {#each PIP_COLOR_OPTIONS as color}
+                            <button
+                                class="pip-swatch"
+                                class:active={pipColor === color}
+                                style="background: {color};"
+                                onclick={() => setDieColor(color)}
+                                aria-label="Set die color to {color}"
+                            ></button>
+                        {/each}
                         <button
-                            class="pip-swatch"
-                            class:active={pipColor === color}
-                            style="background: {color};"
-                            onclick={() => setDieColor(color)}
-                            aria-label="Set die color to {color}"
-                        ></button>
-                    {/each}
-                    <button
-                        class="pip-swatch pip-swatch--reset"
-                        class:active={!store.appConfig?.ui?.dieColor}
-                        onclick={() => setDieColor(null)}
-                        aria-label="Reset to default color"
-                    >
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 7 7 0 0 0-5 2l-3 3"/><path d="M3 3v6h6"/></svg>
-                    </button>
+                            class="pip-swatch pip-swatch--reset"
+                            class:active={!store.appConfig?.ui?.dieColor}
+                            onclick={() => setDieColor(null)}
+                            aria-label="Reset to default color"
+                        >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 7 7 0 0 0-5 2l-3 3"/><path d="M3 3v6h6"/></svg>
+                        </button>
+                    </div>
                 </div>
-            </div>
+            {/if}
         </div>
 
         <!-- Stats Row -->

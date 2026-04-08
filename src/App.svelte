@@ -2,6 +2,7 @@
     import { onMount, setContext } from "svelte";
     import { createRemoteStorageRepository } from "./lib/remotestorage.js";
     import { createAppStore } from "./lib/stores/app.svelte.js";
+    import { DEFAULT_DIE_COLOR, hexToRgb, darkenHex } from "./lib/utils.js";
 
     import TopBar from "./lib/components/layout/TopBar.svelte";
     import BottomNav from "./lib/components/layout/BottomNav.svelte";
@@ -19,31 +20,15 @@
         return store.init();
     });
 
-    const DEFAULT_DIE_COLOR = "#e15b37";
     let dieColor = $derived(store.appConfig?.ui?.dieColor || DEFAULT_DIE_COLOR);
-
-    function hexToRgb(hex) {
-        const r = parseInt(hex.slice(1, 3), 16);
-        const g = parseInt(hex.slice(3, 5), 16);
-        const b = parseInt(hex.slice(5, 7), 16);
-        return `${r}, ${g}, ${b}`;
-    }
     let dieColorRgb = $derived(hexToRgb(dieColor));
-
-    // Darken a hex color by a factor (0-1, where 0.8 = 80% brightness)
-    function darken(hex, factor) {
-        const r = Math.round(parseInt(hex.slice(1, 3), 16) * factor);
-        const g = Math.round(parseInt(hex.slice(3, 5), 16) * factor);
-        const b = Math.round(parseInt(hex.slice(5, 7), 16) * factor);
-        return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-    }
 
     let faviconHref = $derived(
         `data:image/svg+xml,${encodeURIComponent(
             `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">` +
             `<path fill="${dieColor}" d="M256 66L420.5 161 256 256 91.5 161Z"/>` +
-            `<path fill="${darken(dieColor, 0.78)}" d="M91.5 161L256 256 256 446 91.5 351Z"/>` +
-            `<path fill="${darken(dieColor, 0.62)}" d="M256 256L420.5 161 420.5 351 256 446Z"/>` +
+            `<path fill="${darkenHex(dieColor, 0.78)}" d="M91.5 161L256 256 256 446 91.5 351Z"/>` +
+            `<path fill="${darkenHex(dieColor, 0.62)}" d="M256 256L420.5 161 420.5 351 256 446Z"/>` +
             `<path fill="none" stroke="#000" stroke-width="2.5" stroke-opacity=".1" stroke-linejoin="round" d="M256 66L420.5 161 420.5 351 256 446 91.5 351 91.5 161Z"/>` +
             `<path stroke="#000" stroke-width="2" stroke-opacity=".08" d="M256 256L91.5 161M256 256L420.5 161M256 256L256 446"/>` +
             `<ellipse cx="256" cy="113.5" rx="18" ry="10" fill="#fff"/>` +

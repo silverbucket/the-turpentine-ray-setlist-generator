@@ -4,6 +4,7 @@
   import ChipToggle from "../shared/ChipToggle.svelte";
   import SetlistSongCard from "./SetlistSongCard.svelte";
   import { anxietyLabel } from "../../anxiety.js";
+  import { DEFAULT_DIE_COLOR, hexToRgb, darkenHex } from "../../utils.js";
 
   const store = getContext("app");
 
@@ -38,21 +39,8 @@
   });
 
   // ---- Die color ----
-  const DEFAULT_PIP_COLOR = "#e15b37";
-  function hexToRgb(hex) {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `${r}, ${g}, ${b}`;
-  }
-  function darken(hex, factor) {
-    const r = Math.round(parseInt(hex.slice(1, 3), 16) * factor);
-    const g = Math.round(parseInt(hex.slice(3, 5), 16) * factor);
-    const b = Math.round(parseInt(hex.slice(5, 7), 16) * factor);
-    return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-  }
-  let pipColor = $derived(store.appConfig?.ui?.dieColor || DEFAULT_PIP_COLOR);
-  let pipColorDark = $derived(darken(pipColor, 0.78));
+  let pipColor = $derived(store.appConfig?.ui?.dieColor || DEFAULT_DIE_COLOR);
+  let pipColorDark = $derived(darkenHex(pipColor, 0.78));
   let pipColorRgb = $derived(hexToRgb(pipColor));
 
   // Dice pip layouts: [x, y] positions on a 0-1 grid for each face value
