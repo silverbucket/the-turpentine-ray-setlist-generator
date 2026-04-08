@@ -1,3 +1,4 @@
+import { getAccountToken, getKnownAccounts, removeKnownAccountEntry, saveKnownAccount, scopedKey } from "../accounts.js";
 import { CONFIG_SECTIONS } from "../config-meta.js";
 import { blankSong, DEFAULT_APP_CONFIG, normalizeAppConfig, normalizeMemberRecord, normalizeSongRecord } from "../defaults.js";
 import { buildDefaultPerformance, scoreFixedOrder } from "../generator.js";
@@ -7,17 +8,6 @@ import { clone, deepMerge, formatDelimitedList, getByPath, nowIso, parseDelimite
 
 const STORAGE_PREFIX = "setlist-roller";
 const MAX_SAVED_SETS = 5;
-
-// Scope localStorage keys per user so accounts don't leak data
-function scopedKey(base, userAddress) {
-    if (!userAddress) return `${STORAGE_PREFIX}-${base}`;
-    // Simple hash to keep the key short
-    let h = 0;
-    for (let i = 0; i < userAddress.length; i++) {
-        h = ((h << 5) - h + userAddress.charCodeAt(i)) | 0;
-    }
-    return `${STORAGE_PREFIX}-${base}-${(h >>> 0).toString(36)}`;
-}
 
 function randomFrom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
@@ -43,6 +33,7 @@ export function createAppStore(repo) {
     // ---- connection ----
     let connectionStatus = $state("pending");
     let connectAddress = $state("");
+    let knownAccounts = $state(getKnownAccounts());
 
     // ---- ui ----
     let activeView = $state("roll");
@@ -340,18 +331,117 @@ export function createAppStore(repo) {
     }
 
     // ---- connection ----
-    async function connectStorage() {
+    async function connectStorage(token) {
         if (!connectAddress.trim()) {
             addToast("Put in a remoteStorage address first.", "danger");
             return;
         }
         connectionStatus = "connecting";
         loadError = "";
-        repo.connect(connectAddress.trim());
+        repo.connect(connectAddress.trim(), token || undefined);
     }
 
     function disconnectStorage() {
+        // Save current token before disconnecting so we can switch back later
+        if (currentUserAddress) {
+            saveKnownAccount(currentUserAddress, appConfig?.bandName || "", repo.getToken());
+        }
         repo.disconnect();
+    }
+
+    function connectToAccount(address) {
+        const savedToken = getAccountToken(address);
+
+        // 1. Save current account's data before touching state
+        if (repo.isConnected()) {
+            saveSnapshot();
+            if (currentUserAddress) {
+                saveKnownAccount(currentUserAddress, appConfig?.bandName || "", repo.getToken());
+            }
+        }
+
+        // 2. Restore the target account's cached data (if any)
+        const hasSnapshot = restoreSnapshot(address);
+        if (hasSnapshot) {
+            currentUserAddress = address;
+            connectAddress = address;
+            loadUserLocalData();
+            initialSyncComplete = true;
+        } else {
+            // No snapshot — reset state; sync indicator shown by connected handler
+            songs = [];
+            appConfig = null;
+            savedSetlists = [];
+            bandMembers = {};
+            initialSyncComplete = false;
+            connectAddress = address;
+        }
+
+        // Clear transient state
+        generatedSetlist = null;
+        setlistLocked = false;
+        setlistSaved = false;
+        selectedSongId = "";
+        editorSong = null;
+
+        // 3. Switch rs.js to new account without destroying IndexedDB
+        connectionStatus = "connecting";
+        if (repo.isConnected()) {
+            repo.switchTo(address, savedToken);
+        } else {
+            connectStorage(savedToken);
+        }
+    }
+
+    function forgetAccount(address) {
+        removeKnownAccountEntry(address);
+        if (typeof localStorage !== "undefined") {
+            localStorage.removeItem(scopedKey("snapshot", address));
+        }
+        knownAccounts = getKnownAccounts();
+    }
+
+    // ---- per-account data snapshot ----
+    let snapshotTimer = null;
+    function scheduleSnapshot() {
+        if (snapshotTimer) clearTimeout(snapshotTimer);
+        snapshotTimer = setTimeout(saveSnapshot, 2000);
+    }
+
+    function saveSnapshot() {
+        if (snapshotTimer) { clearTimeout(snapshotTimer); snapshotTimer = null; }
+        if (typeof localStorage === "undefined" || !currentUserAddress) return;
+        try {
+            const data = {
+                songs: songs.map(clone),
+                config: appConfig ? clone(appConfig) : null,
+                setlists: clone(savedSetlists),
+                members: clone(bandMembers),
+            };
+            localStorage.setItem(scopedKey("snapshot", currentUserAddress), JSON.stringify(data));
+        } catch { /* localStorage full — not critical */ }
+    }
+
+    function restoreSnapshot(address) {
+        if (typeof localStorage === "undefined") return false;
+        try {
+            const raw = localStorage.getItem(scopedKey("snapshot", address));
+            if (!raw) return false;
+            const data = JSON.parse(raw);
+            if (!data.config) return false;
+            songs = (data.songs || []).map(normalizeSongRecord);
+            appConfig = normalizeAppConfig(data.config);
+            savedSetlists = stripEnergy(data.setlists || []);
+            bandMembers = Object.fromEntries(
+                Object.entries(data.members || {}).map(([name, d]) => [name, normalizeMemberRecord(d)])
+            );
+            showFirstRunPrompt = false;
+            generationOptions = deepMerge(defaultGenerationOptions(appConfig), generationOptions || {});
+            // Don't persistGenerationOptions() here — currentUserAddress still
+            // points to the previous account. The caller sets it after this
+            // returns, and loadUserLocalData() handles persisting correctly.
+            return true;
+        } catch { return false; }
     }
 
     // ---- data loading ----
@@ -384,6 +474,7 @@ export function createAppStore(repo) {
             showFirstRunPrompt = false;
             generationOptions = deepMerge(defaultGenerationOptions(appConfig), generationOptions || {});
             persistGenerationOptions();
+            scheduleSnapshot();
         } catch (error) {
             loadError = error?.message || "Could not load remote data.";
             addToast(loadError, "danger");
@@ -1011,6 +1102,10 @@ export function createAppStore(repo) {
             appConfig = await withSync("Saving settings", () => repo.putConfig(nextConfig));
             generationOptions = deepMerge(defaultGenerationOptions(appConfig), generationOptions);
             persistGenerationOptions();
+            if (currentUserAddress && appConfig?.bandName) {
+                saveKnownAccount(currentUserAddress, appConfig.bandName, repo.getToken());
+                knownAccounts = getKnownAccounts();
+            }
             addToast("Settings saved.");
         } catch (error) {
             addToast(error?.message || "Could not save config.", "danger");
@@ -1406,7 +1501,7 @@ export function createAppStore(repo) {
     }
 
     // ---- migrations ----
-    async function runMigrations() {
+    async function runMigrations({ skipReload = false } = {}) {
         let needsReload = false;
 
         // Migrate config: read raw config to check for band.members before normalization strips them
@@ -1448,7 +1543,7 @@ export function createAppStore(repo) {
             }
         }
 
-        if (needsReload) {
+        if (needsReload && !skipReload) {
             await reloadAll({ quiet: true });
         }
     }
@@ -1471,19 +1566,38 @@ export function createAppStore(repo) {
             connectAddress = repo.getUserAddress() || connectAddress;
             currentUserAddress = connectAddress;
             loadUserLocalData();
-            await reloadAll();
-            try {
-                await runMigrations();
-            } catch (err) {
-                console.error("Migration failed:", err);
-                addToast("Data migration encountered an error. Some data may need re-syncing.", "danger");
+
+            if (initialSyncComplete) {
+                // Snapshot already restored (account switch) — don't overwrite
+                // with stale cache. The onChange handler will pick up fresh
+                // data once rs.js finishes syncing with the new remote.
+                try {
+                    await runMigrations({ skipReload: true });
+                } catch (err) {
+                    console.error("Migration failed:", err);
+                    addToast("Data migration encountered an error. Some data may need re-syncing.", "danger");
+                }
+            } else {
+                // First load or switch without snapshot — read from cache
+                beginSync("Loading");
+                try {
+                    await reloadAll({ quiet: true });
+                    await runMigrations();
+                } catch (err) {
+                    console.error("Migration/reload failed:", err);
+                    addToast("Data sync encountered an error. Some data may need re-syncing.", "danger");
+                } finally {
+                    endSync();
+                }
             }
+            saveKnownAccount(currentUserAddress, appConfig?.bandName || "", repo.getToken());
+            knownAccounts = getKnownAccounts();
         });
 
         repo.on("disconnected", () => {
-            connectionStatus = "disconnected";
             terminateWorker();
             isGenerating = false;
+            connectionStatus = "disconnected";
             clearUserLocalStorage();
             clearUnscopedLocalStorage();
             currentUserAddress = "";
@@ -1593,6 +1707,11 @@ export function createAppStore(repo) {
         songIncompleteReasons,
         get incompleteSongCount() { return songs.filter((s) => isSongIncomplete(s)).length; },
         get unpracticedSongCount() { return songs.filter((s) => s.unpracticed).length; },
+
+        // accounts
+        get knownAccounts() { return knownAccounts; },
+        connectToAccount,
+        forgetAccount,
 
         // actions
         init,
