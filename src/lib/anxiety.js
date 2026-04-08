@@ -22,13 +22,12 @@
  */
 
 import {
-    normalizeValue,
-    displayValue,
-    detectInstrumentSetChange,
     detectFieldChange,
-    inferPropKind
+    detectInstrumentSetChange,
+    displayValue,
+    inferPropKind,
+    normalizeValue,
 } from "./detection.js";
-
 
 // ---------------------------------------------------------------------------
 // Per-transition scoring
@@ -40,7 +39,8 @@ import {
 function scoreTransition(prevSong, nextSong, propNames, propConfig, weights) {
     if (!prevSong) {
         const changes = {};
-        for (const p of propNames) changes[p] = { changed: false, magnitude: 0, notes: [] };
+        for (const p of propNames)
+            changes[p] = { changed: false, magnitude: 0, notes: [] };
         return { score: 0, notes: [], changes };
     }
 
@@ -59,9 +59,19 @@ function scoreTransition(prevSong, nextSong, propNames, propConfig, weights) {
         if (kind === "instrumentSet") {
             change = detectInstrumentSetChange(prevPerf, nextPerf);
         } else if (kind === "instrumentDelta") {
-            change = detectFieldChange(prevPerf, nextPerf, rule.field || propName, true);
+            change = detectFieldChange(
+                prevPerf,
+                nextPerf,
+                rule.field || propName,
+                true,
+            );
         } else {
-            change = detectFieldChange(prevPerf, nextPerf, rule.field || propName, false);
+            change = detectFieldChange(
+                prevPerf,
+                nextPerf,
+                rule.field || propName,
+                false,
+            );
         }
 
         changes[propName] = change;
@@ -76,7 +86,6 @@ function scoreTransition(prevSong, nextSong, propNames, propConfig, weights) {
     return { score, notes, changes };
 }
 
-
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -84,7 +93,7 @@ function scoreTransition(prevSong, nextSong, propNames, propConfig, weights) {
 const DEFAULT_WEIGHTS = {
     positionMiss: 8,
     earlyCover: 6,
-    earlyInstrumental: 4
+    earlyInstrumental: 4,
 };
 
 export const ANXIETY_WEIGHT_EXPONENT = 1.35;
@@ -93,17 +102,26 @@ function anxietyWeightPressure(weight) {
     if (weight <= 0) {
         return 0;
     }
-    return Math.pow(weight, ANXIETY_WEIGHT_EXPONENT);
+    return weight ** ANXIETY_WEIGHT_EXPONENT;
 }
 
-export function scoreAnxietyPressure(prevSong, nextSong, propNames, propConfig, weights) {
+export function scoreAnxietyPressure(
+    prevSong,
+    nextSong,
+    propNames,
+    propConfig,
+    weights,
+) {
     if (!prevSong) {
         return { changed: false, memberChanges: 0, weightedScore: 0 };
     }
 
     const prevPerf = prevSong.performance || {};
     const nextPerf = nextSong.performance || {};
-    const allMembers = new Set([...Object.keys(prevPerf), ...Object.keys(nextPerf)]);
+    const allMembers = new Set([
+        ...Object.keys(prevPerf),
+        ...Object.keys(nextPerf),
+    ]);
 
     let memberChanges = 0;
     let weightedScore = 0;
@@ -122,7 +140,8 @@ export function scoreAnxietyPressure(prevSong, nextSong, propNames, propConfig, 
 
             if (kind === "instrumentSet") {
                 if (!prevMember || !nextMember) changed = true;
-                else if (prevMember.instrument !== nextMember.instrument) changed = true;
+                else if (prevMember.instrument !== nextMember.instrument)
+                    changed = true;
             } else if (prevMember && nextMember) {
                 const field = rule.field || propName;
                 const left = normalizeValue(prevMember[field]);
@@ -144,7 +163,7 @@ export function scoreAnxietyPressure(prevSong, nextSong, propNames, propConfig, 
     return {
         changed: memberChanges > 0,
         memberChanges,
-        weightedScore
+        weightedScore,
     };
 }
 
@@ -156,7 +175,11 @@ export function scoreAnxietyPressure(prevSong, nextSong, propNames, propConfig, 
  * @returns {AnxietyResult}
  */
 export function computeAnxiety(songs, config) {
-    const weights = Object.assign({}, DEFAULT_WEIGHTS, config?.general?.weighting || {});
+    const weights = Object.assign(
+        {},
+        DEFAULT_WEIGHTS,
+        config?.general?.weighting || {},
+    );
     const propNames = Object.keys(config?.props || {});
     const propConfig = config?.props || {};
 
@@ -172,9 +195,21 @@ export function computeAnxiety(songs, config) {
         const curr = songs[i];
 
         // Keep scoreTransition for per-prop notes/details
-        const transition = scoreTransition(prev, curr, propNames, propConfig, weights);
+        const transition = scoreTransition(
+            prev,
+            curr,
+            propNames,
+            propConfig,
+            weights,
+        );
 
-        const pressure = scoreAnxietyPressure(prev, curr, propNames, propConfig, weights);
+        const pressure = scoreAnxietyPressure(
+            prev,
+            curr,
+            propNames,
+            propConfig,
+            weights,
+        );
 
         if (pressure.changed) spotsWithChanges++;
         totalWeighted += pressure.weightedScore;
@@ -188,15 +223,16 @@ export function computeAnxiety(songs, config) {
             changes: transition.changes,
             notes: transition.notes,
             score: pressure.weightedScore,
-            memberChanges: pressure.memberChanges
+            memberChanges: pressure.memberChanges,
         });
     }
 
     // Spread factor: changes spread across many spots = more dead-air moments = worse.
     // Using power curve so sparse changes (e.g. 3/14) are meaningfully dampened,
     // while dense disruption (most spots affected) stays close to full weight.
-    const spreadRatio = totalTransitions > 0 ? spotsWithChanges / totalTransitions : 0;
-    const adjustedWeighted = totalWeighted * Math.pow(spreadRatio, 0.7);
+    const spreadRatio =
+        totalTransitions > 0 ? spotsWithChanges / totalTransitions : 0;
+    const adjustedWeighted = totalWeighted * spreadRatio ** 0.7;
 
     // Dynamic scale from the band's own weights, with heavier props contributing
     // disproportionately more pressure than lightweight technique changes.
@@ -204,7 +240,7 @@ export function computeAnxiety(songs, config) {
     if (propNames.length > 0) {
         let sumW = 0;
         for (const propName of propNames) {
-            const weightKey = (propConfig[propName] || {}).weightKey || propName;
+            const weightKey = propConfig[propName]?.weightKey || propName;
             sumW += anxietyWeightPressure(weights[weightKey] || 0);
         }
         avgWeight = sumW / propNames.length;
@@ -216,11 +252,14 @@ export function computeAnxiety(songs, config) {
 
     // Scale against a band-relative maximum and curve the low end downward so
     // scattered capo/technique-only sets do not read as medium anxiety.
-    const maxBaseline = Math.max(totalTransitions * 0.7 * avgWeight, avgWeight * 6);
+    const maxBaseline = Math.max(
+        totalTransitions * 0.7 * avgWeight,
+        avgWeight * 6,
+    );
     let scaled = 0;
     if (maxBaseline > 0) {
         const normalized = Math.min(1, compositeWeighted / maxBaseline);
-        scaled = Math.round(Math.pow(normalized, 0.8) * 10);
+        scaled = Math.round(normalized ** 0.8 * 10);
         if (normalized > 0 && scaled === 0) {
             scaled = 1;
         }
@@ -235,19 +274,19 @@ export function computeAnxiety(songs, config) {
         songCount: songs.length,
         weightedScore: Math.round(compositeWeighted * 10) / 10,
         totalTransitions,
-        details
+        details,
     };
 }
-
 
 /**
  * Generate a human-readable label for a given anxiety result.
  */
 export function anxietyLabel(result) {
     const { scaled, changes, spots, songCount } = result;
-    const spotNote = spots > 0
-        ? ` in ${spots} spot${spots === 1 ? "" : "s"} over ${songCount} songs`
-        : "";
+    const spotNote =
+        spots > 0
+            ? ` in ${spots} spot${spots === 1 ? "" : "s"} over ${songCount} songs`
+            : "";
 
     if (changes === 0) {
         return "Bass player is relaxed for once. Zero gear changes — smooth sailing.";
@@ -264,7 +303,6 @@ export function anxietyLabel(result) {
     return `${changes} change${changes === 1 ? "" : "s"}${spotNote}. Bass player is writing a stand-up set to fill all the dead air.`;
 }
 
-
 // Export internals for testing
 export const _internals = {
     ANXIETY_WEIGHT_EXPONENT,
@@ -275,5 +313,5 @@ export const _internals = {
     scoreAnxietyPressure,
     scoreTransition,
     inferPropKind,
-    anxietyWeightPressure
+    anxietyWeightPressure,
 };

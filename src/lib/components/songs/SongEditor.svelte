@@ -1,8 +1,8 @@
 <script>
     import { getContext } from "svelte";
+    import { ALL_KEYS, MAJOR_KEYS, MINOR_KEYS } from "../../keys.js";
     import ChipToggle from "../shared/ChipToggle.svelte";
     import NumberStepper from "../shared/NumberStepper.svelte";
-    import { MAJOR_KEYS, MINOR_KEYS, ALL_KEYS } from "../../keys.js";
 
     const store = getContext("app");
     let isNonCanonicalKey = $derived(store.editorSong?.key && !ALL_KEYS.includes(store.editorSong.key));

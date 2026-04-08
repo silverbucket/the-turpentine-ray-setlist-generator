@@ -1,15 +1,13 @@
-import { deepMerge, toArray } from "./utils.js";
-import { scoreKeyTransition } from "./keys.js";
 import { computeAnxiety, scoreAnxietyPressure } from "./anxiety.js";
 import {
-    normalizeValue,
-    displayValue,
-    detectInstrumentSetChange,
     detectFieldChange,
-    detectInstrumentSetChangeLite,
     detectFieldChangeLite,
-    inferPropKind
+    detectInstrumentSetChange,
+    detectInstrumentSetChangeLite,
+    inferPropKind,
 } from "./detection.js";
+import { scoreKeyTransition } from "./keys.js";
+import { deepMerge, toArray } from "./utils.js";
 
 function clampInteger(value, fallback, minimum) {
     const parsed = Number.parseInt(value, 10);
@@ -19,7 +17,6 @@ function clampInteger(value, fallback, minimum) {
     return Math.max(minimum, parsed);
 }
 
-
 function clampFloat(value, fallback, minimum) {
     const parsed = Number.parseFloat(value);
     if (Number.isNaN(parsed)) {
@@ -28,21 +25,18 @@ function clampFloat(value, fallback, minimum) {
     return Math.max(minimum, parsed);
 }
 
-
 function clampUnit(value) {
     return Math.max(0, Math.min(1, value));
 }
-
 
 function merge(left, right) {
     return Object.assign({}, left, right);
 }
 
-
 function createRng(seed) {
-    let state = (seed >>> 0) || 1;
+    let state = seed >>> 0 || 1;
     return function nextRandom() {
-        state += 0x6D2B79F5;
+        state += 0x6d2b79f5;
         let value = state;
         value = Math.imul(value ^ (value >>> 15), value | 1);
         value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
@@ -50,19 +44,20 @@ function createRng(seed) {
     };
 }
 
-
 function cartesianProduct(groups) {
-    return groups.reduce((product, group) => {
-        const result = [];
-        product.forEach((base) => {
-            group.forEach((entry) => {
-                result.push(base.concat(entry));
+    return groups.reduce(
+        (product, group) => {
+            const result = [];
+            product.forEach((base) => {
+                group.forEach((entry) => {
+                    result.push(base.concat(entry));
+                });
             });
-        });
-        return result;
-    }, [[]]);
+            return result;
+        },
+        [[]],
+    );
 }
-
 
 function zeroMap(keys) {
     return keys.reduce((result, key) => {
@@ -71,10 +66,10 @@ function zeroMap(keys) {
     }, {});
 }
 
-
 function compareStates(left, right) {
     const leftRank = left.rankScore === undefined ? left.score : left.rankScore;
-    const rightRank = right.rankScore === undefined ? right.score : right.rankScore;
+    const rightRank =
+        right.rankScore === undefined ? right.score : right.rankScore;
     if (leftRank !== rightRank) {
         return leftRank - rightRank;
     }
@@ -87,7 +82,6 @@ function compareStates(left, right) {
     // Use numeric tiebreaker instead of expensive string join + localeCompare
     return (left._tiebreaker || 0) - (right._tiebreaker || 0);
 }
-
 
 class SongsCatalog {
     constructor(list = []) {
@@ -111,7 +105,7 @@ class SongsCatalog {
         const options = entries.map(([memberName, memberSetup]) => {
             const instruments = this._normalizeInstrumentOptions(
                 memberSetup,
-                showConstraints.members && showConstraints.members[memberName]
+                showConstraints.members?.[memberName],
             );
 
             if (!instruments.length) {
@@ -123,10 +117,11 @@ class SongsCatalog {
                 const tuningOptions = tunings.length ? tunings : [null];
                 return tuningOptions.map((tuning) => ({
                     member: memberName,
-                    instrument: instrumentSetup.name || instrumentSetup.instrument,
+                    instrument:
+                        instrumentSetup.name || instrumentSetup.instrument,
                     tuning,
                     capo: instrumentSetup.capo || 0,
-                    picking: instrumentSetup.picking || []
+                    picking: instrumentSetup.picking || [],
                 }));
             });
         });
@@ -143,7 +138,7 @@ class SongsCatalog {
                     instrument: entry.instrument,
                     tuning: entry.tuning,
                     capo: entry.capo,
-                    picking: entry.picking
+                    picking: entry.picking,
                 };
             });
 
@@ -152,46 +147,61 @@ class SongsCatalog {
     }
 
     _normalizeInstrumentOptions(memberSetup, memberConstraints) {
-        const allowedInstruments = toArray(memberConstraints && memberConstraints.allowedInstruments);
-        const allowedTunings = (memberConstraints && memberConstraints.allowedTunings) || {};
+        const allowedInstruments = toArray(
+            memberConstraints?.allowedInstruments,
+        );
+        const allowedTunings = memberConstraints?.allowedTunings || {};
         const options = Array.isArray(memberSetup.instruments)
             ? memberSetup.instruments.slice()
-            : (memberSetup.instrument ? [memberSetup.instrument] : []);
+            : memberSetup.instrument
+              ? [memberSetup.instrument]
+              : [];
 
-        return options.filter((option) => {
-            const instrumentName = option.name || option.instrument;
-            const optionTunings = toArray(option.tuning);
-
-            if (allowedInstruments.length && allowedInstruments.indexOf(instrumentName) < 0) {
-                return false;
-            }
-
-            if (!allowedTunings[instrumentName]) {
-                return true;
-            }
-
-            const validTunings = toArray(allowedTunings[instrumentName]);
-            if (!optionTunings.length) {
-                return true;
-            }
-
-            return optionTunings.some((tuning) => validTunings.indexOf(tuning) >= 0);
-        }).map((option) => {
-            const instrumentName = option.name || option.instrument;
-            const constrainedOption = { ...option };
-
-            if (allowedTunings[instrumentName]) {
-                const validTunings = toArray(allowedTunings[instrumentName]);
+        return options
+            .filter((option) => {
+                const instrumentName = option.name || option.instrument;
                 const optionTunings = toArray(option.tuning);
-                const filteredTunings = optionTunings.filter((tuning) => validTunings.indexOf(tuning) >= 0);
 
-                if (filteredTunings.length) {
-                    constrainedOption.tuning = filteredTunings;
+                if (
+                    allowedInstruments.length &&
+                    allowedInstruments.indexOf(instrumentName) < 0
+                ) {
+                    return false;
                 }
-            }
 
-            return constrainedOption;
-        });
+                if (!allowedTunings[instrumentName]) {
+                    return true;
+                }
+
+                const validTunings = toArray(allowedTunings[instrumentName]);
+                if (!optionTunings.length) {
+                    return true;
+                }
+
+                return optionTunings.some(
+                    (tuning) => validTunings.indexOf(tuning) >= 0,
+                );
+            })
+            .map((option) => {
+                const instrumentName = option.name || option.instrument;
+                const constrainedOption = { ...option };
+
+                if (allowedTunings[instrumentName]) {
+                    const validTunings = toArray(
+                        allowedTunings[instrumentName],
+                    );
+                    const optionTunings = toArray(option.tuning);
+                    const filteredTunings = optionTunings.filter(
+                        (tuning) => validTunings.indexOf(tuning) >= 0,
+                    );
+
+                    if (filteredTunings.length) {
+                        constrainedOption.tuning = filteredTunings;
+                    }
+                }
+
+                return constrainedOption;
+            });
     }
 
     _buildVariant(song, performance) {
@@ -204,11 +214,10 @@ class SongsCatalog {
             notGoodCloser: Boolean(song.notGoodCloser),
             key: song.key || null,
             notes: song.notes || "",
-            performance
+            performance,
         };
     }
 }
-
 
 class SetList {
     constructor(songs, config, options = {}) {
@@ -216,18 +225,32 @@ class SetList {
         this._songs = new SongsCatalog(songs);
         this._propNames = Object.keys(this._config.props || {});
         this._propConfig = this._config.props || {};
-        this._weights = merge(DEFAULT_WEIGHTS, this._config.general?.weighting || {});
+        this._weights = merge(
+            DEFAULT_WEIGHTS,
+            this._config.general?.weighting || {},
+        );
         this._options = this._normalizeOptions(options);
         this._keyFlowEnabled = Boolean(this._options.keyFlow);
-        this._show = deepMerge(this._config.show || {}, this._options.show || {});
+        this._show = deepMerge(
+            this._config.show || {},
+            this._options.show || {},
+        );
         this._seed = this._normalizeSeed(this._options.seed);
         this._rng = createRng(this._seed);
-        this._randomness = merge(DEFAULT_RANDOMNESS, this._config.general?.randomness || {});
-        this._randomness = merge(this._randomness, this._options.randomness || {});
-        this._chaosLevel = clampUnit((clampFloat(this._randomness.temperature, 0.85, 0.01) - 0.3) / 1.7);
+        this._randomness = merge(
+            DEFAULT_RANDOMNESS,
+            this._config.general?.randomness || {},
+        );
+        this._randomness = merge(
+            this._randomness,
+            this._options.randomness || {},
+        );
+        this._chaosLevel = clampUnit(
+            (clampFloat(this._randomness.temperature, 0.85, 0.01) - 0.3) / 1.7,
+        );
         if (this._options.fixedSongIds) {
             const idSet = new Set(this._options.fixedSongIds);
-            this._catalog = this._songs.all().filter(s => idSet.has(s.id));
+            this._catalog = this._songs.all().filter((s) => idSet.has(s.id));
             this._count = this._catalog.length;
         } else {
             this._catalog = this._songs.all().filter((song) => {
@@ -243,7 +266,7 @@ class SetList {
             score: 0,
             covers: 0,
             instrumentals: 0,
-            changes: zeroMap(this._propNames)
+            changes: zeroMap(this._propNames),
         };
         this._build();
     }
@@ -254,32 +277,62 @@ class SetList {
         }
 
         const limits = this._config.general?.limits || {};
-        const normalized = merge({
-            count: this._config.general?.count || 15,
-            beamWidth: this._config.general?.beamWidth || 20,
-            maxCovers: limits.covers || 2,
-            maxInstrumentals: limits.instrumentals || 2
-        }, options || {});
+        const normalized = merge(
+            {
+                count: this._config.general?.count || 15,
+                beamWidth: this._config.general?.beamWidth || 20,
+                maxCovers: limits.covers || 2,
+                maxInstrumentals: limits.instrumentals || 2,
+            },
+            options || {},
+        );
 
-        normalized.count = clampInteger(normalized.count, this._config.general?.count || 15, 1);
-        normalized.beamWidth = clampInteger(normalized.beamWidth, this._config.general?.beamWidth || 20, 1);
-        normalized.maxCovers = clampInteger(normalized.maxCovers, limits.covers || 2, 0);
-        normalized.maxInstrumentals = clampInteger(normalized.maxInstrumentals, limits.instrumentals || 2, 0);
-        normalized.show = deepMerge(this._config.show || {}, normalized.show || {});
+        normalized.count = clampInteger(
+            normalized.count,
+            this._config.general?.count || 15,
+            1,
+        );
+        normalized.beamWidth = clampInteger(
+            normalized.beamWidth,
+            this._config.general?.beamWidth || 20,
+            1,
+        );
+        normalized.maxCovers = clampInteger(
+            normalized.maxCovers,
+            limits.covers || 2,
+            0,
+        );
+        normalized.maxInstrumentals = clampInteger(
+            normalized.maxInstrumentals,
+            limits.instrumentals || 2,
+            0,
+        );
+        normalized.show = deepMerge(
+            this._config.show || {},
+            normalized.show || {},
+        );
         return normalized;
     }
 
     _normalizeSeed(seed) {
-        if (seed === undefined || seed === null || seed === "" || seed === 0 || seed === "0") {
-            return Math.floor(Date.now() + (Math.random() * 1000000));
+        if (
+            seed === undefined ||
+            seed === null ||
+            seed === "" ||
+            seed === 0 ||
+            seed === "0"
+        ) {
+            return Math.floor(Date.now() + Math.random() * 1000000);
         }
         const parsed = Number.parseInt(seed, 10);
         if (Number.isNaN(parsed)) {
             let hashed = 0;
-            String(seed).split("").forEach((char) => {
-                hashed = ((hashed << 5) - hashed) + char.charCodeAt(0);
-                hashed |= 0;
-            });
+            String(seed)
+                .split("")
+                .forEach((char) => {
+                    hashed = (hashed << 5) - hashed + char.charCodeAt(0);
+                    hashed |= 0;
+                });
             return hashed >>> 0;
         }
         return parsed >>> 0;
@@ -317,12 +370,18 @@ class SetList {
     }
 
     _chaosAdjustment(prevItem, nextVariant) {
-        const centeredChaos = (this._chaosLevel * 2) - 1;
+        const centeredChaos = this._chaosLevel * 2 - 1;
         if (!prevItem || centeredChaos === 0) {
             return 0;
         }
 
-        const pressure = scoreAnxietyPressure(prevItem, nextVariant, this._propNames, this._propConfig, this._weights);
+        const pressure = scoreAnxietyPressure(
+            prevItem,
+            nextVariant,
+            this._propNames,
+            this._propConfig,
+            this._weights,
+        );
         if (!pressure.changed) {
             return centeredChaos > 0 ? centeredChaos * 1.5 : 0;
         }
@@ -331,8 +390,14 @@ class SetList {
     }
 
     _scoreKeyFlow(prevItem, nextVariant, prevDir) {
-        if (!this._keyFlowEnabled || !prevItem) return { score: 0, dir: prevDir };
-        return scoreKeyTransition(prevItem.key, nextVariant.key, prevDir, this._weights.keyFlow ?? 2);
+        if (!this._keyFlowEnabled || !prevItem)
+            return { score: 0, dir: prevDir };
+        return scoreKeyTransition(
+            prevItem.key,
+            nextVariant.key,
+            prevDir,
+            this._weights.keyFlow ?? 2,
+        );
     }
 
     /**
@@ -348,7 +413,11 @@ class SetList {
             if (allowed.length >= 2) {
                 const min = memberShow.minSongsPerInstrument ?? 2;
                 for (const inst of allowed) {
-                    constraints.instruments.push({ member: memberName, instrument: inst, min });
+                    constraints.instruments.push({
+                        member: memberName,
+                        instrument: inst,
+                        min,
+                    });
                 }
             }
 
@@ -358,7 +427,12 @@ class SetList {
                 if (tunings.length >= 2) {
                     const min = minPerTuning[instName] ?? 2;
                     for (const tuning of tunings) {
-                        constraints.tunings.push({ member: memberName, instrument: instName, tuning, min });
+                        constraints.tunings.push({
+                            member: memberName,
+                            instrument: instName,
+                            tuning,
+                            min,
+                        });
                     }
                 }
             }
@@ -368,30 +442,34 @@ class SetList {
     }
 
     _buildMinimumGroups() {
-        const instrumentGroups = Object.values(this._minConstraints.instruments.reduce((result, constraint) => {
-            const groupId = `instrument:${constraint.member}`;
-            if (!result[groupId]) {
-                result[groupId] = {
-                    id: groupId,
-                    weight: this._weights.instrument ?? 3,
-                    constraints: []
-                };
-            }
-            result[groupId].constraints.push(constraint);
-            return result;
-        }, {}));
-        const tuningGroups = Object.values(this._minConstraints.tunings.reduce((result, constraint) => {
-            const groupId = `tuning:${constraint.member}:${constraint.instrument}`;
-            if (!result[groupId]) {
-                result[groupId] = {
-                    id: groupId,
-                    weight: this._weights.tuning ?? 4,
-                    constraints: []
-                };
-            }
-            result[groupId].constraints.push(constraint);
-            return result;
-        }, {}));
+        const instrumentGroups = Object.values(
+            this._minConstraints.instruments.reduce((result, constraint) => {
+                const groupId = `instrument:${constraint.member}`;
+                if (!result[groupId]) {
+                    result[groupId] = {
+                        id: groupId,
+                        weight: this._weights.instrument ?? 3,
+                        constraints: [],
+                    };
+                }
+                result[groupId].constraints.push(constraint);
+                return result;
+            }, {}),
+        );
+        const tuningGroups = Object.values(
+            this._minConstraints.tunings.reduce((result, constraint) => {
+                const groupId = `tuning:${constraint.member}:${constraint.instrument}`;
+                if (!result[groupId]) {
+                    result[groupId] = {
+                        id: groupId,
+                        weight: this._weights.tuning ?? 4,
+                        constraints: [],
+                    };
+                }
+                result[groupId].constraints.push(constraint);
+                return result;
+            }, {}),
+        );
 
         return instrumentGroups.concat(tuningGroups).map((group) => {
             const keys = group.constraints.map((constraint) => {
@@ -406,7 +484,7 @@ class SetList {
                 keyToIndex: keys.reduce((result, key, index) => {
                     result[key] = index;
                     return result;
-                }, {})
+                }, {}),
             };
         });
     }
@@ -417,7 +495,7 @@ class SetList {
     _updateUsageCounts(counts, variant) {
         const next = {
             instruments: { ...counts.instruments },
-            tunings: { ...counts.tunings }
+            tunings: { ...counts.tunings },
         };
         const perf = variant.performance || {};
         for (const [member, setup] of Object.entries(perf)) {
@@ -437,12 +515,16 @@ class SetList {
      * Returns Infinity if it's mathematically impossible to meet them.
      */
     _buildMinimumPotentialContext(catalog, variantCache) {
-        const requiredInstrumentKeys = new Set(this._minConstraints.instruments.map((constraint) => {
-            return `${constraint.member}:${constraint.instrument}`;
-        }));
-        const requiredTuningKeys = new Set(this._minConstraints.tunings.map((constraint) => {
-            return `${constraint.member}:${constraint.instrument}:${constraint.tuning}`;
-        }));
+        const requiredInstrumentKeys = new Set(
+            this._minConstraints.instruments.map((constraint) => {
+                return `${constraint.member}:${constraint.instrument}`;
+            }),
+        );
+        const requiredTuningKeys = new Set(
+            this._minConstraints.tunings.map((constraint) => {
+                return `${constraint.member}:${constraint.instrument}:${constraint.tuning}`;
+            }),
+        );
         const totals = { instruments: {}, tunings: {} };
         const groupCapabilitiesBySongId = {};
         const bySongId = {};
@@ -453,7 +535,11 @@ class SetList {
             const instrumentKeys = new Set();
             const tuningKeys = new Set();
 
-            for (let variantIndex = 0; variantIndex < variants.length; variantIndex += 1) {
+            for (
+                let variantIndex = 0;
+                variantIndex < variants.length;
+                variantIndex += 1
+            ) {
                 const performance = variants[variantIndex].performance || {};
                 for (const [member, setup] of Object.entries(performance)) {
                     const instrumentKey = `${member}:${setup.instrument}`;
@@ -472,21 +558,28 @@ class SetList {
 
             bySongId[song.id] = {
                 instruments: Array.from(instrumentKeys),
-                tunings: Array.from(tuningKeys)
+                tunings: Array.from(tuningKeys),
             };
-            groupCapabilitiesBySongId[song.id] = this._minimumGroups.reduce((result, group) => {
-                const capabilityIndexes = [];
-                for (let keyIndex = 0; keyIndex < group.keys.length; keyIndex += 1) {
-                    const key = group.keys[keyIndex];
-                    if (instrumentKeys.has(key) || tuningKeys.has(key)) {
-                        capabilityIndexes.push(group.keyToIndex[key]);
+            groupCapabilitiesBySongId[song.id] = this._minimumGroups.reduce(
+                (result, group) => {
+                    const capabilityIndexes = [];
+                    for (
+                        let keyIndex = 0;
+                        keyIndex < group.keys.length;
+                        keyIndex += 1
+                    ) {
+                        const key = group.keys[keyIndex];
+                        if (instrumentKeys.has(key) || tuningKeys.has(key)) {
+                            capabilityIndexes.push(group.keyToIndex[key]);
+                        }
                     }
-                }
-                if (capabilityIndexes.length) {
-                    result[group.id] = capabilityIndexes;
-                }
-                return result;
-            }, {});
+                    if (capabilityIndexes.length) {
+                        result[group.id] = capabilityIndexes;
+                    }
+                    return result;
+                },
+                {},
+            );
 
             bySongId[song.id].instruments.forEach((key) => {
                 totals.instruments[key] = (totals.instruments[key] || 0) + 1;
@@ -502,12 +595,18 @@ class SetList {
     _consumeRemainingPotentialCounts(remainingPotentialCounts, songId) {
         const next = {
             instruments: { ...remainingPotentialCounts.instruments },
-            tunings: { ...remainingPotentialCounts.tunings }
+            tunings: { ...remainingPotentialCounts.tunings },
         };
-        const capabilities = this._minimumPotentialBySongId[songId] || { instruments: [], tunings: [] };
+        const capabilities = this._minimumPotentialBySongId[songId] || {
+            instruments: [],
+            tunings: [],
+        };
 
         capabilities.instruments.forEach((key) => {
-            next.instruments[key] = Math.max(0, (next.instruments[key] || 0) - 1);
+            next.instruments[key] = Math.max(
+                0,
+                (next.instruments[key] || 0) - 1,
+            );
         });
         capabilities.tunings.forEach((key) => {
             next.tunings[key] = Math.max(0, (next.tunings[key] || 0) - 1);
@@ -524,7 +623,8 @@ class SetList {
                 continue;
             }
 
-            const capability = this._minimumGroupCapabilitiesBySongId?.[song.id]?.[groupId];
+            const capability =
+                this._minimumGroupCapabilitiesBySongId?.[song.id]?.[groupId];
             if (capability?.length) {
                 capabilities.push(capability);
             }
@@ -556,17 +656,28 @@ class SetList {
         const slotToSongIndex = new Array(totalSlots).fill(-1);
         const tryAssign = (songIndex, seenSlots) => {
             const songCapabilities = remainingCapabilities[songIndex];
-            for (let capabilityIndex = 0; capabilityIndex < songCapabilities.length; capabilityIndex += 1) {
+            for (
+                let capabilityIndex = 0;
+                capabilityIndex < songCapabilities.length;
+                capabilityIndex += 1
+            ) {
                 const keyIndex = songCapabilities[capabilityIndex];
                 const slotIndexes = slotsByKeyIndex[keyIndex];
-                for (let slotIndex = 0; slotIndex < slotIndexes.length; slotIndex += 1) {
+                for (
+                    let slotIndex = 0;
+                    slotIndex < slotIndexes.length;
+                    slotIndex += 1
+                ) {
                     const slot = slotIndexes[slotIndex];
                     if (seenSlots[slot]) {
                         continue;
                     }
                     seenSlots[slot] = true;
                     const assignedSongIndex = slotToSongIndex[slot];
-                    if (assignedSongIndex === -1 || tryAssign(assignedSongIndex, seenSlots)) {
+                    if (
+                        assignedSongIndex === -1 ||
+                        tryAssign(assignedSongIndex, seenSlots)
+                    ) {
                         slotToSongIndex[slot] = songIndex;
                         return true;
                     }
@@ -576,7 +687,11 @@ class SetList {
         };
 
         let matched = 0;
-        for (let songIndex = 0; songIndex < remainingCapabilities.length; songIndex += 1) {
+        for (
+            let songIndex = 0;
+            songIndex < remainingCapabilities.length;
+            songIndex += 1
+        ) {
             const seenSlots = new Array(totalSlots).fill(false);
             if (tryAssign(songIndex, seenSlots)) {
                 matched += 1;
@@ -589,7 +704,14 @@ class SetList {
         return false;
     }
 
-    _scoreMinimumPenalty(state, songId, position, usageCounts, remainingPotentialCounts, remainingGroupCapabilitiesById = null) {
+    _scoreMinimumPenalty(
+        state,
+        songId,
+        position,
+        usageCounts,
+        remainingPotentialCounts,
+        remainingGroupCapabilitiesById = null,
+    ) {
         const remainingSlots = this._count - position;
         let penalty = 0;
 
@@ -597,13 +719,19 @@ class SetList {
             const key = `${c.member}:${c.instrument}`;
             const have = usageCounts.instruments[key] || 0;
             const deficit = c.min - have;
-            const possible = Math.min(remainingPotentialCounts.instruments[key] || 0, remainingSlots);
+            const possible = Math.min(
+                remainingPotentialCounts.instruments[key] || 0,
+                remainingSlots,
+            );
             if (deficit > 0 && deficit > possible) {
                 return Infinity; // impossible to meet
             }
             if (deficit > 0) {
                 const slack = Math.max(0, possible - deficit);
-                penalty += deficit * (this._weights.instrument ?? 3) * (1 + (1 / (slack + 1)));
+                penalty +=
+                    deficit *
+                    (this._weights.instrument ?? 3) *
+                    (1 + 1 / (slack + 1));
             }
         }
 
@@ -611,35 +739,59 @@ class SetList {
             const key = `${c.member}:${c.instrument}:${c.tuning}`;
             const have = usageCounts.tunings[key] || 0;
             const deficit = c.min - have;
-            const possible = Math.min(remainingPotentialCounts.tunings[key] || 0, remainingSlots);
+            const possible = Math.min(
+                remainingPotentialCounts.tunings[key] || 0,
+                remainingSlots,
+            );
             if (deficit > 0 && deficit > possible) {
                 return Infinity;
             }
             if (deficit > 0) {
                 const slack = Math.max(0, possible - deficit);
-                penalty += deficit * (this._weights.tuning ?? 4) * (1 + (1 / (slack + 1)));
+                penalty +=
+                    deficit *
+                    (this._weights.tuning ?? 4) *
+                    (1 + 1 / (slack + 1));
             }
         }
 
-        for (let groupIndex = 0; groupIndex < this._minimumGroups.length; groupIndex += 1) {
+        for (
+            let groupIndex = 0;
+            groupIndex < this._minimumGroups.length;
+            groupIndex += 1
+        ) {
             const group = this._minimumGroups[groupIndex];
             const deficits = group.constraints.map((constraint) => {
-                const key = "tuning" in constraint
-                    ? `${constraint.member}:${constraint.instrument}:${constraint.tuning}`
-                    : `${constraint.member}:${constraint.instrument}`;
-                const usageBucket = "tuning" in constraint ? usageCounts.tunings : usageCounts.instruments;
+                const key =
+                    "tuning" in constraint
+                        ? `${constraint.member}:${constraint.instrument}:${constraint.tuning}`
+                        : `${constraint.member}:${constraint.instrument}`;
+                const usageBucket =
+                    "tuning" in constraint
+                        ? usageCounts.tunings
+                        : usageCounts.instruments;
                 return Math.max(0, constraint.min - (usageBucket[key] || 0));
             });
-            const totalNeeded = deficits.reduce((sum, deficit) => sum + deficit, 0);
+            const totalNeeded = deficits.reduce(
+                (sum, deficit) => sum + deficit,
+                0,
+            );
             if (!totalNeeded) {
                 continue;
             }
 
-            if (!this._canSatisfyGroupDeficits(
-                deficits,
-                remainingGroupCapabilitiesById?.[group.id] ?? this._remainingGroupCapabilities(state, songId, group.id),
-                remainingSlots
-            )) {
+            if (
+                !this._canSatisfyGroupDeficits(
+                    deficits,
+                    remainingGroupCapabilitiesById?.[group.id] ??
+                        this._remainingGroupCapabilities(
+                            state,
+                            songId,
+                            group.id,
+                        ),
+                    remainingSlots,
+                )
+            ) {
                 return Infinity;
             }
         }
@@ -664,10 +816,12 @@ class SetList {
             changeTotals: zeroMap(this._propNames),
             usageCounts: { instruments: {}, tunings: {} },
             remainingPotentialCounts: {
-                instruments: { ...(this._minimumPotentialTotals?.instruments || {}) },
-                tunings: { ...(this._minimumPotentialTotals?.tunings || {}) }
+                instruments: {
+                    ...(this._minimumPotentialTotals?.instruments || {}),
+                },
+                tunings: { ...(this._minimumPotentialTotals?.tunings || {}) },
             },
-            keyFifthsDir: 0
+            keyFifthsDir: 0,
         };
     }
 
@@ -683,18 +837,27 @@ class SetList {
     }
 
     _build() {
-        const catalog = this._randomness.shuffleCatalog ? this._shuffle(this._catalog) : this._catalog.slice();
+        const catalog = this._randomness.shuffleCatalog
+            ? this._shuffle(this._catalog)
+            : this._catalog.slice();
 
         // Pre-expand and cache all variants once
         const variantCache = new Map();
         for (let i = 0; i < catalog.length; i++) {
-            variantCache.set(catalog[i].id, this._songs.expandVariants(catalog[i], this._show));
+            variantCache.set(
+                catalog[i].id,
+                this._songs.expandVariants(catalog[i], this._show),
+            );
         }
         this._variantCache = variantCache;
-        const minimumPotentialContext = this._buildMinimumPotentialContext(catalog, variantCache);
+        const minimumPotentialContext = this._buildMinimumPotentialContext(
+            catalog,
+            variantCache,
+        );
         this._minimumPotentialBySongId = minimumPotentialContext.bySongId;
         this._minimumPotentialTotals = minimumPotentialContext.totals;
-        this._minimumGroupCapabilitiesBySongId = minimumPotentialContext.groupCapabilitiesBySongId;
+        this._minimumGroupCapabilitiesBySongId =
+            minimumPotentialContext.groupCapabilitiesBySongId;
         this._minimumsRelaxed = false;
         let states = [this._initialState()];
 
@@ -748,18 +911,39 @@ class SetList {
             return nextStates.slice();
         }
 
-        const multiplier = clampInteger(this._randomness.beamChoicePoolMultiplier, 6, 1);
-        const poolSize = Math.min(nextStates.length, this._options.beamWidth * multiplier);
+        const multiplier = clampInteger(
+            this._randomness.beamChoicePoolMultiplier,
+            6,
+            1,
+        );
+        const poolSize = Math.min(
+            nextStates.length,
+            this._options.beamWidth * multiplier,
+        );
         const pool = nextStates.slice(0, poolSize);
         const selected = [];
         const lastSongCounts = {};
-        const temperature = clampFloat(this._randomness.beamTemperature, 1.1, 0.01);
-        const maxStatesPerLastSong = clampInteger(this._randomness.maxStatesPerLastSong, 24, 1);
+        const temperature = clampFloat(
+            this._randomness.beamTemperature,
+            1.1,
+            0.01,
+        );
+        const maxStatesPerLastSong = clampInteger(
+            this._randomness.maxStatesPerLastSong,
+            24,
+            1,
+        );
 
         while (pool.length && selected.length < this._options.beamWidth) {
-            const bestRank = pool[0].rankScore === undefined ? pool[0].score : pool[0].rankScore;
+            const bestRank =
+                pool[0].rankScore === undefined
+                    ? pool[0].score
+                    : pool[0].rankScore;
             const weights = pool.map((state) => {
-                const rank = state.rankScore === undefined ? state.score : state.rankScore;
+                const rank =
+                    state.rankScore === undefined
+                        ? state.score
+                        : state.rankScore;
                 return Math.exp(-(rank - bestRank) / temperature);
             });
             const total = weights.reduce((sum, weight) => sum + weight, 0);
@@ -788,7 +972,12 @@ class SetList {
 
         if (selected.length < this._options.beamWidth) {
             const selectedSet = new Set(selected);
-            for (let i = 0; i < nextStates.length && selected.length < this._options.beamWidth; i++) {
+            for (
+                let i = 0;
+                i < nextStates.length &&
+                selected.length < this._options.beamWidth;
+                i++
+            ) {
                 if (!selectedSet.has(nextStates[i])) {
                     selected.push(nextStates[i]);
                 }
@@ -817,7 +1006,11 @@ class SetList {
         }
 
         const bestScore = pool[0].score;
-        const temperature = clampFloat(this._randomness.temperature, 0.85, 0.01);
+        const temperature = clampFloat(
+            this._randomness.temperature,
+            0.85,
+            0.01,
+        );
         const weights = pool.map((state) => {
             return Math.exp(-(state.score - bestScore) / temperature);
         });
@@ -837,16 +1030,25 @@ class SetList {
     _diversifyCompatibleRuns(items) {
         const result = items.slice();
 
-        for (let start = 0; start < result.length;) {
-            const signature = this._performanceSignature(result[start].performance);
+        for (let start = 0; start < result.length; ) {
+            const signature = this._performanceSignature(
+                result[start].performance,
+            );
             let end = start + 1;
 
-            while (end < result.length && this._performanceSignature(result[end].performance) === signature) {
+            while (
+                end < result.length &&
+                this._performanceSignature(result[end].performance) ===
+                    signature
+            ) {
                 end += 1;
             }
 
-            if ((end - start) > 1) {
-                const reordered = this._reorderRun(result.slice(start, end), start + 1);
+            if (end - start > 1) {
+                const reordered = this._reorderRun(
+                    result.slice(start, end),
+                    start + 1,
+                );
                 for (let index = 0; index < reordered.length; index += 1) {
                     result[start + index] = reordered[index];
                 }
@@ -861,17 +1063,25 @@ class SetList {
     _reorderRun(runItems, startPosition) {
         const remaining = runItems.slice();
         const ordered = [];
-        const temperature = clampFloat(this._randomness.blockShuffleTemperature, 1.4, 0.01);
+        const temperature = clampFloat(
+            this._randomness.blockShuffleTemperature,
+            1.4,
+            0.01,
+        );
 
         for (let offset = 0; offset < runItems.length; offset += 1) {
-            const position = startPosition + offset;
-            const ranked = remaining.map((item) => {
-                const score = this._songBias(item.id);
-                return { item, score };
-            }).sort((left, right) => left.score - right.score);
+            const _position = startPosition + offset;
+            const ranked = remaining
+                .map((item) => {
+                    const score = this._songBias(item.id);
+                    return { item, score };
+                })
+                .sort((left, right) => left.score - right.score);
 
             const bestScore = ranked[0].score;
-            const weights = ranked.map((entry) => Math.exp(-(entry.score - bestScore) / temperature));
+            const weights = ranked.map((entry) =>
+                Math.exp(-(entry.score - bestScore) / temperature),
+            );
             const total = weights.reduce((sum, weight) => sum + weight, 0);
             let target = this._rng() * total;
             let chosenIndex = ranked.length - 1;
@@ -893,16 +1103,19 @@ class SetList {
     }
 
     _performanceSignature(performance) {
-        return Object.keys(performance).sort().map((member) => {
-            const setup = performance[member];
-            return [
-                member,
-                setup.instrument || "",
-                setup.tuning || "",
-                String(setup.capo || 0),
-                String(setup.picking || "")
-            ].join("|");
-        }).join("::");
+        return Object.keys(performance)
+            .sort()
+            .map((member) => {
+                const setup = performance[member];
+                return [
+                    member,
+                    setup.instrument || "",
+                    setup.tuning || "",
+                    String(setup.capo || 0),
+                    String(setup.picking || ""),
+                ].join("|");
+            })
+            .join("::");
     }
 
     _finalizeItems(items) {
@@ -918,15 +1131,30 @@ class SetList {
                 instrumental: item.instrumental,
                 key: item.key,
                 notes: item.notes || "",
-                performance: item.performance
+                performance: item.performance,
             };
             const prevItem = finalizedItems[finalizedItems.length - 1] || null;
-            const propTransition = this._scoreConfiguredProps(prevItem, variant);
-            const nextPropState = this._advancePropState(state, propTransition.changes, prevItem);
+            const propTransition = this._scoreConfiguredProps(
+                prevItem,
+                variant,
+            );
+            const nextPropState = this._advancePropState(
+                state,
+                propTransition.changes,
+                prevItem,
+            );
             const positionScore = this._scorePosition(variant, position);
             const transitionScore = propTransition.score;
-            const keyFlow = this._scoreKeyFlow(prevItem, variant, state.keyFifthsDir);
-            const incrementalScore = transitionScore + positionScore.score + this._songBias(variant.id) + keyFlow.score;
+            const keyFlow = this._scoreKeyFlow(
+                prevItem,
+                variant,
+                state.keyFifthsDir,
+            );
+            const incrementalScore =
+                transitionScore +
+                positionScore.score +
+                this._songBias(variant.id) +
+                keyFlow.score;
 
             const finalized = {
                 id: variant.id,
@@ -942,7 +1170,7 @@ class SetList {
                 transitionNotes: propTransition.notes,
                 positionNotes: positionScore.notes,
                 contextNotes: [],
-                propChanges: propTransition.changes
+                propChanges: propTransition.changes,
             };
 
             finalizedItems.push(finalized);
@@ -952,11 +1180,13 @@ class SetList {
                 score: state.score + incrementalScore,
                 rankScore: state.score + incrementalScore,
                 coverCount: state.coverCount + Number(Boolean(variant.cover)),
-                instrumentalCount: state.instrumentalCount + Number(Boolean(variant.instrumental)),
+                instrumentalCount:
+                    state.instrumentalCount +
+                    Number(Boolean(variant.instrumental)),
                 propChangeCounts: nextPropState.propChangeCounts,
                 propStreaks: nextPropState.propStreaks,
                 changeTotals: nextPropState.changeTotals,
-                keyFifthsDir: keyFlow.dir
+                keyFifthsDir: keyFlow.dir,
             };
         });
 
@@ -970,14 +1200,15 @@ class SetList {
                 instrumentals: state.instrumentalCount,
                 changes: state.changeTotals,
                 anxiety,
-                minimumsRelaxed: Boolean(this._minimumsRelaxed)
-            }
+                minimumsRelaxed: Boolean(this._minimumsRelaxed),
+            },
         };
     }
 
     _buildNextState(state, song, position) {
         const nextCoverCount = state.coverCount + (song.cover ? 1 : 0);
-        const nextInstrumentalCount = state.instrumentalCount + (song.instrumental ? 1 : 0);
+        const nextInstrumentalCount =
+            state.instrumentalCount + (song.instrumental ? 1 : 0);
 
         if (nextCoverCount > this._options.maxCovers) {
             return null;
@@ -1008,20 +1239,21 @@ class SetList {
                 coverCount: nextCoverCount,
                 instrumentalCount: nextInstrumentalCount,
                 lastItem: variantState.item,
-                rankScore: newScore + this._randomJitter(this._randomness.stateJitter),
+                rankScore:
+                    newScore + this._randomJitter(this._randomness.stateJitter),
                 _tiebreaker: this._rng(),
                 propChangeCounts: variantState.propChangeCounts,
                 propStreaks: variantState.propStreaks,
                 changeTotals: variantState.changeTotals,
                 usageCounts: variantState.usageCounts,
                 remainingPotentialCounts: variantState.remainingPotentialCounts,
-                keyFifthsDir: variantState.keyFifthsDir ?? 0
+                keyFifthsDir: variantState.keyFifthsDir ?? 0,
             };
         };
 
         return {
             feasibleState: buildState(bestVariant.feasible),
-            fallbackState: buildState(bestVariant.fallback)
+            fallbackState: buildState(bestVariant.fallback),
         };
     }
 
@@ -1034,22 +1266,52 @@ class SetList {
         let fallbackScore = Infinity;
 
         const variants = this._variantCache.get(song.id);
-        const nextRemainingPotentialCounts = this._consumeRemainingPotentialCounts(state.remainingPotentialCounts, song.id);
+        const nextRemainingPotentialCounts =
+            this._consumeRemainingPotentialCounts(
+                state.remainingPotentialCounts,
+                song.id,
+            );
         let remainingGroupCapabilitiesById = null;
         for (let vi = 0; vi < variants.length; vi++) {
             const variant = variants[vi];
-            const propTransition = this._scoreConfiguredPropsLite(prevItem, variant);
-            if (!this._isAllowedByPropRules(state, propTransition.changes, prevItem, position)) {
+            const propTransition = this._scoreConfiguredPropsLite(
+                prevItem,
+                variant,
+            );
+            if (
+                !this._isAllowedByPropRules(
+                    state,
+                    propTransition.changes,
+                    prevItem,
+                    position,
+                )
+            ) {
                 continue;
             }
 
-            const nextPropState = this._advancePropState(state, propTransition.changes, prevItem);
-            const nextUsageCounts = this._updateUsageCounts(state.usageCounts, variant);
+            const nextPropState = this._advancePropState(
+                state,
+                propTransition.changes,
+                prevItem,
+            );
+            const nextUsageCounts = this._updateUsageCounts(
+                state.usageCounts,
+                variant,
+            );
             if (!remainingGroupCapabilitiesById && this._minimumGroups.length) {
                 remainingGroupCapabilitiesById = Object.create(null);
-                for (let groupIndex = 0; groupIndex < this._minimumGroups.length; groupIndex += 1) {
+                for (
+                    let groupIndex = 0;
+                    groupIndex < this._minimumGroups.length;
+                    groupIndex += 1
+                ) {
                     const group = this._minimumGroups[groupIndex];
-                    remainingGroupCapabilitiesById[group.id] = this._remainingGroupCapabilities(state, song.id, group.id);
+                    remainingGroupCapabilitiesById[group.id] =
+                        this._remainingGroupCapabilities(
+                            state,
+                            song.id,
+                            group.id,
+                        );
                 }
             }
             const minimumPenalty = this._scoreMinimumPenalty(
@@ -1058,17 +1320,26 @@ class SetList {
                 position,
                 nextUsageCounts,
                 nextRemainingPotentialCounts,
-                remainingGroupCapabilitiesById
+                remainingGroupCapabilitiesById,
             );
 
             const positionScore = this._scorePositionLite(variant, position);
             const transitionScore = propTransition.score;
             const chaosAdjustment = this._chaosAdjustment(prevItem, variant);
-            const keyFlow = this._scoreKeyFlow(prevItem, variant, state.keyFifthsDir);
+            const keyFlow = this._scoreKeyFlow(
+                prevItem,
+                variant,
+                state.keyFifthsDir,
+            );
 
             if (minimumPenalty === Infinity) {
                 // Track as fallback in case all variants are impossible
-                const fbScore = transitionScore + positionScore + this._songBias(variant.id) + chaosAdjustment + keyFlow.score;
+                const fbScore =
+                    transitionScore +
+                    positionScore +
+                    this._songBias(variant.id) +
+                    chaosAdjustment +
+                    keyFlow.score;
                 if (fbScore < fallbackScore) {
                     fallbackScore = fbScore;
                     fallback = {
@@ -1079,14 +1350,22 @@ class SetList {
                         remainingPotentialCounts: nextRemainingPotentialCounts,
                         incrementalScore: fbScore,
                         keyFifthsDir: keyFlow.dir,
-                        item: variant
+                        item: variant,
                     };
                 }
                 continue;
             }
 
-            const incrementalScore = transitionScore + positionScore + this._songBias(variant.id) + minimumPenalty + chaosAdjustment + keyFlow.score;
-            const exploratoryScore = incrementalScore + this._randomJitter(this._randomness.variantJitter);
+            const incrementalScore =
+                transitionScore +
+                positionScore +
+                this._songBias(variant.id) +
+                minimumPenalty +
+                chaosAdjustment +
+                keyFlow.score;
+            const exploratoryScore =
+                incrementalScore +
+                this._randomJitter(this._randomness.variantJitter);
 
             if (exploratoryScore < bestScore) {
                 bestScore = exploratoryScore;
@@ -1098,14 +1377,14 @@ class SetList {
                     remainingPotentialCounts: nextRemainingPotentialCounts,
                     incrementalScore,
                     keyFifthsDir: keyFlow.dir,
-                    item: variant
+                    item: variant,
                 };
             }
         }
 
         return {
             feasible: best,
-            fallback
+            fallback,
         };
     }
 
@@ -1116,7 +1395,12 @@ class SetList {
 
         for (let i = 0; i < this._propNames.length; i++) {
             const propName = this._propNames[i];
-            const change = this._detectPropChangeLite(prevItem, nextVariant, propName, this._propConfig[propName]);
+            const change = this._detectPropChangeLite(
+                prevItem,
+                nextVariant,
+                propName,
+                this._propConfig[propName],
+            );
             changes[propName] = change;
             if (change.changed) {
                 score += change.magnitude * this._getPropWeight(propName);
@@ -1137,16 +1421,26 @@ class SetList {
             return detectInstrumentSetChangeLite(prevPerf, nextPerf);
         }
         if (kind === "instrumentDelta") {
-            return detectFieldChangeLite(prevPerf, nextPerf, rule.field || propName, true);
+            return detectFieldChangeLite(
+                prevPerf,
+                nextPerf,
+                rule.field || propName,
+                true,
+            );
         }
-        return detectFieldChangeLite(prevPerf, nextPerf, rule.field || propName, false);
+        return detectFieldChangeLite(
+            prevPerf,
+            nextPerf,
+            rule.field || propName,
+            false,
+        );
     }
 
     // Lite position scoring: returns just the numeric score
     _scorePositionLite(song, position) {
         let score = 0;
         const orderLabel = this._findOrderLabel(position);
-        const orderRules = (this._config.general?.order && this._config.general.order[orderLabel]) || [];
+        const orderRules = this._config.general?.order?.[orderLabel] || [];
 
         for (let i = 0; i < orderRules.length; i++) {
             const [name, expected] = orderRules[i];
@@ -1172,7 +1466,12 @@ class SetList {
         let score = 0;
 
         this._propNames.forEach((propName) => {
-            const change = this._detectPropChange(prevItem, nextVariant, propName, this._propConfig[propName]);
+            const change = this._detectPropChange(
+                prevItem,
+                nextVariant,
+                propName,
+                this._propConfig[propName],
+            );
             changes[propName] = change;
             if (change.changed) {
                 score += change.magnitude * this._getPropWeight(propName);
@@ -1196,9 +1495,19 @@ class SetList {
             return detectInstrumentSetChange(prevPerf, nextPerf);
         }
         if (kind === "instrumentDelta") {
-            return detectFieldChange(prevPerf, nextPerf, rule.field || propName, true);
+            return detectFieldChange(
+                prevPerf,
+                nextPerf,
+                rule.field || propName,
+                true,
+            );
         }
-        return detectFieldChange(prevPerf, nextPerf, rule.field || propName, false);
+        return detectFieldChange(
+            prevPerf,
+            nextPerf,
+            rule.field || propName,
+            false,
+        );
     }
 
     _getPropWeight(propName) {
@@ -1219,14 +1528,20 @@ class SetList {
                 continue;
             }
             // maxChanges is always enforced, even on the last song
-            if (rule.maxChanges !== undefined && state.propChangeCounts[propName] >= rule.maxChanges) {
+            if (
+                rule.maxChanges !== undefined &&
+                state.propChangeCounts[propName] >= rule.maxChanges
+            ) {
                 return false;
             }
             // allowChangeOnLastSong only bypasses minStreak, not maxChanges
             if (isLastSong && rule.allowChangeOnLastSong) {
                 continue;
             }
-            if (rule.minStreak !== undefined && state.propStreaks[propName] < rule.minStreak) {
+            if (
+                rule.minStreak !== undefined &&
+                state.propStreaks[propName] < rule.minStreak
+            ) {
                 return false;
             }
         }
@@ -1260,16 +1575,15 @@ class SetList {
         return {
             propChangeCounts,
             propStreaks,
-            changeTotals
+            changeTotals,
         };
     }
-
 
     _scorePosition(song, position) {
         const notes = [];
         let score = 0;
         const orderLabel = this._findOrderLabel(position);
-        const orderRules = (this._config.general?.order && this._config.general.order[orderLabel]) || [];
+        const orderRules = this._config.general?.order?.[orderLabel] || [];
 
         orderRules.forEach(([name, expected]) => {
             const accepted = Array.isArray(expected) ? expected : [expected];
@@ -1294,7 +1608,6 @@ class SetList {
         return { score, notes };
     }
 
-
     _findOrderLabel(position) {
         if (position === 1) {
             return "first";
@@ -1316,16 +1629,15 @@ class SetList {
             options: this._options,
             seed: this._seed,
             summary: this._summary,
-            songs: this._list
+            songs: this._list,
         };
     }
 }
 
-
 const DEFAULT_WEIGHTS = {
     positionMiss: 8,
     earlyCover: 6,
-    earlyInstrumental: 4
+    earlyInstrumental: 4,
 };
 
 const DEFAULT_RANDOMNESS = {
@@ -1338,9 +1650,8 @@ const DEFAULT_RANDOMNESS = {
     beamChoicePoolMultiplier: 4,
     beamTemperature: 1.1,
     maxStatesPerLastSong: 8,
-    blockShuffleTemperature: 1.4
+    blockShuffleTemperature: 1.4,
 };
-
 
 export function generateSetlist(songs, config, options = {}) {
     const generator = new SetList(songs, config, options);
@@ -1348,7 +1659,11 @@ export function generateSetlist(songs, config, options = {}) {
 }
 
 export function scoreFixedOrder(fixedSongs, config, options = {}) {
-    const weights = Object.assign({}, DEFAULT_WEIGHTS, config?.general?.weighting || {});
+    const weights = Object.assign(
+        {},
+        DEFAULT_WEIGHTS,
+        config?.general?.weighting || {},
+    );
     const propNames = Object.keys(config?.props || {});
     const propConfig = config?.props || {};
     const keyFlowEnabled = Boolean(options.keyFlow);
@@ -1362,7 +1677,8 @@ export function scoreFixedOrder(fixedSongs, config, options = {}) {
     function scorePropTransition(prevItem, nextItem) {
         if (!prevItem) {
             const changes = {};
-            for (const p of propNames) changes[p] = { changed: false, magnitude: 0, notes: [] };
+            for (const p of propNames)
+                changes[p] = { changed: false, magnitude: 0, notes: [] };
             return { score: 0, notes: [], changes };
         }
 
@@ -1380,9 +1696,19 @@ export function scoreFixedOrder(fixedSongs, config, options = {}) {
             if (kind === "instrumentSet") {
                 change = detectInstrumentSetChange(prevPerf, nextPerf);
             } else if (kind === "instrumentDelta") {
-                change = detectFieldChange(prevPerf, nextPerf, rule.field || propName, true);
+                change = detectFieldChange(
+                    prevPerf,
+                    nextPerf,
+                    rule.field || propName,
+                    true,
+                );
             } else {
-                change = detectFieldChange(prevPerf, nextPerf, rule.field || propName, false);
+                change = detectFieldChange(
+                    prevPerf,
+                    nextPerf,
+                    rule.field || propName,
+                    false,
+                );
             }
 
             changes[propName] = change;
@@ -1406,9 +1732,15 @@ export function scoreFixedOrder(fixedSongs, config, options = {}) {
     fixedSongs.forEach((song, index) => {
         const prevItem = items[items.length - 1] || null;
         const propTransition = scorePropTransition(prevItem, song);
-        const keyFlow = (keyFlowEnabled && prevItem)
-            ? scoreKeyTransition(prevItem.key, song.key, keyDir, keyFlowWeight)
-            : { score: 0, dir: keyDir };
+        const keyFlow =
+            keyFlowEnabled && prevItem
+                ? scoreKeyTransition(
+                      prevItem.key,
+                      song.key,
+                      keyDir,
+                      keyFlowWeight,
+                  )
+                : { score: 0, dir: keyDir };
         keyDir = keyFlow.dir;
 
         const incrementalScore = propTransition.score + keyFlow.score;
@@ -1430,7 +1762,7 @@ export function scoreFixedOrder(fixedSongs, config, options = {}) {
             transitionNotes: propTransition.notes,
             positionNotes: [],
             contextNotes: [],
-            propChanges: propTransition.changes
+            propChanges: propTransition.changes,
         });
     });
 
@@ -1442,8 +1774,8 @@ export function scoreFixedOrder(fixedSongs, config, options = {}) {
             score: totalScore,
             covers: coverCount,
             instrumentals: instrumentalCount,
-            anxiety
-        }
+            anxiety,
+        },
     };
 }
 

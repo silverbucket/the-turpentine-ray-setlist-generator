@@ -1,5 +1,6 @@
 <script>
     import { getContext } from "svelte";
+
     const store = getContext("app");
 
     let bandNameDraft = $state(store.appConfig?.bandName ?? "");

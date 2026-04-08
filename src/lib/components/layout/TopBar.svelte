@@ -1,6 +1,7 @@
 <script>
   import { getContext } from "svelte";
-  import { getThemePreference, cycleTheme } from "../../theme.svelte.js";
+  import { cycleTheme, getThemePreference } from "../../theme.svelte.js";
+
   const store = getContext("app");
 
   let menuOpen = $state(false);

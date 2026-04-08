@@ -8,22 +8,20 @@ const DEFAULT_CONFIG_TEMPLATE = {
         beamWidth: 512,
         limits: {
             covers: 2,
-            instrumentals: 2
+            instrumentals: 2,
         },
         order: {
             first: [
                 ["notGoodOpener", false],
                 ["cover", false],
-                ["instrumental", false]
+                ["instrumental", false],
             ],
             second: [
                 ["cover", false],
-                ["instrumental", false]
+                ["instrumental", false],
             ],
             penultimate: [],
-            last: [
-                ["notGoodCloser", false]
-            ]
+            last: [["notGoodCloser", false]],
         },
         weighting: {
             tuning: 4,
@@ -33,7 +31,7 @@ const DEFAULT_CONFIG_TEMPLATE = {
             keyFlow: 2,
             positionMiss: 8,
             earlyCover: 2,
-            earlyInstrumental: 2
+            earlyInstrumental: 2,
         },
         randomness: {
             variantJitter: 1.5,
@@ -45,8 +43,8 @@ const DEFAULT_CONFIG_TEMPLATE = {
             beamChoicePoolMultiplier: 6,
             beamTemperature: 1.1,
             maxStatesPerLastSong: 24,
-            blockShuffleTemperature: 1.4
-        }
+            blockShuffleTemperature: 1.4,
+        },
     },
     show: {},
     props: {
@@ -54,54 +52,59 @@ const DEFAULT_CONFIG_TEMPLATE = {
             kind: "instrumentField",
             field: "tuning",
             minStreak: 2,
-            allowChangeOnLastSong: true
+            allowChangeOnLastSong: true,
         },
         capo: {
             kind: "instrumentDelta",
             field: "capo",
             minStreak: 2,
-            allowChangeOnLastSong: true
+            allowChangeOnLastSong: true,
         },
         instruments: {
             kind: "instrumentSet",
             weightKey: "instrument",
             minStreak: 2,
-            allowChangeOnLastSong: true
+            allowChangeOnLastSong: true,
         },
         picking: {
             kind: "instrumentField",
             field: "picking",
             weightKey: "technique",
             minStreak: 1,
-            allowChangeOnLastSong: true
-        }
-    }
+            allowChangeOnLastSong: true,
+        },
+    },
 };
 
 export const DEFAULT_APP_CONFIG = createDefaultAppConfig();
 
 export function normalizeMemberRecord(memberConfig) {
     const instruments = Array.isArray(memberConfig?.instruments)
-        ? memberConfig.instruments.map((instrument) => ({
-            name: instrument?.name || "",
-            tunings: Array.isArray(instrument?.tunings)
-                ? instrument.tunings.filter(Boolean)
-                : [],
-            defaultTuning: instrument?.defaultTuning || "",
-            techniques: Array.isArray(instrument?.techniques)
-                ? instrument.techniques.filter(Boolean)
-                : [],
-            defaultTechnique: instrument?.defaultTechnique || ""
-        })).filter((instrument) => instrument.name)
+        ? memberConfig.instruments
+              .map((instrument) => ({
+                  name: instrument?.name || "",
+                  tunings: Array.isArray(instrument?.tunings)
+                      ? instrument.tunings.filter(Boolean)
+                      : [],
+                  defaultTuning: instrument?.defaultTuning || "",
+                  techniques: Array.isArray(instrument?.techniques)
+                      ? instrument.techniques.filter(Boolean)
+                      : [],
+                  defaultTechnique: instrument?.defaultTechnique || "",
+              }))
+              .filter((instrument) => instrument.name)
         : [];
 
     return {
         instruments,
-        defaultInstrument: memberConfig?.defaultInstrument || ""
+        defaultInstrument: memberConfig?.defaultInstrument || "",
     };
 }
 
-export function createDefaultAppConfig({ bandName = "", seedConfig = DEFAULT_CONFIG_TEMPLATE } = {}) {
+export function createDefaultAppConfig({
+    bandName = "",
+    seedConfig = DEFAULT_CONFIG_TEMPLATE,
+} = {}) {
     const timestamp = nowIso();
     const baseConfig = clone(seedConfig);
     baseConfig.show = baseConfig.show || {};
@@ -113,10 +116,9 @@ export function createDefaultAppConfig({ bandName = "", seedConfig = DEFAULT_CON
         schemaVersion: SCHEMA_VERSION,
         createdAt: timestamp,
         updatedAt: timestamp,
-        ...baseConfig
+        ...baseConfig,
     };
 }
-
 
 export function blankSong() {
     const timestamp = nowIso();
@@ -133,10 +135,9 @@ export function blankSong() {
         schemaVersion: SCHEMA_VERSION,
         createdAt: timestamp,
         updatedAt: timestamp,
-        members: {}
+        members: {},
     };
 }
-
 
 export function normalizeSongRecord(song) {
     const timestamp = song.createdAt || nowIso();
@@ -153,10 +154,9 @@ export function normalizeSongRecord(song) {
         schemaVersion: song.schemaVersion || SCHEMA_VERSION,
         createdAt: song.createdAt || timestamp,
         updatedAt: song.updatedAt || timestamp,
-        members: song.members || {}
+        members: song.members || {},
     };
 }
-
 
 export function normalizeAppConfig(config) {
     if (!config) {
@@ -165,20 +165,22 @@ export function normalizeAppConfig(config) {
 
     const timestamp = config.createdAt || nowIso();
 
-    const normalized = deepMerge(createDefaultAppConfig({ bandName: config.bandName || "" }), {
-        ...clone(config),
-        bandName: config.bandName || "",
-        schemaVersion: config.schemaVersion || SCHEMA_VERSION,
-        createdAt: config.createdAt || timestamp,
-        updatedAt: config.updatedAt || timestamp
-    });
+    const normalized = deepMerge(
+        createDefaultAppConfig({ bandName: config.bandName || "" }),
+        {
+            ...clone(config),
+            bandName: config.bandName || "",
+            schemaVersion: config.schemaVersion || SCHEMA_VERSION,
+            createdAt: config.createdAt || timestamp,
+            updatedAt: config.updatedAt || timestamp,
+        },
+    );
     // Members are now stored as individual files; strip from config
     delete normalized.band?.members;
     delete normalized.show?.members;
     delete normalized.catalog;
     return normalized;
 }
-
 
 export function sortSongs(list) {
     return sortByName(list.map((song) => normalizeSongRecord(song)));

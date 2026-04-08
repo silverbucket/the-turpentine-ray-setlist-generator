@@ -1,9 +1,9 @@
 <script>
   import { getContext } from "svelte";
-  import NumberStepper from "../shared/NumberStepper.svelte";
-  import ChipToggle from "../shared/ChipToggle.svelte";
-  import SetlistSongCard from "./SetlistSongCard.svelte";
   import { anxietyLabel } from "../../anxiety.js";
+  import ChipToggle from "../shared/ChipToggle.svelte";
+  import NumberStepper from "../shared/NumberStepper.svelte";
+  import SetlistSongCard from "./SetlistSongCard.svelte";
 
   const store = getContext("app");
 

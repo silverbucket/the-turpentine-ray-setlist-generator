@@ -2,7 +2,6 @@ export function clone(value) {
     return JSON.parse(JSON.stringify(value));
 }
 
-
 export function deepMerge(left = {}, right = {}) {
     const base = clone(left);
 
@@ -28,7 +27,6 @@ export function deepMerge(left = {}, right = {}) {
     return base;
 }
 
-
 export function toArray(value) {
     if (Array.isArray(value)) {
         return value.slice();
@@ -38,7 +36,6 @@ export function toArray(value) {
     }
     return [value];
 }
-
 
 export function setByPath(target, path, value) {
     const parts = Array.isArray(path) ? path : String(path).split(".");
@@ -62,7 +59,6 @@ export function setByPath(target, path, value) {
     return root;
 }
 
-
 export function getByPath(target, path, fallback = undefined) {
     const parts = Array.isArray(path) ? path : String(path).split(".");
     let cursor = target;
@@ -78,7 +74,6 @@ export function getByPath(target, path, fallback = undefined) {
     return cursor === undefined ? fallback : cursor;
 }
 
-
 export function parseDelimitedList(value) {
     return String(value || "")
         .split(",")
@@ -86,30 +81,28 @@ export function parseDelimitedList(value) {
         .filter(Boolean);
 }
 
-
 export function formatDelimitedList(value) {
     return toArray(value).join(", ");
 }
-
 
 export function titleForBand(bandName) {
     const clean = String(bandName || "").trim();
     return clean ? `${clean} — Setlist Roller` : "Setlist Roller";
 }
 
-
 export function uid(prefix = "id") {
-    if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
+    if (
+        globalThis.crypto &&
+        typeof globalThis.crypto.randomUUID === "function"
+    ) {
         return globalThis.crypto.randomUUID();
     }
     return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-
 export function nowIso() {
     return new Date().toISOString();
 }
-
 
 export function sortByName(list) {
     return list.slice().sort((left, right) => {
@@ -117,11 +110,10 @@ export function sortByName(list) {
     });
 }
 
-
 export function tryParseJson(text, fallback) {
     try {
         return JSON.parse(text);
-    } catch (error) {
+    } catch (_error) {
         return fallback;
     }
 }
