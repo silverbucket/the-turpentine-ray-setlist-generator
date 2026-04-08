@@ -1,6 +1,5 @@
 <script>
     import { getContext } from "svelte";
-    import { DEFAULT_DIE_COLOR } from "../../utils.js";
     const store = getContext("app");
 
     let bandNameDraft = $state(store.appConfig?.bandName ?? "");
@@ -88,7 +87,6 @@
         "#78716c", "#64748b", "#1a1a1a",
     ];
     let persistedDieColor = $derived(store.appConfig?.ui?.dieColor ?? null);
-    let pipColor = $derived(persistedDieColor || DEFAULT_DIE_COLOR);
 
     function setDieColor(color) {
         store.updateConfigField("ui.dieColor", color);

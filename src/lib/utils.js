@@ -128,16 +128,29 @@ export function tryParseJson(text, fallback) {
 
 export const DEFAULT_DIE_COLOR = "#e15b37";
 
+function parseHexChannel(hex, offset) {
+    const v = parseInt(hex.slice(offset, offset + 2), 16);
+    return Number.isFinite(v) ? v : 0;
+}
+
+function clampByte(v) {
+    return Math.min(255, Math.max(0, Math.round(v)));
+}
+
 export function hexToRgb(hex) {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `${r}, ${g}, ${b}`;
+    if (typeof hex !== "string" || !/^#[0-9a-fA-F]{6}$/.test(hex)) {
+        return hexToRgb(DEFAULT_DIE_COLOR);
+    }
+    return `${parseHexChannel(hex, 1)}, ${parseHexChannel(hex, 3)}, ${parseHexChannel(hex, 5)}`;
 }
 
 export function darkenHex(hex, factor) {
-    const r = Math.round(parseInt(hex.slice(1, 3), 16) * factor);
-    const g = Math.round(parseInt(hex.slice(3, 5), 16) * factor);
-    const b = Math.round(parseInt(hex.slice(5, 7), 16) * factor);
+    if (typeof hex !== "string" || !/^#[0-9a-fA-F]{6}$/.test(hex)) {
+        return darkenHex(DEFAULT_DIE_COLOR, factor);
+    }
+    const f = Number.isFinite(factor) ? Math.min(1, Math.max(0, factor)) : 1;
+    const r = clampByte(parseHexChannel(hex, 1) * f);
+    const g = clampByte(parseHexChannel(hex, 3) * f);
+    const b = clampByte(parseHexChannel(hex, 5) * f);
     return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
 }
