@@ -18,8 +18,12 @@ beforeEach(() => {
     store = {};
     globalThis.localStorage = {
         getItem: (k) => store[k] ?? null,
-        setItem: (k, v) => { store[k] = String(v); },
-        removeItem: (k) => { delete store[k]; },
+        setItem: (k, v) => {
+            store[k] = String(v);
+        },
+        removeItem: (k) => {
+            delete store[k];
+        },
     };
     vi.spyOn(Date.prototype, "toISOString").mockReturnValue("2026-04-09T12:00:00.000Z");
 });

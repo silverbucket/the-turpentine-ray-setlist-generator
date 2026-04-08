@@ -21,7 +21,9 @@ export function getKnownAccountsRaw() {
         const raw = localStorage.getItem(KNOWN_ACCOUNTS_KEY);
         const list = raw ? JSON.parse(raw) : [];
         return list.sort((a, b) => (b.lastUsed || "").localeCompare(a.lastUsed || ""));
-    } catch { return []; }
+    } catch {
+        return [];
+    }
 }
 
 export function getKnownAccounts() {
