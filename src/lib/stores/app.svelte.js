@@ -402,7 +402,14 @@ export function createAppStore(repo) {
     }
 
     // ---- per-account data snapshot ----
+    let snapshotTimer = null;
+    function scheduleSnapshot() {
+        if (snapshotTimer) clearTimeout(snapshotTimer);
+        snapshotTimer = setTimeout(saveSnapshot, 2000);
+    }
+
     function saveSnapshot() {
+        if (snapshotTimer) { clearTimeout(snapshotTimer); snapshotTimer = null; }
         if (typeof localStorage === "undefined" || !currentUserAddress) return;
         try {
             const data = {
@@ -467,7 +474,7 @@ export function createAppStore(repo) {
             showFirstRunPrompt = false;
             generationOptions = deepMerge(defaultGenerationOptions(appConfig), generationOptions || {});
             persistGenerationOptions();
-            saveSnapshot();
+            scheduleSnapshot();
         } catch (error) {
             loadError = error?.message || "Could not load remote data.";
             addToast(loadError, "danger");
@@ -1494,7 +1501,7 @@ export function createAppStore(repo) {
     }
 
     // ---- migrations ----
-    async function runMigrations() {
+    async function runMigrations({ skipReload = false } = {}) {
         let needsReload = false;
 
         // Migrate config: read raw config to check for band.members before normalization strips them
@@ -1536,7 +1543,7 @@ export function createAppStore(repo) {
             }
         }
 
-        if (needsReload) {
+        if (needsReload && !skipReload) {
             await reloadAll({ quiet: true });
         }
     }
@@ -1565,7 +1572,7 @@ export function createAppStore(repo) {
                 // with stale cache. The onChange handler will pick up fresh
                 // data once rs.js finishes syncing with the new remote.
                 try {
-                    await runMigrations();
+                    await runMigrations({ skipReload: true });
                 } catch (err) {
                     console.error("Migration failed:", err);
                     addToast("Data migration encountered an error. Some data may need re-syncing.", "danger");
