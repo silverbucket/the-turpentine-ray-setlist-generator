@@ -1,3 +1,4 @@
+import { getAccountToken, getKnownAccounts, removeKnownAccountEntry, saveKnownAccount, scopedKey } from "../accounts.js";
 import { CONFIG_SECTIONS } from "../config-meta.js";
 import { blankSong, DEFAULT_APP_CONFIG, normalizeAppConfig, normalizeMemberRecord, normalizeSongRecord } from "../defaults.js";
 import { buildDefaultPerformance, scoreFixedOrder } from "../generator.js";
@@ -7,55 +8,6 @@ import { clone, deepMerge, formatDelimitedList, getByPath, nowIso, parseDelimite
 
 const STORAGE_PREFIX = "setlist-roller";
 const MAX_SAVED_SETS = 5;
-const KNOWN_ACCOUNTS_KEY = `${STORAGE_PREFIX}-known-accounts`;
-
-function getKnownAccountsRaw() {
-    if (typeof localStorage === "undefined") return [];
-    try {
-        const raw = localStorage.getItem(KNOWN_ACCOUNTS_KEY);
-        const list = raw ? JSON.parse(raw) : [];
-        return list.sort((a, b) => (b.lastUsed || "").localeCompare(a.lastUsed || ""));
-    } catch { return []; }
-}
-
-function getKnownAccounts() {
-    return getKnownAccountsRaw().map(({ address, bandName, lastUsed }) => ({ address, bandName, lastUsed }));
-}
-
-function saveKnownAccount(address, bandName, token) {
-    if (typeof localStorage === "undefined" || !address) return;
-    const list = getKnownAccountsRaw();
-    const existing = list.find((a) => a.address === address);
-    if (existing) {
-        existing.bandName = bandName || existing.bandName;
-        if (token) existing.token = token;
-        existing.lastUsed = nowIso();
-    } else {
-        list.push({ address, bandName: bandName || "", token: token || "", lastUsed: nowIso() });
-    }
-    localStorage.setItem(KNOWN_ACCOUNTS_KEY, JSON.stringify(list));
-}
-
-function getAccountToken(address) {
-    return getKnownAccountsRaw().find((a) => a.address === address)?.token || "";
-}
-
-function removeKnownAccountEntry(address) {
-    if (typeof localStorage === "undefined" || !address) return;
-    const list = getKnownAccountsRaw().filter((a) => a.address !== address);
-    localStorage.setItem(KNOWN_ACCOUNTS_KEY, JSON.stringify(list));
-}
-
-// Scope localStorage keys per user so accounts don't leak data
-function scopedKey(base, userAddress) {
-    if (!userAddress) return `${STORAGE_PREFIX}-${base}`;
-    // Simple hash to keep the key short
-    let h = 0;
-    for (let i = 0; i < userAddress.length; i++) {
-        h = ((h << 5) - h + userAddress.charCodeAt(i)) | 0;
-    }
-    return `${STORAGE_PREFIX}-${base}-${(h >>> 0).toString(36)}`;
-}
 
 function randomFrom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
@@ -478,7 +430,9 @@ export function createAppStore(repo) {
             );
             showFirstRunPrompt = false;
             generationOptions = deepMerge(defaultGenerationOptions(appConfig), generationOptions || {});
-            persistGenerationOptions();
+            // Don't persistGenerationOptions() here — currentUserAddress still
+            // points to the previous account. The caller sets it after this
+            // returns, and loadUserLocalData() handles persisting correctly.
             return true;
         } catch { return false; }
     }
@@ -1610,7 +1564,12 @@ export function createAppStore(repo) {
                 // Snapshot already restored (account switch) — don't overwrite
                 // with stale cache. The onChange handler will pick up fresh
                 // data once rs.js finishes syncing with the new remote.
-                try { await runMigrations(); } catch {}
+                try {
+                    await runMigrations();
+                } catch (err) {
+                    console.error("Migration failed:", err);
+                    addToast("Data migration encountered an error. Some data may need re-syncing.", "danger");
+                }
             } else {
                 // First load or switch without snapshot — read from cache
                 beginSync("Loading");

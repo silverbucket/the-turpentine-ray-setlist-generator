@@ -96,6 +96,7 @@
                 class="add-input"
                 bind:value={newAddress}
                 placeholder="you@example.com"
+                aria-label="remoteStorage address"
                 autocomplete="off"
                 onkeydown={(e) => { if (e.key === "Enter") submitNewAccount(); }}
               />
