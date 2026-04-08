@@ -79,6 +79,21 @@
         return (memberConfig.instruments || []).map((i) => i.name).filter(Boolean).join(", ");
     }
 
+    const DEFAULT_PIP_COLOR = "#e15b37";
+    const PIP_COLOR_OPTIONS = [
+        "#e15b37", "#ef4444", "#d94f7a", "#ec4899",
+        "#a855f7", "#8b5cf6", "#6366f1", "#3b82f6",
+        "#0ea5e9", "#14b8a6", "#10b981", "#22c55e",
+        "#84cc16", "#eab308", "#f59e0b", "#f97316",
+        "#78716c", "#64748b", "#1a1a1a",
+    ];
+    let pipColor = $derived(store.appConfig?.ui?.dieColor || DEFAULT_PIP_COLOR);
+
+    function setDieColor(color) {
+        store.updateConfigField("ui.dieColor", color);
+        store.saveConfig();
+    }
+
     function renderConfigField(field) {
         return field;
     }
@@ -331,6 +346,28 @@
                     onkeydown={handleBandNameKeydown}
                 />
             </label>
+            <div class="field-group">
+                <span class="field-label">Die color</span>
+                <div class="pip-color-swatches">
+                    {#each PIP_COLOR_OPTIONS as color}
+                        <button
+                            class="pip-swatch"
+                            class:active={pipColor === color}
+                            style="background: {color};"
+                            onclick={() => setDieColor(color)}
+                            aria-label="Set die color to {color}"
+                        ></button>
+                    {/each}
+                    <button
+                        class="pip-swatch pip-swatch--reset"
+                        class:active={!store.appConfig?.ui?.dieColor}
+                        onclick={() => setDieColor(null)}
+                        aria-label="Reset to default color"
+                    >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 7 7 0 0 0-5 2l-3 3"/><path d="M3 3v6h6"/></svg>
+                    </button>
+                </div>
+            </div>
         </div>
 
         <!-- Stats Row -->
@@ -1069,5 +1106,41 @@
 
     .app-footer-link:hover {
         text-decoration: underline;
+    }
+
+    /* ---- Die color picker ---- */
+    .pip-color-swatches {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .pip-swatch {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: transform 150ms ease, border-color 150ms ease;
+        -webkit-tap-highlight-color: transparent;
+        padding: 0;
+    }
+
+    .pip-swatch:hover {
+        transform: scale(1.15);
+    }
+
+    .pip-swatch.active {
+        border-color: var(--ink);
+        box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--ink);
+    }
+
+    .pip-swatch--reset {
+        background: var(--paper) !important;
+        border: 2px dashed var(--line-strong);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--muted);
     }
 </style>

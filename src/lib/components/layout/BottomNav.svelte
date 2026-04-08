@@ -9,6 +9,8 @@
     { id: "band", label: "Band", icon: "\u2699" },
     { id: "help", label: "Help", icon: "?" },
   ];
+
+  let dieColor = $derived(store.appConfig?.ui?.dieColor || null);
 </script>
 
 <nav class="bottom-nav">
@@ -16,6 +18,7 @@
     <button
       class="tab"
       class:active={store.activeView === tab.id}
+      style={tab.id === "roll" && dieColor && store.activeView === "roll" ? `--tab-active: ${dieColor}` : ""}
       onclick={() => store.navigate(tab.id)}
     >
       <span class="tab-icon">{tab.icon}</span>
@@ -65,7 +68,7 @@
   }
 
   .tab.active {
-    color: var(--accent);
+    color: var(--tab-active, var(--accent));
   }
 
   .tab-icon {
