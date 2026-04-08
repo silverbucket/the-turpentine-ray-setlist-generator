@@ -29,34 +29,8 @@ const FIFTHS_DISTANCE = [0, 5, 2, 3, 4, 1, 6, 1, 4, 3, 2, 5];
 // Semitone → position on the circle of fifths (C=0, G=1, D=2, ... F=11)
 const SEMITONE_TO_FIFTHS = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
 
-export const MAJOR_KEYS = [
-    "C",
-    "C#",
-    "D",
-    "Eb",
-    "E",
-    "F",
-    "F#",
-    "G",
-    "Ab",
-    "A",
-    "Bb",
-    "B",
-];
-export const MINOR_KEYS = [
-    "Cm",
-    "C#m",
-    "Dm",
-    "Ebm",
-    "Em",
-    "Fm",
-    "F#m",
-    "Gm",
-    "Abm",
-    "Am",
-    "Bbm",
-    "Bm",
-];
+export const MAJOR_KEYS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+export const MINOR_KEYS = ["Cm", "C#m", "Dm", "Ebm", "Em", "Fm", "F#m", "Gm", "Abm", "Am", "Bbm", "Bm"];
 export const ALL_KEYS = [...MAJOR_KEYS, ...MINOR_KEYS];
 
 /**

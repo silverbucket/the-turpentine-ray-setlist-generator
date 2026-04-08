@@ -83,13 +83,9 @@ export function normalizeMemberRecord(memberConfig) {
         ? memberConfig.instruments
               .map((instrument) => ({
                   name: instrument?.name || "",
-                  tunings: Array.isArray(instrument?.tunings)
-                      ? instrument.tunings.filter(Boolean)
-                      : [],
+                  tunings: Array.isArray(instrument?.tunings) ? instrument.tunings.filter(Boolean) : [],
                   defaultTuning: instrument?.defaultTuning || "",
-                  techniques: Array.isArray(instrument?.techniques)
-                      ? instrument.techniques.filter(Boolean)
-                      : [],
+                  techniques: Array.isArray(instrument?.techniques) ? instrument.techniques.filter(Boolean) : [],
                   defaultTechnique: instrument?.defaultTechnique || "",
               }))
               .filter((instrument) => instrument.name)
@@ -101,10 +97,7 @@ export function normalizeMemberRecord(memberConfig) {
     };
 }
 
-export function createDefaultAppConfig({
-    bandName = "",
-    seedConfig = DEFAULT_CONFIG_TEMPLATE,
-} = {}) {
+export function createDefaultAppConfig({ bandName = "", seedConfig = DEFAULT_CONFIG_TEMPLATE } = {}) {
     const timestamp = nowIso();
     const baseConfig = clone(seedConfig);
     baseConfig.show = baseConfig.show || {};
@@ -166,16 +159,13 @@ export function normalizeAppConfig(config) {
 
     const timestamp = config.createdAt || nowIso();
 
-    const normalized = deepMerge(
-        createDefaultAppConfig({ bandName: config.bandName || "" }),
-        {
-            ...clone(config),
-            bandName: config.bandName || "",
-            schemaVersion: config.schemaVersion || SCHEMA_VERSION,
-            createdAt: config.createdAt || timestamp,
-            updatedAt: config.updatedAt || timestamp,
-        },
-    );
+    const normalized = deepMerge(createDefaultAppConfig({ bandName: config.bandName || "" }), {
+        ...clone(config),
+        bandName: config.bandName || "",
+        schemaVersion: config.schemaVersion || SCHEMA_VERSION,
+        createdAt: config.createdAt || timestamp,
+        updatedAt: config.updatedAt || timestamp,
+    });
     // Members are now stored as individual files; strip from config
     delete normalized.band?.members;
     delete normalized.show?.members;
@@ -183,15 +173,10 @@ export function normalizeAppConfig(config) {
 
     // Validate ui.dieColor if present
     normalized.ui =
-        normalized.ui &&
-        typeof normalized.ui === "object" &&
-        !Array.isArray(normalized.ui)
+        normalized.ui && typeof normalized.ui === "object" && !Array.isArray(normalized.ui)
             ? normalized.ui
             : { dieColor: null };
-    if (
-        normalized.ui.dieColor != null &&
-        !/^#[0-9a-fA-F]{6}$/.test(normalized.ui.dieColor)
-    ) {
+    if (normalized.ui.dieColor != null && !/^#[0-9a-fA-F]{6}$/.test(normalized.ui.dieColor)) {
         normalized.ui.dieColor = null;
     }
 

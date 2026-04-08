@@ -1,16 +1,16 @@
-import { defineConfig } from "vite";
+import { readFileSync } from "node:fs";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
-import { readFileSync } from "fs";
+import { defineConfig } from "vite";
 
 const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
 
 export default defineConfig({
     plugins: [svelte()],
     define: {
-        __APP_VERSION__: JSON.stringify(pkg.version)
+        __APP_VERSION__: JSON.stringify(pkg.version),
     },
     server: {
         host: "0.0.0.0",
-        port: 4173
-    }
+        port: 4173,
+    },
 });

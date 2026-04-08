@@ -55,7 +55,7 @@
         return Array.from(
             new Set([
                 ...(store.memberTuningChoicesByMember?.[memberName]?.[instrumentName] || []),
-                ...((option && option.tuning) || []),
+                ...((option?.tuning) || []),
             ])
         );
     }
@@ -116,7 +116,7 @@
         return !!(instConfig?.defaultTechnique);
     }
 
-    function hasTechniques(memberName, instrumentName) {
+    function _hasTechniques(memberName, instrumentName) {
         const memberConfig = store.bandMembers?.[memberName];
         const instConfig = (memberConfig?.instruments || []).find((i) => i.name === instrumentName);
         return (instConfig?.techniques || []).length > 0;
@@ -128,7 +128,7 @@
         return !!(instConfig?.defaultTuning);
     }
 
-    function hasTunings(memberName, instrumentName) {
+    function _hasTunings(memberName, instrumentName) {
         return availableTunings(memberName, { name: instrumentName }).length > 0;
     }
 
@@ -180,13 +180,13 @@
 
 <div class="editor-overlay">
     <header class="editor-header">
-        <button class="back-btn" onclick={() => store.closeEditor()} aria-label="Back">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <button type="button" class="back-btn" onclick={() => store.closeEditor()} aria-label="Back">
+            <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="15 18 9 12 15 6"></polyline>
             </svg>
         </button>
         <span class="editor-title">{store.editorSong.name || "New Song"}</span>
-        <button class="save-btn" onclick={handleSave}>Save</button>
+        <button type="button" class="save-btn" onclick={handleSave}>Save</button>
     </header>
 
     <div class="editor-body">
@@ -275,7 +275,7 @@
             {#each Object.entries(store.editorSong.members || {}) as [memberName, memberSetup]}
                 {@const issue = memberIssues(memberName, memberSetup)}
                 <div class="member-card">
-                    <button
+                    <button type="button"
                         class="member-header"
                         class:has-issue={issue}
                         onclick={() => toggleMember(memberName)}
@@ -290,6 +290,7 @@
                             </span>
                         {/if}
                         <svg
+                            aria-hidden="true"
                             class="chevron"
                             class:open={expandedMember === memberName}
                             width="20" height="20" viewBox="0 0 24 24"
@@ -329,7 +330,7 @@
                                                     onblur={() => commitInstrumentName(memberName, index)}
                                                 />
                                                 {#if instDraft && instDraft !== option.name}
-                                                    <button class="add-sm-btn" onclick={() => commitInstrumentName(memberName, index)}>Set</button>
+                                                    <button type="button" class="add-sm-btn" onclick={() => commitInstrumentName(memberName, index)}>Set</button>
                                                 {/if}
                                             </div>
                                             {#if knownInstruments.length > 0}
@@ -341,7 +342,7 @@
                                             {/if}
                                         </label>
 
-                                        <button
+                                        <button type="button"
                                             class="remove-setup-btn"
                                             onclick={() => store.removeInstrumentOption(memberName, index)}
                                         >Remove</button>
@@ -363,7 +364,7 @@
                                                     {/each}
                                                 </div>
                                                 {#if !hasDefaultTuning(memberName, option.name)}
-                                                    <button class="defaults-hint" onclick={() => openBandMemberEdit(memberName)}>No default tuning — set one in {memberName}'s config</button>
+                                                    <button type="button" class="defaults-hint" onclick={() => openBandMemberEdit(memberName)}>No default tuning — set one in {memberName}'s config</button>
                                                 {/if}
                                             {/if}
                                             <div class="inline-add">
@@ -375,7 +376,7 @@
                                                     oninput={(e) => { store.newTuningByInstrument = { ...store.newTuningByInstrument, [store.tuningDraftKey(memberName, option.name)]: e.currentTarget.value }; }}
                                                     onkeydown={(e) => handleAddTuningKeydown(e, memberName, option.name, index)}
                                                 />
-                                                <button class="add-sm-btn" onclick={() => handleAddTuning(memberName, option.name, index)}>Add</button>
+                                                <button type="button" class="add-sm-btn" onclick={() => handleAddTuning(memberName, option.name, index)}>Add</button>
                                             </div>
                                         </div>
 
@@ -409,7 +410,7 @@
                                                     {/each}
                                                 </div>
                                                 {#if !hasDefaultTechnique(memberName, option.name)}
-                                                    <button class="defaults-hint" onclick={() => openBandMemberEdit(memberName)}>No default technique set — set one in {memberName}'s config so new songs auto-pick it</button>
+                                                    <button type="button" class="defaults-hint" onclick={() => openBandMemberEdit(memberName)}>No default technique set — set one in {memberName}'s config so new songs auto-pick it</button>
                                                 {/if}
                                             {/if}
                                             <div class="inline-add">
@@ -421,19 +422,19 @@
                                                     oninput={(e) => { store.newTechniqueByInstrument = { ...store.newTechniqueByInstrument, [store.techniqueDraftKey(memberName, option.name)]: e.currentTarget.value }; }}
                                                     onkeydown={(e) => handleAddTechniqueKeydown(e, memberName, option.name, index)}
                                                 />
-                                                <button class="add-sm-btn" onclick={() => handleAddTechnique(memberName, option.name, index)}>Add</button>
+                                                <button type="button" class="add-sm-btn" onclick={() => handleAddTechnique(memberName, option.name, index)}>Add</button>
                                             </div>
                                         </div>
                                     {/if}
                                 </div>
                             {/each}
 
-                            <button
+                            <button type="button"
                                 class="secondary-btn"
                                 onclick={() => store.addInstrumentOption(memberName)}
                             >+ Add another setup</button>
 
-                            <button
+                            <button type="button"
                                 class="danger-text-btn"
                                 onclick={() => store.removeMember(memberName)}
                             >Remove {memberName}</button>
@@ -445,27 +446,27 @@
             {#if bandMembersNotInSong().length > 0}
                 <div class="add-member-row">
                     {#each bandMembersNotInSong() as [name]}
-                        <button class="add-member-btn" onclick={() => store.addMember(name)}>+ {name}</button>
+                        <button type="button" class="add-member-btn" onclick={() => store.addMember(name)}>+ {name}</button>
                     {/each}
                 </div>
             {/if}
-            <button class="secondary-btn" onclick={() => store.addMember()}>+ New member</button>
+            <button type="button" class="secondary-btn" onclick={() => store.addMember()}>+ New member</button>
         </section>
 
         <!-- Bottom actions -->
         <div class="bottom-actions">
-            <button class="secondary-btn full-width" onclick={() => store.duplicateSong(store.editorSong)}>Duplicate song</button>
+            <button type="button" class="secondary-btn full-width" onclick={() => store.duplicateSong(store.editorSong)}>Duplicate song</button>
 
             {#if confirmingDelete}
                 <div class="delete-confirm">
                     <span class="delete-warn">Are you sure? This cannot be undone.</span>
                     <div class="delete-confirm-btns">
-                        <button class="danger-btn" onclick={handleDelete}>Yes, delete</button>
-                        <button class="secondary-btn" onclick={cancelDelete}>Cancel</button>
+                        <button type="button" class="danger-btn" onclick={handleDelete}>Yes, delete</button>
+                        <button type="button" class="secondary-btn" onclick={cancelDelete}>Cancel</button>
                     </div>
                 </div>
             {:else}
-                <button class="danger-text-btn full-width" onclick={handleDelete}>Delete song</button>
+                <button type="button" class="danger-text-btn full-width" onclick={handleDelete}>Delete song</button>
             {/if}
         </div>
     </div>
@@ -591,8 +592,8 @@
         border-radius: var(--radius-md, 12px);
         border: 1px solid var(--line);
         background: var(--surface);
-        font-size: 1rem;
         font: inherit;
+        font-size: 1rem;
         box-sizing: border-box;
         width: 100%;
     }

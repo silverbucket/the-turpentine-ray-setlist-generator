@@ -17,8 +17,7 @@ export function normalizeValue(value) {
 
 export function displayValue(value) {
     if (value === undefined || value === null || value === "") return "default";
-    if (Array.isArray(value))
-        return value.length === 0 ? "default" : value.join(", ");
+    if (Array.isArray(value)) return value.length === 0 ? "default" : value.join(", ");
     return String(value);
 }
 
@@ -35,10 +34,7 @@ export function displayValue(value) {
  * @returns {{ changed: boolean, magnitude: number, notes: string[] }}
  */
 export function detectInstrumentSetChange(prevPerf, nextPerf) {
-    const members = new Set([
-        ...Object.keys(prevPerf),
-        ...Object.keys(nextPerf),
-    ]);
+    const members = new Set([...Object.keys(prevPerf), ...Object.keys(nextPerf)]);
     const notes = [];
     let magnitude = 0;
 
@@ -53,9 +49,7 @@ export function detectInstrumentSetChange(prevPerf, nextPerf) {
         }
         if (prev.instrument !== next.instrument) {
             magnitude += 1;
-            notes.push(
-                `${member} instrument ${prev.instrument} -> ${next.instrument}`,
-            );
+            notes.push(`${member} instrument ${prev.instrument} -> ${next.instrument}`);
         }
     }
 
@@ -74,10 +68,7 @@ export function detectInstrumentSetChange(prevPerf, nextPerf) {
  * @returns {{ changed: boolean, magnitude: number, notes: string[] }}
  */
 export function detectFieldChange(prevPerf, nextPerf, field, scaleByDelta) {
-    const allMembers = new Set([
-        ...Object.keys(prevPerf),
-        ...Object.keys(nextPerf),
-    ]);
+    const allMembers = new Set([...Object.keys(prevPerf), ...Object.keys(nextPerf)]);
     const notes = [];
     let magnitude = 0;
 
@@ -96,15 +87,11 @@ export function detectFieldChange(prevPerf, nextPerf, field, scaleByDelta) {
 
         if (left === right) continue;
 
-        const amount = scaleByDelta
-            ? Math.abs((Number(prevValue) || 0) - (Number(nextValue) || 0))
-            : 1;
+        const amount = scaleByDelta ? Math.abs((Number(prevValue) || 0) - (Number(nextValue) || 0)) : 1;
         if (!amount) continue;
 
         magnitude += amount;
-        notes.push(
-            `${member} ${field} ${displayValue(prevValue)} -> ${displayValue(nextValue)}`,
-        );
+        notes.push(`${member} ${field} ${displayValue(prevValue)} -> ${displayValue(nextValue)}`);
     }
 
     return { changed: magnitude > 0, magnitude, notes };
@@ -158,9 +145,7 @@ export function detectFieldChangeLite(prevPerf, nextPerf, field, scaleByDelta) {
         const left = normalizeValue(prevValue);
         const right = normalizeValue(nextValue);
         if (left === right) continue;
-        const amount = scaleByDelta
-            ? Math.abs((Number(prevValue) || 0) - (Number(nextValue) || 0))
-            : 1;
+        const amount = scaleByDelta ? Math.abs((Number(prevValue) || 0) - (Number(nextValue) || 0)) : 1;
         if (!amount) continue;
         magnitude += amount;
     }

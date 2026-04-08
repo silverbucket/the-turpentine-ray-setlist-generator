@@ -31,8 +31,7 @@ export const CONFIG_SECTIONS = [
                 type: "number",
                 min: 0,
                 max: 50,
-                description:
-                    "Cost per capo step moved. A jump from capo 0 to capo 3 costs 3× this value.",
+                description: "Cost per capo step moved. A jump from capo 0 to capo 3 costs 3× this value.",
             },
             {
                 path: "general.weighting.instrument",
@@ -90,15 +89,13 @@ export const CONFIG_SECTIONS = [
                 type: "number",
                 min: 0,
                 max: 20,
-                description:
-                    "Minimum songs to stay at a capo position before moving it.",
+                description: "Minimum songs to stay at a capo position before moving it.",
             },
             {
                 path: "props.capo.allowChangeOnLastSong",
                 label: "Capo can change on closer",
                 type: "boolean",
-                description:
-                    "Let the closing song ignore the capo streak rule.",
+                description: "Let the closing song ignore the capo streak rule.",
             },
             {
                 path: "props.instruments.minStreak",
@@ -106,15 +103,13 @@ export const CONFIG_SECTIONS = [
                 type: "number",
                 min: 0,
                 max: 20,
-                description:
-                    "Minimum songs before a member can swap to a different instrument.",
+                description: "Minimum songs before a member can swap to a different instrument.",
             },
             {
                 path: "props.instruments.allowChangeOnLastSong",
                 label: "Instrument swap on closer",
                 type: "boolean",
-                description:
-                    "Let the closing song break the instrument streak rule.",
+                description: "Let the closing song break the instrument streak rule.",
             },
             {
                 path: "props.picking.minStreak",
@@ -122,15 +117,13 @@ export const CONFIG_SECTIONS = [
                 type: "number",
                 min: 0,
                 max: 20,
-                description:
-                    "Minimum songs before a playing technique change is allowed.",
+                description: "Minimum songs before a playing technique change is allowed.",
             },
             {
                 path: "props.picking.allowChangeOnLastSong",
                 label: "Technique can change on closer",
                 type: "boolean",
-                description:
-                    "Let the closing song ignore the technique streak rule.",
+                description: "Let the closing song ignore the technique streak rule.",
             },
         ],
     },

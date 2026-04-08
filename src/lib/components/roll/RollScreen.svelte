@@ -185,9 +185,9 @@
           onchange={(v) => store.updateGenerationField("count", v)}
         />
       </div>
-      <button class="roll-btn" class:rolling={store.isGenerating} class:landed class:disabled={!readyToRoll} disabled={!readyToRoll} onclick={handleRoll} aria-label="Roll setlist" style="--btn-color: {pipColor}; --btn-color-dark: {pipColorDark}; --btn-rgb: {pipColorRgb};">
+      <button type="button" class="roll-btn" class:rolling={store.isGenerating} class:landed class:disabled={!readyToRoll} disabled={!readyToRoll} onclick={handleRoll} aria-label="Roll setlist" style="--btn-color: {pipColor}; --btn-color-dark: {pipColorDark}; --btn-rgb: {pipColorRgb};">
         <span class="dice-container" class:rolling={store.isGenerating}>
-          <svg class="dice-svg" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
+          <svg aria-hidden="true" class="dice-svg" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
             <rect x="3" y="3" width="50" height="50" rx="10" ry="10"
               fill="#fff" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
             {#each PIP_LAYOUTS[diceValue] as [px, py]}
@@ -209,14 +209,14 @@
     <!-- Settings (inside hero) -->
     <details class="settings-drawer" bind:this={settingsEl}>
       <summary class="settings-toggle">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       <span>Settings</span>
     </summary>
     <div class="settings-body">
       {#if hasConstraints}
         <div class="settings-tabs">
-          <button class="settings-tab" class:active={settingsTab === "constraints"} onclick={() => { settingsTab = "constraints"; }}>Demands</button>
-          <button class="settings-tab" class:active={settingsTab === "chaos"} onclick={() => { settingsTab = "chaos"; }}>Tweak the Chaos</button>
+          <button type="button" class="settings-tab" class:active={settingsTab === "constraints"} onclick={() => { settingsTab = "constraints"; }}>Demands</button>
+          <button type="button" class="settings-tab" class:active={settingsTab === "chaos"} onclick={() => { settingsTab = "chaos"; }}>Tweak the Chaos</button>
         </div>
       {/if}
 
@@ -387,7 +387,7 @@
             {#if hasSongs}
               Songs added
             {:else}
-              <button class="step-link" onclick={() => { store.navigate("songs"); }}>Add some songs</button>
+              <button type="button" class="step-link" onclick={() => { store.navigate("songs"); }}>Add some songs</button>
               <span class="step-hint">Your catalog of tunes. Covers, originals, whatever you play.</span>
             {/if}
           </span>
@@ -395,7 +395,7 @@
       </ol>
       <p class="onboarding-tip">Got members who switch guitars, tunings, or capos between songs? Add them in each song and Setlist Roller will minimize gear changes.</p>
       <p class="onboarding-footer">Then come back here and hit Roll.</p>
-      <button class="help-toggle" onclick={() => store.navigate("help")}>How does this work?</button>
+      <button type="button" class="help-toggle" onclick={() => store.navigate("help")}>How does this work?</button>
     </div>
   {/if}
 
@@ -436,16 +436,16 @@
       </div>
 
       <div class="setlist-actions">
-        <button class="save-set-btn add-song-btn" onclick={() => { showAddSongPicker = true; }}>+ Add song</button>
+        <button type="button" class="save-set-btn add-song-btn" onclick={() => { showAddSongPicker = true; }}>+ Add song</button>
         {#if store.setlistLocked}
           <div class="locked-badge">🔒 Locked in</div>
           {#if store.setlistSaved}
             <div class="saved-badge">✓ Saved</div>
           {:else}
-            <button class="save-set-btn secondary" onclick={handleSaveSetlist}>Save to Greatest Hits</button>
+            <button type="button" class="save-set-btn secondary" onclick={handleSaveSetlist}>Save to Greatest Hits</button>
           {/if}
         {:else}
-          <button class="save-set-btn" onclick={handleLock}>Lock it in 🔒</button>
+          <button type="button" class="save-set-btn" onclick={handleLock}>Lock it in 🔒</button>
         {/if}
       </div>
 
@@ -459,9 +459,9 @@
         <p class="confirm-title">This setlist is locked in.</p>
         <p class="confirm-desc">What do you want to do?</p>
         <div class="confirm-actions-stacked">
-          <button class="confirm-btn optimize" onclick={store.confirmOptimizeOrder}>Optimize order</button>
-          <button class="confirm-btn proceed" onclick={store.confirmFreshRoll}>Fresh roll</button>
-          <button class="confirm-btn cancel" onclick={store.cancelRoll}>Keep it</button>
+          <button type="button" class="confirm-btn optimize" onclick={store.confirmOptimizeOrder}>Optimize order</button>
+          <button type="button" class="confirm-btn proceed" onclick={store.confirmFreshRoll}>Fresh roll</button>
+          <button type="button" class="confirm-btn cancel" onclick={store.cancelRoll}>Keep it</button>
         </div>
       </div>
     </div>
@@ -481,7 +481,7 @@
         <div class="add-song-list">
           {#each filteredPickerSongs() as song}
             {@const inSetlist = setlistSongIds.has(song.id)}
-            <button
+            <button type="button"
               class="add-song-item"
               class:in-setlist={inSetlist}
               disabled={inSetlist}
@@ -494,7 +494,7 @@
             <p class="add-song-empty">No songs available</p>
           {/each}
         </div>
-        <button class="confirm-btn cancel" onclick={() => { showAddSongPicker = false; addSongSearch = ""; }}>Cancel</button>
+        <button type="button" class="confirm-btn cancel" onclick={() => { showAddSongPicker = false; addSongSearch = ""; }}>Cancel</button>
       </div>
     </div>
   {/if}
