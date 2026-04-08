@@ -505,7 +505,7 @@
     border: none;
     background: var(--hover);
     font-size: 1.3rem;
-    color: #666;
+    color: var(--muted);
     cursor: pointer;
     line-height: 1;
     padding: 0;

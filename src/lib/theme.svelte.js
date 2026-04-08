@@ -3,8 +3,12 @@ const PREFS = ["system", "light", "dark"];
 const mq = window.matchMedia("(prefers-color-scheme: dark)");
 
 function readPref() {
-  const v = localStorage.getItem(STORAGE_KEY);
-  return PREFS.includes(v) ? v : "system";
+  try {
+    const v = localStorage.getItem(STORAGE_KEY);
+    return PREFS.includes(v) ? v : "system";
+  } catch {
+    return "system";
+  }
 }
 
 function resolve(pref) {
