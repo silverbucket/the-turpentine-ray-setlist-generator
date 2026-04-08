@@ -179,7 +179,9 @@ export function normalizeAppConfig(config) {
     delete normalized.catalog;
 
     // Validate ui.dieColor if present
-    normalized.ui = normalized.ui || {};
+    normalized.ui = normalized.ui && typeof normalized.ui === "object" && !Array.isArray(normalized.ui)
+        ? normalized.ui
+        : {};
     if (normalized.ui.dieColor != null && !/^#[0-9a-fA-F]{6}$/.test(normalized.ui.dieColor)) {
         normalized.ui.dieColor = null;
     }

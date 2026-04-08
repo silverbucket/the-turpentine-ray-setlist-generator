@@ -1,5 +1,6 @@
 <script>
     import { getContext } from "svelte";
+    import { DEFAULT_DIE_COLOR } from "../../utils.js";
     const store = getContext("app");
 
     let bandNameDraft = $state(store.appConfig?.bandName ?? "");
@@ -79,7 +80,6 @@
         return (memberConfig.instruments || []).map((i) => i.name).filter(Boolean).join(", ");
     }
 
-    const DEFAULT_PIP_COLOR = "#e15b37";
     const PIP_COLOR_OPTIONS = [
         "#e15b37", "#ef4444", "#d94f7a", "#ec4899",
         "#a855f7", "#8b5cf6", "#6366f1", "#3b82f6",
@@ -87,7 +87,8 @@
         "#84cc16", "#eab308", "#f59e0b", "#f97316",
         "#78716c", "#64748b", "#1a1a1a",
     ];
-    let pipColor = $derived(store.appConfig?.ui?.dieColor || DEFAULT_PIP_COLOR);
+    let persistedDieColor = $derived(store.appConfig?.ui?.dieColor ?? null);
+    let pipColor = $derived(persistedDieColor || DEFAULT_DIE_COLOR);
 
     function setDieColor(color) {
         store.updateConfigField("ui.dieColor", color);
@@ -353,7 +354,7 @@
                         {#each PIP_COLOR_OPTIONS as color}
                             <button
                                 class="pip-swatch"
-                                class:active={pipColor === color}
+                                class:active={persistedDieColor === color}
                                 style="background: {color};"
                                 onclick={() => setDieColor(color)}
                                 aria-label="Set die color to {color}"
