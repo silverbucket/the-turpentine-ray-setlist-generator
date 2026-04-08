@@ -156,7 +156,7 @@
     return changes;
   }
 
-  function _allChanges(song, prevSong) {
+  function allChanges(song, prevSong) {
     if (!song.performance) return [];
     const lines = [];
     for (const [memberName] of Object.entries(song.performance)) {

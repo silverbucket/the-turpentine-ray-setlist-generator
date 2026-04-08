@@ -42,7 +42,7 @@
     return changes;
   }
 
-  function _allChanges() {
+  function allChanges() {
     if (!song.performance) return [];
     const lines = [];
     for (const [memberName, _perf] of Object.entries(song.performance)) {

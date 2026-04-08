@@ -16,7 +16,7 @@
         return `${memberName}::${index}`;
     }
 
-    function _getInstrumentDraft(memberName, index, currentName) {
+    function getInstrumentDraft(memberName, index, currentName) {
         const key = draftKey(memberName, index);
         return key in instrumentNameDrafts ? instrumentNameDrafts[key] : currentName;
     }
@@ -39,7 +39,7 @@
         expandedMember = expandedMember === name ? "" : name;
     }
 
-    function _availableInstruments(memberName, option) {
+    function availableInstruments(memberName, option) {
         return Array.from(
             new Set(
                 [
@@ -160,7 +160,7 @@
         confirmingDelete = false;
     }
 
-    function _memberIssues(memberName, memberSetup) {
+    function memberIssues(memberName, memberSetup) {
         const instruments = memberSetup?.instruments || [];
         if (instruments.length === 0) return null; // no setups = member just listed, that's fine
         for (const inst of instruments) {
