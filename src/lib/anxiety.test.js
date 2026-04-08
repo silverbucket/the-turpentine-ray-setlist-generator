@@ -1,13 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { _internals, anxietyLabel, computeAnxiety } from "./anxiety.js";
 
-const {
-    normalizeValue,
-    detectInstrumentSetChange,
-    detectFieldChange,
-    scoreTransition,
-    anxietyWeightPressure,
-} = _internals;
+const { normalizeValue, detectInstrumentSetChange, detectFieldChange, scoreTransition, anxietyWeightPressure } =
+    _internals;
 
 // ---------------------------------------------------------------------------
 // Test config matching the user's real band setup
@@ -862,10 +857,7 @@ describe("computeAnxiety — mixed mid-anxiety sets", () => {
     });
 
     it("keeps a tuning change plus capo and technique churn out of the low band", () => {
-        const result = computeAnxiety(
-            oneTuningCapoAndTechniqueSpots,
-            BAND_CONFIG,
-        );
+        const result = computeAnxiety(oneTuningCapoAndTechniqueSpots, BAND_CONFIG);
         expect(result.scaled).toBeGreaterThanOrEqual(5);
         expect(result.changes).toBe(6);
     });
@@ -1139,13 +1131,7 @@ describe("computeAnxiety — grouped vs scattered changes", () => {
         // Grouped: all changes in a burst, then stable
         const grouped = [];
         for (let i = 0; i < 10; i++) {
-            const tunings = [
-                "Standard",
-                "DADGAD",
-                "Open G",
-                "Drop D",
-                "Standard",
-            ];
+            const tunings = ["Standard", "DADGAD", "Open G", "Drop D", "Standard"];
             grouped.push(
                 song(`G${i + 1}`, "G", {
                     nick: { tuning: i < 5 ? tunings[i] : "Standard" },
@@ -1159,9 +1145,7 @@ describe("computeAnxiety — grouped vs scattered changes", () => {
         // Scattered should have higher anxiety (more spots disrupted)
         expect(scatteredResult.spots).toBeGreaterThan(groupedResult.spots);
         // The spread factor should make scattered score higher
-        expect(scatteredResult.weightedScore).toBeGreaterThan(
-            groupedResult.weightedScore,
-        );
+        expect(scatteredResult.weightedScore).toBeGreaterThan(groupedResult.weightedScore);
     });
 });
 
@@ -1192,9 +1176,7 @@ describe("computeAnxiety — weight sensitivity", () => {
         const lowResult = computeAnxiety(baseSongs, lowWeight);
         const highResult = computeAnxiety(baseSongs, highWeight);
 
-        expect(highResult.weightedScore).toBeGreaterThan(
-            lowResult.weightedScore,
-        );
+        expect(highResult.weightedScore).toBeGreaterThan(lowResult.weightedScore);
     });
 
     it("zero weight means prop changes don't affect weighted score", () => {
@@ -1354,12 +1336,8 @@ describe("anxietyLabel", () => {
     });
 
     it("pluralizes 'change' correctly", () => {
-        expect(
-            anxietyLabel({ scaled: 1, changes: 1, spots: 1, songCount: 5 }),
-        ).toContain("1 change ");
-        expect(
-            anxietyLabel({ scaled: 2, changes: 3, spots: 2, songCount: 5 }),
-        ).toContain("3 changes");
+        expect(anxietyLabel({ scaled: 1, changes: 1, spots: 1, songCount: 5 })).toContain("1 change ");
+        expect(anxietyLabel({ scaled: 2, changes: 3, spots: 2, songCount: 5 })).toContain("3 changes");
     });
 });
 
@@ -1459,10 +1437,7 @@ describe("transition-by-transition detail verification", () => {
 
     it("total memberChanges matches sum of detail memberChanges", () => {
         const result = computeAnxiety(setlist, BAND_CONFIG);
-        const sumFromDetails = result.details.reduce(
-            (sum, d) => sum + d.memberChanges,
-            0,
-        );
+        const sumFromDetails = result.details.reduce((sum, d) => sum + d.memberChanges, 0);
         expect(result.memberChanges).toBe(sumFromDetails);
     });
 

@@ -16,7 +16,7 @@
 
 <nav class="bottom-nav">
   {#each tabs as tab}
-    <button
+    <button type="button"
       class="tab"
       class:active={store.activeView === tab.id}
       style={tab.id === "roll" && dieColor && store.activeView === "roll" ? `--tab-active: ${dieColor}` : ""}

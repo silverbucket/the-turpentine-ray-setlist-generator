@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-    buildDefaultPerformance,
-    generateSetlist,
-    scoreFixedOrder,
-} from "./generator.js";
+import { buildDefaultPerformance, generateSetlist, scoreFixedOrder } from "./generator.js";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -272,14 +268,8 @@ function scarceTuningCatalog(memberName = "nick") {
     ];
 }
 
-function overlappingInstrumentCatalog(
-    memberName = "nick",
-    instrumentCount = 32,
-) {
-    const instrumentNames = Array.from(
-        { length: instrumentCount },
-        (_, index) => `instrument-${index + 1}`,
-    );
+function overlappingInstrumentCatalog(memberName = "nick", instrumentCount = 32) {
+    const instrumentNames = Array.from({ length: instrumentCount }, (_, index) => `instrument-${index + 1}`);
     const sharedTuning = ["Standard"];
 
     return [
@@ -374,61 +364,37 @@ function anxietyPressureCatalog() {
 describe("generateSetlist — basics", () => {
     it("returns the correct number of songs", () => {
         const songs = simpleCatalog(20);
-        const result = generateSetlist(
-            songs,
-            makeConfig(),
-            deterministicOptions({ count: 10 }),
-        );
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 10 }));
         expect(result.songs).toHaveLength(10);
     });
 
     it("clamps to catalog size when count exceeds available songs", () => {
         const songs = simpleCatalog(5);
-        const result = generateSetlist(
-            songs,
-            makeConfig(),
-            deterministicOptions({ count: 15 }),
-        );
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 15 }));
         expect(result.songs).toHaveLength(5);
     });
 
     it("handles empty catalog", () => {
-        const result = generateSetlist(
-            [],
-            makeConfig(),
-            deterministicOptions({ count: 10 }),
-        );
+        const result = generateSetlist([], makeConfig(), deterministicOptions({ count: 10 }));
         expect(result.songs).toHaveLength(0);
     });
 
     it("handles single song", () => {
-        const result = generateSetlist(
-            [makeSong("Only")],
-            makeConfig(),
-            deterministicOptions({ count: 1 }),
-        );
+        const result = generateSetlist([makeSong("Only")], makeConfig(), deterministicOptions({ count: 1 }));
         expect(result.songs).toHaveLength(1);
         expect(result.songs[0].name).toBe("Only");
     });
 
     it("each song appears at most once", () => {
         const songs = simpleCatalog(15);
-        const result = generateSetlist(
-            songs,
-            makeConfig(),
-            deterministicOptions({ count: 15 }),
-        );
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 15 }));
         const ids = result.songs.map((s) => s.id);
         expect(new Set(ids).size).toBe(ids.length);
     });
 
     it("includes summary with score, covers, instrumentals, anxiety", () => {
         const songs = simpleCatalog(10);
-        const result = generateSetlist(
-            songs,
-            makeConfig(),
-            deterministicOptions({ count: 5 }),
-        );
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 5 }));
         expect(result.summary).toBeDefined();
         expect(typeof result.summary.score).toBe("number");
         expect(typeof result.summary.covers).toBe("number");
@@ -454,16 +420,8 @@ describe("generateSetlist — determinism", () => {
     it("different seeds produce different output (high probability)", () => {
         const songs = simpleCatalog(20);
         const config = makeConfig();
-        const r1 = generateSetlist(
-            songs,
-            config,
-            deterministicOptions({ count: 10, seed: 1 }),
-        );
-        const r2 = generateSetlist(
-            songs,
-            config,
-            deterministicOptions({ count: 10, seed: 2 }),
-        );
+        const r1 = generateSetlist(songs, config, deterministicOptions({ count: 10, seed: 1 }));
+        const r2 = generateSetlist(songs, config, deterministicOptions({ count: 10, seed: 2 }));
         // With 20 songs picking 10, different seeds should almost certainly differ
         const ids1 = r1.songs.map((s) => s.id).join(",");
         const ids2 = r2.songs.map((s) => s.id).join(",");
@@ -476,11 +434,7 @@ describe("generateSetlist — determinism", () => {
 
         try {
             const songs = simpleCatalog(8);
-            const result = generateSetlist(
-                songs,
-                makeConfig(),
-                deterministicOptions({ count: 5, seed: 0 }),
-            );
+            const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 5, seed: 0 }));
             expect(result.seed).toBe(251000);
         } finally {
             nowSpy.mockRestore();
@@ -494,112 +448,62 @@ describe("generateSetlist — determinism", () => {
 // ===================================================================
 describe("generateSetlist — cover and instrumental limits", () => {
     it("respects maxCovers", () => {
-        const songs = Array.from({ length: 10 }, (_, i) =>
-            makeSong(`Song ${i + 1}`, { cover: true }),
-        );
-        const result = generateSetlist(
-            songs,
-            makeConfig(),
-            deterministicOptions({ count: 10, maxCovers: 2 }),
-        );
+        const songs = Array.from({ length: 10 }, (_, i) => makeSong(`Song ${i + 1}`, { cover: true }));
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 10, maxCovers: 2 }));
         const covers = result.songs.filter((s) => s.cover);
         expect(covers.length).toBeLessThanOrEqual(2);
     });
 
     it("respects maxInstrumentals", () => {
-        const songs = Array.from({ length: 10 }, (_, i) =>
-            makeSong(`Song ${i + 1}`, { instrumental: true }),
-        );
-        const result = generateSetlist(
-            songs,
-            makeConfig(),
-            deterministicOptions({ count: 10, maxInstrumentals: 1 }),
-        );
+        const songs = Array.from({ length: 10 }, (_, i) => makeSong(`Song ${i + 1}`, { instrumental: true }));
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 10, maxInstrumentals: 1 }));
         const instrumentals = result.songs.filter((s) => s.instrumental);
         expect(instrumentals.length).toBeLessThanOrEqual(1);
     });
 
     it("maxCovers=-1 means no limit", () => {
-        const songs = Array.from({ length: 10 }, (_, i) =>
-            makeSong(`Song ${i + 1}`, { cover: true }),
-        );
-        const result = generateSetlist(
-            songs,
-            makeConfig(),
-            deterministicOptions({ count: 10, maxCovers: -1 }),
-        );
+        const songs = Array.from({ length: 10 }, (_, i) => makeSong(`Song ${i + 1}`, { cover: true }));
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 10, maxCovers: -1 }));
         expect(result.songs.length).toBe(10);
     });
 
     it("maxInstrumentals=-1 means no limit", () => {
-        const songs = Array.from({ length: 10 }, (_, i) =>
-            makeSong(`Song ${i + 1}`, { instrumental: true }),
-        );
-        const result = generateSetlist(
-            songs,
-            makeConfig(),
-            deterministicOptions({ count: 10, maxInstrumentals: -1 }),
-        );
+        const songs = Array.from({ length: 10 }, (_, i) => makeSong(`Song ${i + 1}`, { instrumental: true }));
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 10, maxInstrumentals: -1 }));
         expect(result.songs.length).toBe(10);
     });
 
     it("NaN maxCovers falls back to config default", () => {
-        const songs = Array.from({ length: 10 }, (_, i) =>
-            makeSong(`Song ${i + 1}`, { cover: true }),
-        );
+        const songs = Array.from({ length: 10 }, (_, i) => makeSong(`Song ${i + 1}`, { cover: true }));
         const config = makeConfig({
             general: { limits: { covers: 1, instrumentals: -1 } },
         });
-        const result = generateSetlist(
-            songs,
-            config,
-            deterministicOptions({ count: 10, maxCovers: NaN }),
-        );
+        const result = generateSetlist(songs, config, deterministicOptions({ count: 10, maxCovers: NaN }));
         const covers = result.songs.filter((s) => s.cover);
         expect(covers.length).toBeLessThanOrEqual(1);
     });
 
     it("maxCovers=0 means no covers allowed", () => {
         const songs = [
-            ...Array.from({ length: 5 }, (_, i) =>
-                makeSong(`Cover ${i + 1}`, { cover: true }),
-            ),
-            ...Array.from({ length: 5 }, (_, i) =>
-                makeSong(`Original ${i + 1}`),
-            ),
+            ...Array.from({ length: 5 }, (_, i) => makeSong(`Cover ${i + 1}`, { cover: true })),
+            ...Array.from({ length: 5 }, (_, i) => makeSong(`Original ${i + 1}`)),
         ];
-        const result = generateSetlist(
-            songs,
-            makeConfig(),
-            deterministicOptions({ count: 5, maxCovers: 0 }),
-        );
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 5, maxCovers: 0 }));
         expect(result.songs.filter((s) => s.cover).length).toBe(0);
     });
 
     it("maxInstrumentals=0 means no instrumentals allowed", () => {
         const songs = [
-            ...Array.from({ length: 5 }, (_, i) =>
-                makeSong(`Inst ${i + 1}`, { instrumental: true }),
-            ),
+            ...Array.from({ length: 5 }, (_, i) => makeSong(`Inst ${i + 1}`, { instrumental: true })),
             ...Array.from({ length: 5 }, (_, i) => makeSong(`Vocal ${i + 1}`)),
         ];
-        const result = generateSetlist(
-            songs,
-            makeConfig(),
-            deterministicOptions({ count: 5, maxInstrumentals: 0 }),
-        );
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 5, maxInstrumentals: 0 }));
         expect(result.songs.filter((s) => s.instrumental).length).toBe(0);
     });
 
     it("all covers with maxCovers=1 produces exactly 1 song", () => {
-        const songs = Array.from({ length: 5 }, (_, i) =>
-            makeSong(`Cover ${i + 1}`, { cover: true }),
-        );
-        const result = generateSetlist(
-            songs,
-            makeConfig(),
-            deterministicOptions({ count: 5, maxCovers: 1 }),
-        );
+        const songs = Array.from({ length: 5 }, (_, i) => makeSong(`Cover ${i + 1}`, { cover: true }));
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 5, maxCovers: 1 }));
         expect(result.songs.length).toBe(1);
     });
 });
@@ -620,11 +524,7 @@ describe("generateSetlist — position rules", () => {
         const config = makeConfig();
         let openerFirst = 0;
         for (let seed = 1; seed <= 20; seed++) {
-            const result = generateSetlist(
-                songs,
-                config,
-                deterministicOptions({ count: 10, seed }),
-            );
+            const result = generateSetlist(songs, config, deterministicOptions({ count: 10, seed }));
             if (result.songs[0]?.name === "Opener") openerFirst++;
         }
         // Should very rarely be first (position penalty makes it expensive)
@@ -643,11 +543,7 @@ describe("generateSetlist — position rules", () => {
         const config = makeConfig();
         let closerLast = 0;
         for (let seed = 1; seed <= 20; seed++) {
-            const result = generateSetlist(
-                songs,
-                config,
-                deterministicOptions({ count: 10, seed }),
-            );
+            const result = generateSetlist(songs, config, deterministicOptions({ count: 10, seed }));
             const last = result.songs[result.songs.length - 1];
             if (last?.name === "Closer") closerLast++;
         }
@@ -667,11 +563,7 @@ describe("generateSetlist — position rules", () => {
         const config = makeConfig();
         let coverEarly = 0;
         for (let seed = 1; seed <= 20; seed++) {
-            const result = generateSetlist(
-                songs,
-                config,
-                deterministicOptions({ count: 10, seed }),
-            );
+            const result = generateSetlist(songs, config, deterministicOptions({ count: 10, seed }));
             if (result.songs[0]?.cover || result.songs[1]?.cover) coverEarly++;
         }
         expect(coverEarly).toBeLessThanOrEqual(3);
@@ -683,11 +575,7 @@ describe("generateSetlist — position rules", () => {
 // ===================================================================
 describe("generateSetlist — variant expansion", () => {
     it("song with no members has one variant (empty performance)", () => {
-        const result = generateSetlist(
-            [makeSong("Simple")],
-            makeConfig(),
-            deterministicOptions({ count: 1 }),
-        );
+        const result = generateSetlist([makeSong("Simple")], makeConfig(), deterministicOptions({ count: 1 }));
         expect(result.songs[0].performance).toEqual({});
     });
 
@@ -708,11 +596,7 @@ describe("generateSetlist — variant expansion", () => {
                 },
             }),
         ];
-        const result = generateSetlist(
-            songs,
-            makeConfig(),
-            deterministicOptions({ count: 1 }),
-        );
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 1 }));
         const perf = result.songs[0].performance;
         expect(perf.nick).toBeDefined();
         expect(perf.nick.instrument).toBe("banjo");
@@ -728,11 +612,7 @@ describe("generateSetlist — variant expansion", () => {
                 },
             },
         });
-        const result = generateSetlist(
-            songs,
-            config,
-            deterministicOptions({ count: 5 }),
-        );
+        const result = generateSetlist(songs, config, deterministicOptions({ count: 5 }));
         // All songs should use guitar since banjo is filtered out
         for (const song of result.songs) {
             expect(song.performance.nick.instrument).toBe("guitar");
@@ -764,11 +644,7 @@ describe("generateSetlist — variant expansion", () => {
                 },
             },
         });
-        const result = generateSetlist(
-            songs,
-            config,
-            deterministicOptions({ count: 2 }),
-        );
+        const result = generateSetlist(songs, config, deterministicOptions({ count: 2 }));
         // Only Banjo should be excluded since its only instrument is filtered
         expect(result.songs.map((s) => s.name)).not.toContain("Only Banjo");
     });
@@ -809,11 +685,7 @@ describe("generateSetlist — change detection", () => {
                 },
             }),
         ];
-        const result = generateSetlist(
-            songs,
-            makeConfig(),
-            deterministicOptions({ count: 2 }),
-        );
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 2 }));
         // One of the songs should have tuning in transition notes
         const allNotes = result.songs.flatMap((s) => s.transitionNotes);
         expect(allNotes.some((n) => n.includes("tuning"))).toBe(true);
@@ -851,11 +723,7 @@ describe("generateSetlist — change detection", () => {
                 },
             }),
         ];
-        const result = generateSetlist(
-            songs,
-            makeConfig(),
-            deterministicOptions({ count: 2 }),
-        );
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 2 }));
         // Second song should have no picking change
         const song2 = result.songs[1];
         expect(song2.propChanges.picking.changed).toBe(false);
@@ -879,11 +747,7 @@ describe("generateSetlist — change detection", () => {
                 },
             }),
         ];
-        const result = generateSetlist(
-            songs,
-            makeConfig(),
-            deterministicOptions({ count: 2 }),
-        );
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 2 }));
         const song2 = result.songs[1];
         expect(song2.propChanges.instruments.changed).toBe(true);
     });
@@ -906,11 +770,7 @@ describe("generateSetlist — change detection", () => {
             }),
             makeSong("Song B", { members: {} }),
         ];
-        const result = generateSetlist(
-            songs,
-            makeConfig(),
-            deterministicOptions({ count: 2 }),
-        );
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 2 }));
         const song2 = result.songs[1];
         expect(song2.propChanges.instruments.changed).toBe(true);
     });
@@ -946,11 +806,7 @@ describe("generateSetlist — change detection", () => {
                 },
             }),
         ];
-        const result = generateSetlist(
-            songs,
-            makeConfig(),
-            deterministicOptions({ count: 2 }),
-        );
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 2 }));
         const song2 = result.songs[1];
         expect(song2.propChanges.capo.changed).toBe(true);
         expect(song2.propChanges.capo.magnitude).toBe(3);
@@ -966,11 +822,7 @@ describe("generateSetlist — minStreak enforcement", () => {
         const config = makeConfig();
         // Run across multiple seeds
         for (let seed = 1; seed <= 5; seed++) {
-            const result = generateSetlist(
-                songs,
-                config,
-                deterministicOptions({ count: 10, seed }),
-            );
+            const result = generateSetlist(songs, config, deterministicOptions({ count: 10, seed }));
             let consecutive = 0;
             for (let i = 1; i < result.songs.length; i++) {
                 if (result.songs[i].propChanges.tuning?.changed) {
@@ -1004,14 +856,8 @@ describe("generateSetlist — maxChanges on last song", () => {
         });
 
         for (let seed = 1; seed <= 10; seed++) {
-            const result = generateSetlist(
-                songs,
-                config,
-                deterministicOptions({ count: 5, seed }),
-            );
-            const tuningChanges = result.songs.filter(
-                (s) => s.propChanges.tuning?.changed,
-            ).length;
+            const result = generateSetlist(songs, config, deterministicOptions({ count: 5, seed }));
+            const tuningChanges = result.songs.filter((s) => s.propChanges.tuning?.changed).length;
             expect(tuningChanges).toBeLessThanOrEqual(1);
         }
     });
@@ -1039,12 +885,8 @@ describe("generateSetlist — minSongsPerInstrument", () => {
         let bothMet = 0;
         for (let seed = 1; seed <= 10; seed++) {
             const result = generateSetlist(songs, config, { ...opts, seed });
-            const guitarCount = result.songs.filter(
-                (s) => s.performance.nick?.instrument === "guitar",
-            ).length;
-            const banjoCount = result.songs.filter(
-                (s) => s.performance.nick?.instrument === "banjo",
-            ).length;
+            const guitarCount = result.songs.filter((s) => s.performance.nick?.instrument === "guitar").length;
+            const banjoCount = result.songs.filter((s) => s.performance.nick?.instrument === "banjo").length;
             if (guitarCount >= 2 && banjoCount >= 2) bothMet++;
         }
         // Should meet minimums most of the time
@@ -1089,11 +931,8 @@ describe("generateSetlist — minSongsPerInstrument", () => {
         let hasBoth = 0;
         for (let seed = 1; seed <= 10; seed++) {
             const result = generateSetlist(songs, config, { ...opts, seed });
-            const instruments = new Set(
-                result.songs.map((s) => s.performance.nick?.instrument),
-            );
-            if (instruments.has("guitar") && instruments.has("banjo"))
-                hasBoth++;
+            const instruments = new Set(result.songs.map((s) => s.performance.nick?.instrument));
+            if (instruments.has("guitar") && instruments.has("banjo")) hasBoth++;
         }
         expect(hasBoth).toBeGreaterThanOrEqual(8);
     });
@@ -1189,9 +1028,7 @@ describe("generateSetlist — minSongsPerInstrument", () => {
 
     it("handles large overlapping instrument groups without overflow and relaxes impossible minimums", () => {
         const songs = overlappingInstrumentCatalog();
-        const allowedInstruments = songs[0].members.nick.instruments.map(
-            (instrument) => instrument.name,
-        );
+        const allowedInstruments = songs[0].members.nick.instruments.map((instrument) => instrument.name);
         const config = makeConfig({
             general: {
                 weighting: {
@@ -1249,12 +1086,8 @@ describe("generateSetlist — minSongsPerTuning", () => {
         let bothMet = 0;
         for (let seed = 1; seed <= 10; seed++) {
             const result = generateSetlist(songs, config, { ...opts, seed });
-            const standardCount = result.songs.filter(
-                (s) => s.performance.nick?.tuning === "Standard",
-            ).length;
-            const dadgadCount = result.songs.filter(
-                (s) => s.performance.nick?.tuning === "DADGAD",
-            ).length;
+            const standardCount = result.songs.filter((s) => s.performance.nick?.tuning === "Standard").length;
+            const dadgadCount = result.songs.filter((s) => s.performance.nick?.tuning === "DADGAD").length;
             if (standardCount >= 2 && dadgadCount >= 2) bothMet++;
         }
         expect(bothMet).toBeGreaterThanOrEqual(7);
@@ -1336,8 +1169,7 @@ describe("generateSetlist — chaos slider anxiety bias", () => {
             highScores.push(high.summary.anxiety.scaled);
         }
 
-        const average = (values) =>
-            values.reduce((sum, value) => sum + value, 0) / values.length;
+        const average = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
 
         expect(average(lowScores)).toBeLessThanOrEqual(3);
         expect(average(highScores)).toBeGreaterThanOrEqual(7);
@@ -1548,9 +1380,7 @@ describe("scoreFixedOrder", () => {
         const withoutFlow = scoreFixedOrder(songs, config, { keyFlow: false });
 
         // Key flow should add penalty for distant keys (C to F# = tritone = distance 6)
-        expect(withFlow.summary.score).toBeGreaterThan(
-            withoutFlow.summary.score,
-        );
+        expect(withFlow.summary.score).toBeGreaterThan(withoutFlow.summary.score);
     });
 });
 
@@ -1561,11 +1391,7 @@ describe("generateSetlist — edge cases", () => {
     it("generates with no props configured", () => {
         const songs = simpleCatalog(10);
         const config = makeConfig({ props: {} });
-        const result = generateSetlist(
-            songs,
-            config,
-            deterministicOptions({ count: 5 }),
-        );
+        const result = generateSetlist(songs, config, deterministicOptions({ count: 5 }));
         expect(result.songs).toHaveLength(5);
         expect(result.summary.score).toBe(0);
     });
@@ -1605,11 +1431,7 @@ describe("generateSetlist — edge cases", () => {
             makeSong("Without Members"),
             makeSong("Also Without"),
         ];
-        const result = generateSetlist(
-            songs,
-            makeConfig(),
-            deterministicOptions({ count: 3 }),
-        );
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 3 }));
         expect(result.songs).toHaveLength(3);
     });
 });
@@ -1619,9 +1441,7 @@ describe("generateSetlist — edge cases", () => {
 // ---------------------------------------------------------------------------
 
 describe("generateSetlist — fixedSongIds", () => {
-    const catalog = Array.from({ length: 10 }, (_, i) =>
-        makeSong(`Song ${i + 1}`),
-    );
+    const catalog = Array.from({ length: 10 }, (_, i) => makeSong(`Song ${i + 1}`));
 
     it("restricts output to exactly the fixed song IDs", () => {
         const fixedIds = ["song-2", "song-5", "song-7"];
@@ -1853,9 +1673,7 @@ describe("generateSetlist — key flow", () => {
         const withoutKeys = generateSetlist(songsNoKeys, config, opts);
 
         // Songs without keys should have no key penalty
-        expect(withoutKeys.summary.score).toBeLessThanOrEqual(
-            withKeys.summary.score,
-        );
+        expect(withoutKeys.summary.score).toBeLessThanOrEqual(withKeys.summary.score);
     });
 
     it("penalizes direction reversals on the circle of fifths", () => {
@@ -1916,19 +1734,11 @@ describe("notes field", () => {
         songs[0].notes = "Start with a bang";
         songs[2].notes = "Slow it down here";
         const config = makeConfig({ general: { count: 5 } });
-        const result = generateSetlist(
-            songs,
-            config,
-            deterministicOptions({ count: 5 }),
-        );
+        const result = generateSetlist(songs, config, deterministicOptions({ count: 5 }));
         const withNotes = result.songs.filter((s) => s.notes);
         expect(withNotes.length).toBe(2);
-        expect(result.songs.find((s) => s.name === "Song 1").notes).toBe(
-            "Start with a bang",
-        );
-        expect(result.songs.find((s) => s.name === "Song 3").notes).toBe(
-            "Slow it down here",
-        );
+        expect(result.songs.find((s) => s.name === "Song 1").notes).toBe("Start with a bang");
+        expect(result.songs.find((s) => s.name === "Song 3").notes).toBe("Slow it down here");
     });
 
     it("round-trips through scoreFixedOrder", () => {

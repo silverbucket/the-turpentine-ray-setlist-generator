@@ -91,20 +91,14 @@ describe("detectInstrumentSetChange", () => {
     });
 
     it("detects member appearing", () => {
-        const r = detectInstrumentSetChange(
-            {},
-            { nick: { instrument: "banjo" } },
-        );
+        const r = detectInstrumentSetChange({}, { nick: { instrument: "banjo" } });
         expect(r.changed).toBe(true);
         expect(r.magnitude).toBe(1);
         expect(r.notes[0]).toContain("on/off");
     });
 
     it("detects member disappearing", () => {
-        const r = detectInstrumentSetChange(
-            { nick: { instrument: "banjo" } },
-            {},
-        );
+        const r = detectInstrumentSetChange({ nick: { instrument: "banjo" } }, {});
         expect(r.changed).toBe(true);
         expect(r.magnitude).toBe(1);
     });
@@ -144,34 +138,22 @@ describe("detectInstrumentSetChangeLite", () => {
     });
 
     it("detects instrument swap", () => {
-        const r = detectInstrumentSetChangeLite(
-            { nick: { instrument: "banjo" } },
-            { nick: { instrument: "guitar" } },
-        );
+        const r = detectInstrumentSetChangeLite({ nick: { instrument: "banjo" } }, { nick: { instrument: "guitar" } });
         expect(r.magnitude).toBe(1);
     });
 
     it("detects member appearing", () => {
-        const r = detectInstrumentSetChangeLite(
-            {},
-            { nick: { instrument: "banjo" } },
-        );
+        const r = detectInstrumentSetChangeLite({}, { nick: { instrument: "banjo" } });
         expect(r.magnitude).toBe(1);
     });
 
     it("detects member disappearing", () => {
-        const r = detectInstrumentSetChangeLite(
-            { nick: { instrument: "banjo" } },
-            {},
-        );
+        const r = detectInstrumentSetChangeLite({ nick: { instrument: "banjo" } }, {});
         expect(r.magnitude).toBe(1);
     });
 
     it("counts both directions", () => {
-        const r = detectInstrumentSetChangeLite(
-            { nick: { instrument: "banjo" } },
-            { mark: { instrument: "guitar" } },
-        );
+        const r = detectInstrumentSetChangeLite({ nick: { instrument: "banjo" } }, { mark: { instrument: "guitar" } });
         expect(r.magnitude).toBe(2);
     });
 });
@@ -277,12 +259,7 @@ describe("detectFieldChangeLite", () => {
     });
 
     it("capo delta", () => {
-        const r = detectFieldChangeLite(
-            { nick: { capo: 0 } },
-            { nick: { capo: 4 } },
-            "capo",
-            true,
-        );
+        const r = detectFieldChangeLite({ nick: { capo: 0 } }, { nick: { capo: 4 } }, "capo", true);
         expect(r.magnitude).toBe(4);
     });
 

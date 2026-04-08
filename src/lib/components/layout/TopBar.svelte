@@ -62,7 +62,7 @@
   <div class="right">
 
     <div class="menu-wrapper">
-      <button class="menu-btn" onclick={toggleMenu} aria-label="Menu">
+      <button type="button" class="menu-btn" onclick={toggleMenu} aria-label="Menu">
         &middot;&middot;&middot;
       </button>
 
@@ -82,7 +82,7 @@
             <div class="dropdown-divider"></div>
             <span class="dropdown-label">Switch to</span>
             {#each otherAccounts as account (account.address)}
-              <button class="dropdown-item dropdown-item--account" onclick={() => handleSwitchTo(account.address)}>
+              <button type="button" class="dropdown-item dropdown-item--account" onclick={() => handleSwitchTo(account.address)}>
                 <span class="account-band">{account.bandName || "Unnamed"}</span>
                 <span class="account-addr">{account.address}</span>
               </button>
@@ -99,14 +99,14 @@
                 autocomplete="off"
                 onkeydown={(e) => { if (e.key === "Enter") submitNewAccount(); }}
               />
-              <button class="add-submit" onclick={submitNewAccount} disabled={!newAddress.trim()}>Connect</button>
+              <button type="button" class="add-submit" onclick={submitNewAccount} disabled={!newAddress.trim()}>Connect</button>
             </div>
           {:else}
-            <button class="dropdown-item dropdown-item--add" onclick={handleAddAccount}>Add Account</button>
+            <button type="button" class="dropdown-item dropdown-item--add" onclick={handleAddAccount}>Add Account</button>
           {/if}
 
           <div class="dropdown-divider"></div>
-          <button class="dropdown-item" onclick={cycleTheme}>Theme: {themeLabel[getThemePreference()]}</button>
+          <button type="button" class="dropdown-item" onclick={cycleTheme}>Theme: {themeLabel[getThemePreference()]}</button>
         </div>
       {/if}
     </div>

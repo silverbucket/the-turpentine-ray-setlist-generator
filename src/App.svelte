@@ -70,7 +70,7 @@
                 />
             </label>
 
-            <button class="btn primary" onclick={store.connectStorage} disabled={store.connectionStatus === "connecting"}>
+            <button type="button" class="btn primary" onclick={store.connectStorage} disabled={store.connectionStatus === "connecting"}>
                 {store.connectionStatus === "connecting" ? "Connecting..." : "Connect"}
             </button>
 
@@ -147,7 +147,7 @@
                     onkeydown={(e) => { if (e.key === "Enter") store.finishFirstRun(); }}
                 />
             </label>
-            <button class="btn primary" onclick={store.finishFirstRun}>Save</button>
+            <button type="button" class="btn primary" onclick={store.finishFirstRun}>Save</button>
         </div>
     </div>
 {/if}
@@ -171,7 +171,6 @@
 <style>
     /* ---- Connect screen ---- */
     .connect-shell {
-        min-height: 100vh;
         min-height: 100dvh;
         display: grid;
         place-items: center;
@@ -209,7 +208,6 @@
 
     /* ---- Sync screen ---- */
     .sync-shell {
-        min-height: 100vh;
         min-height: 100dvh;
         display: grid;
         place-items: center;
@@ -258,7 +256,6 @@
 
     /* ---- App shell ---- */
     .app-shell {
-        min-height: 100vh;
         min-height: 100dvh;
         display: flex;
         flex-direction: column;

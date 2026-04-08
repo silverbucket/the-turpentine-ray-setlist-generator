@@ -4,16 +4,8 @@
     font-weight: 400;
     color: #182230;
     background:
-        radial-gradient(
-            circle at top left,
-            rgba(244, 113, 76, 0.16),
-            transparent 28%
-        ),
-        radial-gradient(
-            circle at 85% 12%,
-            rgba(76, 117, 244, 0.12),
-            transparent 24%
-        ),
+        radial-gradient(circle at top left, rgba(244, 113, 76, 0.16), transparent 28%),
+        radial-gradient(circle at 85% 12%, rgba(76, 117, 244, 0.12), transparent 24%),
         linear-gradient(180deg, #f7f8fc 0%, #f0f3f9 52%, #e9eef6 100%);
     font-synthesis: none;
     text-rendering: optimizeLegibility;
@@ -78,16 +70,8 @@
 :root[data-theme="dark"] {
     color: #e2e6ec;
     background:
-        radial-gradient(
-            circle at top left,
-            rgba(232, 118, 74, 0.08),
-            transparent 28%
-        ),
-        radial-gradient(
-            circle at 85% 12%,
-            rgba(76, 117, 244, 0.06),
-            transparent 24%
-        ),
+        radial-gradient(circle at top left, rgba(232, 118, 74, 0.08), transparent 28%),
+        radial-gradient(circle at 85% 12%, rgba(76, 117, 244, 0.06), transparent 24%),
         linear-gradient(180deg, #14171e 0%, #181c24 52%, #1a1f28 100%);
 
     --paper: rgba(30, 35, 44, 0.82);
@@ -177,6 +161,6 @@ h3 {
     }
 
     body {
-        background: #fff !important;
+        background: #fff;
     }
 }

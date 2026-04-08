@@ -13,7 +13,7 @@
         <ol class="steps">
             <li>
                 <strong>Add members who switch gear</strong>
-                <p>Go to the <button class="inline-link" onclick={() => store.navigate("band")}>Band</button> tab. Only add members who change instruments, tunings, or capos between songs. If your drummer plays the same kit every song, they don't need to be here — this is about tracking transitions, not taking attendance.</p>
+                <p>Go to the <button type="button" class="inline-link" onclick={() => store.navigate("band")}>Band</button> tab. Only add members who change instruments, tunings, or capos between songs. If your drummer plays the same kit every song, they don't need to be here — this is about tracking transitions, not taking attendance.</p>
             </li>
             <li>
                 <strong>Set up their instruments</strong>
@@ -21,11 +21,11 @@
             </li>
             <li>
                 <strong>Add your songs</strong>
-                <p>Go to the <button class="inline-link" onclick={() => store.navigate("songs")}>Songs</button> tab and add your catalog. For each song, tell Setlist Roller which instrument and tuning each tracked member uses. The more detail you give, the smarter the setlists.</p>
+                <p>Go to the <button type="button" class="inline-link" onclick={() => store.navigate("songs")}>Songs</button> tab and add your catalog. For each song, tell Setlist Roller which instrument and tuning each tracked member uses. The more detail you give, the smarter the setlists.</p>
             </li>
             <li>
                 <strong>Roll a setlist</strong>
-                <p>Go to the <button class="inline-link" onclick={() => store.navigate("roll")}>Roll</button> tab, pick how many songs you want, and hit the dice. Setlist Roller will crunch the numbers and build you an optimized setlist.</p>
+                <p>Go to the <button type="button" class="inline-link" onclick={() => store.navigate("roll")}>Roll</button> tab, pick how many songs you want, and hit the dice. Setlist Roller will crunch the numbers and build you an optimized setlist.</p>
             </li>
         </ol>
     </section>
@@ -41,7 +41,7 @@
             <li><strong>Drag to reorder</strong> — not happy with a song's position? Grab the handle and move it.</li>
             <li><strong>Lock it in</strong> — prevents accidental re-rolls. You can still unlock and roll again.</li>
             <li><strong>Save to Greatest Hits</strong> — stores the setlist so you can view or print it later.</li>
-            <li><strong>Print</strong> — from the <button class="inline-link" onclick={() => store.navigate("saved")}>Saved</button> tab, open a setlist and hit print. Big fonts, clean layout, made for the stage.</li>
+            <li><strong>Print</strong> — from the <button type="button" class="inline-link" onclick={() => store.navigate("saved")}>Saved</button> tab, open a setlist and hit print. Big fonts, clean layout, made for the stage.</li>
         </ul>
     </section>
 
@@ -56,7 +56,7 @@
 
     <section class="help-section">
         <h2>Data & backups</h2>
-        <p>Your songs and settings live in remoteStorage. Saved setlists are stored locally on this device. Use <strong>Export</strong> from the <button class="inline-link" onclick={() => store.navigate("band")}>Band</button> tab to download everything as a JSON file — songs, config, and saved setlists. Keep backups!</p>
+        <p>Your songs and settings live in remoteStorage. Saved setlists are stored locally on this device. Use <strong>Export</strong> from the <button type="button" class="inline-link" onclick={() => store.navigate("band")}>Band</button> tab to download everything as a JSON file — songs, config, and saved setlists. Keep backups!</p>
     </section>
 </div>
 
