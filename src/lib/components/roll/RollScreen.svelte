@@ -216,24 +216,44 @@
 
       {#if settingsTab === "chaos" || !hasConstraints}
         <div class="quick-row">
-          <label class="adv-field">
+          <div class="adv-field">
             <span>Max covers</span>
             <input
               type="number"
               min="0"
-              value={store.generationOptions.maxCovers}
+              aria-label="Max covers"
+              disabled={store.generationOptions.maxCovers < 0}
+              value={store.generationOptions.maxCovers < 0 ? "" : store.generationOptions.maxCovers}
               oninput={(e) => store.updateGenerationField("maxCovers", Number(e.currentTarget.value))}
             />
-          </label>
-          <label class="adv-field">
+            <label class="no-limit-toggle">
+              <input
+                type="checkbox"
+                checked={store.generationOptions.maxCovers < 0}
+                onchange={(e) => store.updateGenerationField("maxCovers", e.currentTarget.checked ? -1 : Math.max(0, store.appConfig?.general?.limits?.covers ?? 2))}
+              />
+              <span>No limit</span>
+            </label>
+          </div>
+          <div class="adv-field">
             <span>Max instrumentals</span>
             <input
               type="number"
               min="0"
-              value={store.generationOptions.maxInstrumentals}
+              aria-label="Max instrumentals"
+              disabled={store.generationOptions.maxInstrumentals < 0}
+              value={store.generationOptions.maxInstrumentals < 0 ? "" : store.generationOptions.maxInstrumentals}
               oninput={(e) => store.updateGenerationField("maxInstrumentals", Number(e.currentTarget.value))}
             />
-          </label>
+            <label class="no-limit-toggle">
+              <input
+                type="checkbox"
+                checked={store.generationOptions.maxInstrumentals < 0}
+                onchange={(e) => store.updateGenerationField("maxInstrumentals", e.currentTarget.checked ? -1 : Math.max(0, store.appConfig?.general?.limits?.instrumentals ?? 2))}
+              />
+              <span>No limit</span>
+            </label>
+          </div>
         </div>
 
         <div class="variety-field">
@@ -930,6 +950,30 @@
     font-size: 0.85rem;
     font-weight: 600;
     -moz-appearance: textfield;
+  }
+
+  .adv-field input[type="number"]:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .no-limit-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+  }
+
+  .no-limit-toggle input[type="checkbox"] {
+    min-height: auto;
+    width: auto;
+    margin: 0;
+    cursor: pointer;
+  }
+
+  .no-limit-toggle span {
+    font-size: 0.7rem;
+    font-weight: 600;
   }
 
   .adv-field input::-webkit-inner-spin-button,
