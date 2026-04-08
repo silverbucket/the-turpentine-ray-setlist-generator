@@ -7,9 +7,9 @@
     import RollScreen from "./lib/components/roll/RollScreen.svelte";
     import SavedScreen from "./lib/components/saved/SavedScreen.svelte";
     import SongsScreen from "./lib/components/songs/SongsScreen.svelte";
+    import { generateDieSvgString, updatePwaIcons } from "./lib/pwa-icon.js";
     import { createRemoteStorageRepository } from "./lib/remotestorage.js";
     import { createAppStore } from "./lib/stores/app.svelte.js";
-    import { generateDieSvgString, updatePwaIcons } from "./lib/pwa-icon.js";
     import { DEFAULT_DIE_COLOR, hexToRgb } from "./lib/utils.js";
 
     const repo = createRemoteStorageRepository();

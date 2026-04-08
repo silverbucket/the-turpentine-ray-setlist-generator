@@ -84,9 +84,7 @@ export async function updatePwaIcons(dieColor) {
     };
 
     if (prevManifestUrl) URL.revokeObjectURL(prevManifestUrl);
-    prevManifestUrl = URL.createObjectURL(
-        new Blob([JSON.stringify(manifest)], { type: "application/json" })
-    );
+    prevManifestUrl = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: "application/json" }));
     upsertLink("manifest", { href: prevManifestUrl });
 
     upsertMeta("theme-color", dieColor);
