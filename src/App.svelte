@@ -77,6 +77,21 @@
             {#if store.loadError}
                 <p class="error-text">{store.loadError}</p>
             {/if}
+
+            {#if store.knownAccounts.length > 0}
+                <div class="recent-accounts">
+                    <span class="recent-label">Recent</span>
+                    {#each store.knownAccounts as account (account.address)}
+                        <div class="recent-account">
+                            <button class="recent-account-btn" onclick={() => store.connectToAccount(account.address)}>
+                                <span class="recent-band">{account.bandName || "Unnamed"}</span>
+                                <span class="recent-address">{account.address}</span>
+                            </button>
+                            <button class="recent-forget" onclick={() => store.forgetAccount(account.address)} aria-label="Forget account">&times;</button>
+                        </div>
+                    {/each}
+                </div>
+            {/if}
         </section>
     </main>
 {:else if !store.initialSyncComplete}
@@ -332,6 +347,77 @@
     .error-text {
         color: var(--danger);
         font-size: 0.85rem;
+    }
+
+    /* ---- Recent accounts ---- */
+    .recent-accounts {
+        display: grid;
+        gap: 0.5rem;
+    }
+
+    .recent-label {
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+    }
+
+    .recent-account {
+        display: flex;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        background: rgba(255,255,255,0.6);
+        overflow: hidden;
+    }
+
+    .recent-account-btn {
+        flex: 1;
+        display: grid;
+        gap: 0.15rem;
+        padding: 0.6rem 0.75rem;
+        border: none;
+        background: none;
+        cursor: pointer;
+        text-align: left;
+        min-height: 44px;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .recent-account-btn:active {
+        background: var(--line);
+    }
+
+    .recent-band {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--ink);
+    }
+
+    .recent-address {
+        font-size: 0.75rem;
+        color: var(--muted);
+        word-break: break-all;
+    }
+
+    .recent-forget {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        min-height: 44px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-size: 1.1rem;
+        color: var(--muted);
+        flex-shrink: 0;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .recent-forget:active {
+        background: var(--line);
     }
 
     /* ---- Modal ---- */

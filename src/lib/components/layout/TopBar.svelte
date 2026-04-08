@@ -5,30 +5,46 @@
   const store = getContext("app");
 
   let menuOpen = $state(false);
+  let addingAccount = $state(false);
+  let newAddress = $state("");
   const themeLabel = { system: "◐ System", light: "☀ Light", dark: "☽ Dark" };
 
   function toggleMenu() {
     menuOpen = !menuOpen;
+    if (!menuOpen) {
+      addingAccount = false;
+      newAddress = "";
+    }
   }
 
   function closeMenu() {
     menuOpen = false;
+    addingAccount = false;
+    newAddress = "";
   }
 
-  function handleExport() {
+  let currentAccount = $derived(
+    store.knownAccounts.find((a) => a.address === store.connectAddress)
+  );
+
+  let otherAccounts = $derived(
+    store.knownAccounts.filter((a) => a.address !== store.connectAddress)
+  );
+
+  function handleSwitchTo(address) {
     closeMenu();
-    store.exportAllData();
+    store.connectToAccount(address);
   }
 
-  function handleImport() {
-    closeMenu();
-    store.navigate("band");
-    store.bandSubView = "main";
+  function handleAddAccount() {
+    addingAccount = true;
   }
 
-  function handleDisconnect() {
+  function submitNewAccount() {
+    const addr = newAddress.trim();
+    if (!addr) return;
     closeMenu();
-    store.disconnectStorage();
+    store.connectToAccount(addr);
   }
 </script>
 
@@ -52,10 +68,45 @@
 
       {#if menuOpen}
         <div class="dropdown">
-          <button class="dropdown-item" onclick={handleExport}>Export Data</button>
-          <button class="dropdown-item" onclick={handleImport}>Import Data</button>
+          {#if currentAccount}
+            <div class="dropdown-current">
+              <span class="active-dot"></span>
+              <div class="current-info">
+                <span class="current-band">{currentAccount.bandName || "Unnamed"}</span>
+                <span class="current-addr">{currentAccount.address}</span>
+              </div>
+            </div>
+          {/if}
+
+          {#if otherAccounts.length > 0}
+            <div class="dropdown-divider"></div>
+            <span class="dropdown-label">Switch to</span>
+            {#each otherAccounts as account (account.address)}
+              <button class="dropdown-item dropdown-item--account" onclick={() => handleSwitchTo(account.address)}>
+                <span class="account-band">{account.bandName || "Unnamed"}</span>
+                <span class="account-addr">{account.address}</span>
+              </button>
+            {/each}
+          {/if}
+
+          <div class="dropdown-divider"></div>
+          {#if addingAccount}
+            <div class="dropdown-add-form">
+              <input
+                class="add-input"
+                bind:value={newAddress}
+                placeholder="you@example.com"
+                autocomplete="off"
+                onkeydown={(e) => { if (e.key === "Enter") submitNewAccount(); }}
+              />
+              <button class="add-submit" onclick={submitNewAccount} disabled={!newAddress.trim()}>Connect</button>
+            </div>
+          {:else}
+            <button class="dropdown-item dropdown-item--add" onclick={handleAddAccount}>Add Account</button>
+          {/if}
+
+          <div class="dropdown-divider"></div>
           <button class="dropdown-item" onclick={cycleTheme}>Theme: {themeLabel[getThemePreference()]}</button>
-          <button class="dropdown-item dropdown-item--danger" onclick={handleDisconnect}>Disconnect</button>
         </div>
       {/if}
     </div>
@@ -166,7 +217,7 @@
     position: absolute;
     top: 100%;
     right: 0;
-    min-width: 160px;
+    min-width: 200px;
     background: var(--paper);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -198,7 +249,119 @@
     border-top: 1px solid var(--line);
   }
 
-  .dropdown-item--danger {
+  .dropdown-current {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+  }
+
+  .active-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 4px color-mix(in srgb, var(--success) 40%, transparent);
+    flex-shrink: 0;
+  }
+
+  .current-info {
+    display: grid;
+    gap: 2px;
+  }
+
+  .current-band {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .current-addr {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .dropdown-label {
+    display: block;
+    padding: 8px 16px 4px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .dropdown-divider {
+    height: 1px;
+    background: var(--line);
+  }
+
+  .dropdown-item--account {
+    display: grid;
+    gap: 1px;
+    padding: 10px 16px;
+  }
+
+  .dropdown-item--account + .dropdown-item--account {
+    border-top: 1px solid var(--line);
+  }
+
+  .account-band {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .account-addr {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .dropdown-item--add {
+    font-weight: 700;
     color: var(--accent);
+  }
+
+  .dropdown-add-form {
+    display: grid;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--line);
+  }
+
+  .add-input {
+    width: 100%;
+    padding: 6px 10px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 13px;
+  }
+
+  .add-input:focus {
+    outline: none;
+    border-color: var(--accent-line);
+    box-shadow: 0 0 0 0.15rem var(--accent-soft);
+  }
+
+  .add-submit {
+    padding: 6px 12px;
+    border-radius: var(--radius-md);
+    border: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+    color: var(--on-accent);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .add-submit:active {
+    transform: scale(0.98);
+  }
+
+  .add-submit:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>

@@ -48,10 +48,10 @@ export function createRemoteStorageRepository() {
         remoteStorage,
         client,
 
-        connect(userAddress) {
+        connect(userAddress, token) {
             // Re-enable caching in case it was reset by a previous disconnect
             remoteStorage.caching.enable(`/${APP_SCOPE}/`);
-            remoteStorage.connect(userAddress);
+            remoteStorage.connect(userAddress, token);
         },
 
         disconnect() {
@@ -60,11 +60,48 @@ export function createRemoteStorageRepository() {
             remoteStorage.disconnect();
         },
 
+        /**
+         * Switch to a different account without destroying IndexedDB.
+         * Works like a page refresh — just reconfigures credentials and reconnects.
+         */
+        switchTo(userAddress, token) {
+            // Clear current connection without full disconnect cleanup
+            remoteStorage.remote.configure({ token: null });
+            remoteStorage.remote.connected = false;
+            // Re-enable caching and connect to new account
+            remoteStorage.caching.enable(`/${APP_SCOPE}/`);
+            remoteStorage.connect(userAddress, token || undefined);
+        },
+
         async sync() {
             if (!remoteStorage.connected) {
                 return;
             }
             await remoteStorage.startSync();
+        },
+
+        /**
+         * Wait until remote data has actually arrived in the local cache.
+         * Resolves after a sync-done fires with no remaining tasks (meaning
+         * all rounds are complete), or after a safety timeout.
+         */
+        syncAndWait() {
+            return new Promise((resolve) => {
+                const timeout = setTimeout(cleanup, 15000);
+                function cleanup() {
+                    clearTimeout(timeout);
+                    remoteStorage.removeEventListener("sync-done", handler);
+                    resolve();
+                }
+                function handler(e) {
+                    // sync-done with completed=true means all rounds finished
+                    if (e?.completed) {
+                        cleanup();
+                    }
+                    // else: more rounds pending, keep waiting
+                }
+                remoteStorage.on("sync-done", handler);
+            });
         },
 
         on(eventName, handler) {
@@ -83,6 +120,10 @@ export function createRemoteStorageRepository() {
 
         getUserAddress() {
             return remoteStorage.remote?.userAddress || "";
+        },
+
+        getToken() {
+            return remoteStorage.remote?.token || "";
         },
 
         async loadAll() {
