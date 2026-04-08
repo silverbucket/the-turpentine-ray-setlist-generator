@@ -83,9 +83,9 @@
     }
 
     .help-section {
-        border: 1px solid rgba(27, 49, 80, 0.1);
+        border: 1px solid var(--line);
         border-radius: var(--radius-lg, 16px);
-        background: rgba(255, 255, 255, 0.76);
+        background: var(--paper);
         padding: 1rem;
         display: grid;
         gap: 0.5rem;
@@ -159,15 +159,15 @@
     }
 
     .inline-link:hover {
-        color: #c94020;
+        color: var(--accent-strong);
     }
 
     .example-pill {
         display: inline-block;
         padding: 0.1rem 0.4rem;
         border-radius: 999px;
-        background: rgba(255, 160, 40, 0.15);
-        color: #b07020;
+        background: var(--warning-soft);
+        color: var(--muted);
         font-size: 0.75rem;
         font-weight: 700;
     }

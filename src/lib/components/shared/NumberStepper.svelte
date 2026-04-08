@@ -24,8 +24,8 @@
         display: inline-flex;
         align-items: center;
         border-radius: var(--radius-md, 12px);
-        border: 1px solid rgba(27, 49, 80, 0.14);
-        background: rgba(255,255,255,0.92);
+        border: 1px solid var(--line);
+        background: var(--surface);
         overflow: hidden;
     }
     .step-btn {
@@ -46,15 +46,15 @@
         padding: 0;
         box-shadow: none;
     }
-    .step-btn:hover { background: rgba(0,0,0,0.04); }
-    .step-btn:active { background: rgba(0,0,0,0.08); transform: none; box-shadow: none; }
+    .step-btn:hover { background: var(--hover); }
+    .step-btn:active { background: var(--hover-strong); transform: none; box-shadow: none; }
     .step-btn:disabled { opacity: 0.3; cursor: not-allowed; }
     .step-input {
         width: 3.2rem;
         text-align: center;
         border: none;
-        border-left: 1px solid rgba(27, 49, 80, 0.1);
-        border-right: 1px solid rgba(27, 49, 80, 0.1);
+        border-left: 1px solid var(--line);
+        border-right: 1px solid var(--line);
         border-radius: 0;
         padding: 0.5rem 0.2rem;
         font-size: 1rem;

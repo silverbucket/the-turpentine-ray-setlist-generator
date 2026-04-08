@@ -499,7 +499,7 @@
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border-radius: var(--radius-lg, 16px);
-    border: 1px solid rgba(27, 49, 80, 0.1);
+    border: 1px solid var(--line);
     padding: 0.6rem;
     display: grid;
     gap: 0.5rem;
@@ -549,13 +549,13 @@
     padding: 0 0.8rem;
     border: none;
     border-radius: 14px;
-    background: linear-gradient(140deg, #e15b37 0%, #c94020 100%);
-    color: #fff;
+    background: linear-gradient(140deg, var(--accent) 0%, var(--accent-strong) 100%);
+    color: var(--on-accent);
     cursor: pointer;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
     box-shadow:
-      0 4px 12px rgba(225, 91, 55, 0.35),
+      0 4px 12px color-mix(in srgb, var(--accent) 35%, transparent),
       inset 0 1px 0 rgba(255, 255, 255, 0.18);
     transition: transform 120ms ease, box-shadow 120ms ease;
     overflow: hidden;
@@ -564,7 +564,7 @@
   .roll-btn:hover {
     transform: translateY(-2px);
     box-shadow:
-      0 8px 24px rgba(225, 91, 55, 0.4),
+      0 8px 24px color-mix(in srgb, var(--accent) 40%, transparent),
       inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
 
@@ -578,13 +578,13 @@
   .roll-btn:active:not(.rolling) {
     transform: scale(0.97);
     box-shadow:
-      0 2px 6px rgba(225, 91, 55, 0.25),
+      0 2px 6px color-mix(in srgb, var(--accent) 25%, transparent),
       inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
 
   .roll-btn.rolling {
     pointer-events: none;
-    background: linear-gradient(140deg, #d4502e 0%, #b83818 100%);
+    background: linear-gradient(140deg, var(--accent-strong) 0%, var(--accent-strong) 100%);
   }
 
   .roll-btn.landed {
@@ -785,7 +785,7 @@
     padding: 0.55rem 0.1rem 0.1rem;
     display: grid;
     gap: 0.75rem;
-    border-top: 1px solid rgba(27, 49, 80, 0.08);
+    border-top: 1px solid var(--line);
   }
 
   /* Constraints */
@@ -870,7 +870,7 @@
     -webkit-appearance: none;
     appearance: none;
     border-radius: 3px;
-    background: rgba(27, 49, 80, 0.1);
+    background: var(--line);
     outline: none;
     cursor: pointer;
   }
@@ -881,8 +881,8 @@
     height: 22px;
     border-radius: 50%;
     background: var(--accent, #e15b37);
-    border: 2px solid #fff;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    border: 2px solid var(--paper-strong);
+    box-shadow: var(--shadow-sm);
     cursor: pointer;
   }
 
@@ -891,8 +891,8 @@
     height: 22px;
     border-radius: 50%;
     background: var(--accent, #e15b37);
-    border: 2px solid #fff;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    border: 2px solid var(--paper-strong);
+    box-shadow: var(--shadow-sm);
     cursor: pointer;
   }
 
@@ -924,9 +924,9 @@
   .adv-field input {
     min-height: 2.2rem;
     padding: 0 0.5rem;
-    border: 1px solid rgba(27, 49, 80, 0.14);
+    border: 1px solid var(--line);
     border-radius: var(--radius-md, 12px);
-    background: rgba(255, 255, 255, 0.92);
+    background: var(--surface);
     font-size: 0.85rem;
     font-weight: 600;
     -moz-appearance: textfield;
@@ -957,14 +957,14 @@
     gap: 0;
     border-radius: var(--radius-md, 12px);
     overflow: hidden;
-    border: 1px solid rgba(27, 49, 80, 0.12);
+    border: 1px solid var(--line);
   }
 
   .settings-tab {
     flex: 1;
     padding: 0.45rem 0.5rem;
     border: none;
-    background: rgba(27, 49, 80, 0.04);
+    background: var(--hover);
     font-size: 0.78rem;
     font-weight: 700;
     color: var(--muted, #8a95a5);
@@ -975,12 +975,12 @@
   }
 
   .settings-tab + .settings-tab {
-    border-left: 1px solid rgba(27, 49, 80, 0.12);
+    border-left: 1px solid var(--line);
   }
 
   .settings-tab.active {
     background: var(--accent, #e15b37);
-    color: #fff;
+    color: var(--on-accent);
   }
 
   /* Bass Player Anxiety score */
@@ -991,8 +991,8 @@
     gap: 0.35rem;
     padding: 0.5rem 0.65rem;
     border-radius: var(--radius-md, 12px);
-    background: rgba(27, 49, 80, 0.03);
-    border: 1px solid rgba(27, 49, 80, 0.06);
+    background: var(--hover);
+    border: 1px solid var(--line);
   }
 
   .roadie-label {
@@ -1053,13 +1053,13 @@
 
   .save-set-btn:hover,
   .save-set-btn:active {
-    background: rgba(225, 91, 55, 0.12);
+    background: var(--accent-soft);
   }
 
   .save-set-btn.secondary {
     flex: 1;
-    border-color: rgba(27, 49, 80, 0.18);
-    background: rgba(27, 49, 80, 0.06);
+    border-color: var(--line-strong);
+    background: var(--hover);
     color: var(--ink);
     font-weight: 700;
     font-size: 0.85rem;
@@ -1067,7 +1067,7 @@
 
   .save-set-btn.secondary:hover,
   .save-set-btn.secondary:active {
-    background: rgba(27, 49, 80, 0.12);
+    background: var(--line);
   }
 
   .save-set-btn.secondary:active {
@@ -1077,30 +1077,30 @@
   .saved-badge {
     font-size: 0.82rem;
     font-weight: 700;
-    color: #1f8f61;
+    color: var(--success);
     white-space: nowrap;
     padding: 0.4rem 0.75rem;
-    border: 1.5px solid #1f8f6140;
+    border: 1.5px solid color-mix(in srgb, var(--success) 25%, transparent);
     border-radius: var(--radius-md, 12px);
-    background: rgba(31, 143, 97, 0.08);
+    background: color-mix(in srgb, var(--success) 8%, transparent);
   }
 
   .locked-badge {
     font-size: 0.82rem;
     font-weight: 700;
-    color: #1f8f61;
+    color: var(--success);
     white-space: nowrap;
     padding: 0.4rem 0.75rem;
-    border: 1.5px solid #1f8f6140;
+    border: 1.5px solid color-mix(in srgb, var(--success) 25%, transparent);
     border-radius: var(--radius-md, 12px);
-    background: rgba(31, 143, 97, 0.08);
+    background: color-mix(in srgb, var(--success) 8%, transparent);
   }
 
   /* Confirm dialog */
   .confirm-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(30, 38, 52, 0.35);
+    background: var(--overlay);
     backdrop-filter: blur(4px);
     display: grid;
     place-items: center;
@@ -1115,7 +1115,7 @@
     background: var(--paper-strong, #fff);
     border: 1px solid var(--line);
     border-radius: var(--radius-xl, 16px);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow);
     display: grid;
     gap: 0.75rem;
     animation: pop-in 200ms ease;
@@ -1158,12 +1158,12 @@
 
   .confirm-btn.proceed {
     background: var(--accent, #e15b37);
-    color: #fff;
+    color: var(--on-accent);
   }
 
   .confirm-btn.optimize {
     background: var(--ink, #182230);
-    color: #fff;
+    color: var(--on-ink);
   }
 
   .confirm-actions-stacked {
@@ -1176,7 +1176,7 @@
   .add-song-btn {
     background: var(--line, rgba(27, 49, 80, 0.08));
     color: var(--ink, #182230);
-    border: 1px dashed rgba(27, 49, 80, 0.2);
+    border: 1px dashed var(--line-strong);
   }
 
   .add-song-dialog {
@@ -1213,7 +1213,7 @@
     padding: 0.55rem 0.75rem;
     border: 1px solid var(--line, rgba(27, 49, 80, 0.08));
     border-radius: var(--radius-md, 12px);
-    background: rgba(255, 255, 255, 0.92);
+    background: var(--surface);
     font-size: 0.88rem;
     font-weight: 600;
     color: var(--ink, #182230);
@@ -1222,7 +1222,7 @@
   }
 
   .add-song-item:active:not(:disabled) {
-    background: rgba(225, 91, 55, 0.06);
+    background: var(--accent-soft);
   }
 
   .add-song-item.in-setlist {
@@ -1256,9 +1256,9 @@
 
   /* ---- Onboarding card ---- */
   .onboarding-card {
-    border: 1px solid rgba(27, 49, 80, 0.1);
+    border: 1px solid var(--line);
     border-radius: var(--radius-lg, 16px);
-    background: rgba(255, 255, 255, 0.85);
+    background: var(--paper);
     padding: 1.25rem 1rem;
     display: grid;
     gap: 0.65rem;
@@ -1301,8 +1301,8 @@
     gap: 0.6rem;
     padding: 0.55rem 0.7rem;
     border-radius: var(--radius-md, 12px);
-    background: rgba(27, 49, 80, 0.04);
-    border: 1px solid rgba(27, 49, 80, 0.06);
+    background: var(--hover);
+    border: 1px solid var(--line);
   }
 
   .onboarding-steps li.done {
@@ -1319,13 +1319,13 @@
     flex-shrink: 0;
     border-radius: 50%;
     background: var(--accent, #e15b37);
-    color: #fff;
+    color: var(--on-accent);
     font-size: 0.75rem;
     font-weight: 800;
   }
 
   .onboarding-steps li.done .step-icon {
-    background: #1f8f61;
+    background: var(--success);
   }
 
   .step-text {
@@ -1352,7 +1352,7 @@
   }
 
   .step-link:hover {
-    color: #c94020;
+    color: var(--accent-strong);
   }
 
   .step-hint {
@@ -1367,7 +1367,7 @@
     color: var(--muted, #8a95a5);
     line-height: 1.4;
     padding: 0.5rem 0.7rem;
-    background: rgba(27, 49, 80, 0.03);
+    background: var(--hover);
     border-radius: var(--radius-md, 12px);
     border-left: 3px solid var(--accent, #e15b37);
   }
@@ -1393,7 +1393,7 @@
   }
 
   .help-toggle:hover {
-    color: #c94020;
+    color: var(--accent-strong);
   }
 
   /* ---- Idle nudge (ready but nothing rolled) ---- */
@@ -1411,8 +1411,8 @@
     width: 100px;
     height: 100px;
     border-radius: 18px;
-    background: rgba(225, 91, 55, 0.06);
-    border: 2px solid rgba(225, 91, 55, 0.10);
+    background: var(--accent-soft);
+    border: 2px solid var(--accent-line);
     animation: idle-float 3s ease-in-out infinite;
   }
 
@@ -1421,7 +1421,7 @@
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: rgba(225, 91, 55, 0.15);
+    background: var(--accent-line);
     transform: translate(-50%, -50%);
   }
 

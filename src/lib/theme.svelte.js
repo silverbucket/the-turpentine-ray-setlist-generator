@@ -1,0 +1,52 @@
+const STORAGE_KEY = "setlist-roller-theme";
+const PREFS = ["system", "light", "dark"];
+const mq = window.matchMedia("(prefers-color-scheme: dark)");
+
+function readPref() {
+  const v = localStorage.getItem(STORAGE_KEY);
+  return PREFS.includes(v) ? v : "system";
+}
+
+function resolve(pref) {
+  if (pref === "dark" || pref === "light") return pref;
+  return mq.matches ? "dark" : "light";
+}
+
+function apply(eff) {
+  document.documentElement.dataset.theme = eff;
+}
+
+let preference = $state(readPref());
+let effective = $state(resolve(preference));
+
+apply(effective);
+
+mq.addEventListener("change", () => {
+  if (preference === "system") {
+    effective = resolve("system");
+    apply(effective);
+  }
+});
+
+export function getThemePreference() {
+  return preference;
+}
+
+export function getEffectiveTheme() {
+  return effective;
+}
+
+export function setThemePreference(pref) {
+  if (!PREFS.includes(pref)) return;
+  preference = pref;
+  effective = resolve(pref);
+  localStorage.setItem(STORAGE_KEY, pref);
+  apply(effective);
+}
+
+export function cycleTheme() {
+  const i = PREFS.indexOf(preference);
+  const next = PREFS[(i + 1) % PREFS.length];
+  setThemePreference(next);
+  return next;
+}

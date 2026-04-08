@@ -27,6 +27,19 @@
     --success: #1f8f61;
     --danger: #992f20;
 
+    /* Semantic */
+    --surface: rgba(255, 255, 255, 0.92);
+    --overlay: rgba(30, 38, 52, 0.28);
+    --on-accent: #fff;
+    --on-ink: #fff;
+    --hover: rgba(0, 0, 0, 0.04);
+    --hover-strong: rgba(0, 0, 0, 0.08);
+    --toast-bg: #1b3150;
+    --toast-fg: #fff;
+    --toast-danger: #992f20;
+    --toast-warning: #7a5c10;
+    --warning-soft: rgba(255, 160, 40, 0.12);
+
     /* Shadows */
     --shadow: 0 24px 60px rgba(27, 39, 58, 0.12);
     --shadow-soft: 0 14px 32px rgba(27, 39, 58, 0.08);
@@ -54,6 +67,44 @@
     --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+:root[data-theme="dark"] {
+    color: #e2e6ec;
+    background:
+        radial-gradient(circle at top left, rgba(232, 118, 74, 0.08), transparent 28%),
+        radial-gradient(circle at 85% 12%, rgba(76, 117, 244, 0.06), transparent 24%),
+        linear-gradient(180deg, #14171e 0%, #181c24 52%, #1a1f28 100%);
+
+    --paper: rgba(30, 35, 44, 0.82);
+    --paper-strong: rgba(26, 30, 38, 0.96);
+    --paper-soft: rgba(22, 26, 33, 0.92);
+    --ink: #e2e6ec;
+    --muted: #8a95a8;
+    --accent: #e8764a;
+    --accent-strong: #f08860;
+    --accent-soft: rgba(232, 118, 74, 0.15);
+    --accent-line: rgba(232, 118, 74, 0.28);
+    --line: rgba(200, 215, 240, 0.12);
+    --line-strong: rgba(200, 215, 240, 0.18);
+    --success: #34b87a;
+    --danger: #e05545;
+
+    --surface: rgba(38, 43, 54, 0.92);
+    --overlay: rgba(0, 0, 0, 0.5);
+    --on-accent: #fff;
+    --on-ink: #1a1e26;
+    --hover: rgba(255, 255, 255, 0.06);
+    --hover-strong: rgba(255, 255, 255, 0.1);
+    --toast-bg: #e2e6ec;
+    --toast-fg: #1a1e26;
+    --toast-danger: #e05545;
+    --toast-warning: #d4a32c;
+    --warning-soft: rgba(212, 163, 44, 0.15);
+
+    --shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+    --shadow-soft: 0 14px 32px rgba(0, 0, 0, 0.3);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
 * {
     box-sizing: border-box;
 }
@@ -76,6 +127,7 @@ input,
 select,
 textarea {
     font: inherit;
+    color: inherit;
 }
 
 button {
