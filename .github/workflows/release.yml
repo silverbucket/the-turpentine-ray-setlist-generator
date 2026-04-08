@@ -57,8 +57,7 @@ jobs:
           git remote add 5apps git@5apps.com:silverbucket_setlist-roller.git 2>/dev/null || git remote set-url 5apps git@5apps.com:silverbucket_setlist-roller.git
           git add package.json dist -f
           git commit -m "deploy v${{ steps.version.outputs.version }}"
-          SPLIT_SHA=$(git subtree split --prefix=dist)
-          git push 5apps "$SPLIT_SHA":refs/heads/master --force
+          git push 5apps HEAD:refs/heads/master --force
 
       - name: Tag and push version
         run: |
