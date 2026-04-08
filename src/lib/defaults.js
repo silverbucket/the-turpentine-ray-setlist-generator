@@ -7,8 +7,8 @@ const DEFAULT_CONFIG_TEMPLATE = {
         count: 9,
         beamWidth: 512,
         limits: {
-            covers: 0,
-            instrumentals: 0
+            covers: -1,
+            instrumentals: -1
         },
         order: {
             first: [
