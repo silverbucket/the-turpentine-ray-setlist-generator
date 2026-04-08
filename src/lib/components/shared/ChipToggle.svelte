@@ -15,8 +15,8 @@
         min-height: 2.4rem;
         padding: 0.4rem 0.75rem;
         border-radius: 999px;
-        background: rgba(246,248,252,0.95);
-        border: 1px solid rgba(27, 49, 80, 0.1);
+        background: var(--paper-soft);
+        border: 1px solid var(--line);
         color: var(--ink, #182230);
         font-size: 0.85rem;
         font-weight: 600;

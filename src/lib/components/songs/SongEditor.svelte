@@ -1,8 +1,8 @@
 <script>
     import { getContext } from "svelte";
+    import { ALL_KEYS, MAJOR_KEYS, MINOR_KEYS } from "../../keys.js";
     import ChipToggle from "../shared/ChipToggle.svelte";
     import NumberStepper from "../shared/NumberStepper.svelte";
-    import { MAJOR_KEYS, MINOR_KEYS, ALL_KEYS } from "../../keys.js";
 
     const store = getContext("app");
     let isNonCanonicalKey = $derived(store.editorSong?.key && !ALL_KEYS.includes(store.editorSong.key));
@@ -488,10 +488,10 @@
         gap: 0.5rem;
         padding: 0.6rem 0.75rem;
         padding-top: calc(env(safe-area-inset-top, 0px) + 0.6rem);
-        background: rgba(255, 255, 255, 0.96);
+        background: var(--paper-strong);
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
-        border-bottom: 1px solid rgba(27, 49, 80, 0.1);
+        border-bottom: 1px solid var(--line);
         min-height: 48px;
         flex-shrink: 0;
     }
@@ -513,7 +513,7 @@
     }
 
     .back-btn:active {
-        background: rgba(0, 0, 0, 0.06);
+        background: var(--hover-strong);
     }
 
     .editor-title {
@@ -534,7 +534,7 @@
         border-radius: 999px;
         border: none;
         background: var(--accent, #e15b37);
-        color: #fff;
+        color: var(--on-accent);
         font-weight: 700;
         font-size: 0.88rem;
         cursor: pointer;
@@ -564,8 +564,8 @@
         gap: 0.85rem;
         padding: 1rem;
         border-radius: var(--radius-lg, 16px);
-        background: rgba(255, 255, 255, 0.76);
-        border: 1px solid rgba(27, 49, 80, 0.1);
+        background: var(--paper);
+        border: 1px solid var(--line);
     }
 
     .section-heading {
@@ -589,8 +589,8 @@
         min-height: 2.8rem;
         padding: 0.55rem 0.75rem;
         border-radius: var(--radius-md, 12px);
-        border: 1px solid rgba(27, 49, 80, 0.14);
-        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid var(--line);
+        background: var(--surface);
         font-size: 1rem;
         font: inherit;
         box-sizing: border-box;
@@ -617,8 +617,8 @@
     /* Member cards */
     .member-card {
         border-radius: var(--radius-md, 12px);
-        border: 1px solid rgba(27, 49, 80, 0.1);
-        background: rgba(248, 250, 252, 0.96);
+        border: 1px solid var(--line);
+        background: var(--paper-soft);
         overflow: hidden;
     }
 
@@ -639,7 +639,7 @@
     }
 
     .member-header:active {
-        background: rgba(0, 0, 0, 0.03);
+        background: var(--hover);
     }
 
     .member-name {
@@ -657,14 +657,14 @@
     }
 
     .member-header.has-issue {
-        background: rgba(255, 160, 40, 0.06);
+        background: var(--warning-soft);
     }
 
     .member-issue {
         flex: 1;
         font-size: 0.78rem;
         font-weight: 600;
-        color: #b07020;
+        color: var(--muted);
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -690,8 +690,8 @@
         gap: 0.65rem;
         padding: 0.85rem;
         border-radius: var(--radius-md, 12px);
-        background: rgba(255, 255, 255, 0.8);
-        border: 1px solid rgba(27, 49, 80, 0.08);
+        background: var(--surface);
+        border: 1px solid var(--line);
     }
 
     .instrument-top {
@@ -745,7 +745,7 @@
         border-radius: var(--radius-md, 12px);
         border: none;
         background: var(--ink, #182230);
-        color: #fff;
+        color: var(--on-ink);
         font-size: 0.78rem;
         font-weight: 700;
         cursor: pointer;
@@ -772,7 +772,7 @@
     }
 
     .defaults-hint:hover {
-        color: #c94020;
+        color: var(--accent-strong);
     }
 
     .remove-setup-btn {
@@ -805,7 +805,7 @@
         padding: 0.45rem 0.85rem;
         border-radius: var(--radius-md, 12px);
         border: 1.5px solid var(--accent, #e15b37);
-        background: rgba(225, 91, 55, 0.06);
+        background: var(--accent-soft);
         color: var(--accent, #e15b37);
         font-weight: 700;
         font-size: 0.82rem;
@@ -814,7 +814,7 @@
     }
 
     .add-member-btn:active {
-        background: rgba(225, 91, 55, 0.15);
+        background: var(--accent-line);
     }
 
     /* Buttons */
@@ -822,8 +822,8 @@
         min-height: 2.8rem;
         padding: 0.55rem 1rem;
         border-radius: var(--radius-md, 12px);
-        border: 1px solid rgba(27, 49, 80, 0.14);
-        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid var(--line);
+        background: var(--surface);
         font-weight: 600;
         font-size: 0.88rem;
         cursor: pointer;
@@ -832,7 +832,7 @@
     }
 
     .secondary-btn:active {
-        background: rgba(0, 0, 0, 0.04);
+        background: var(--hover);
     }
 
     .danger-text-btn {
@@ -858,7 +858,7 @@
         border: none;
         border-radius: var(--radius-md, 12px);
         background: var(--danger, #d33);
-        color: #fff;
+        color: var(--on-accent);
         font-weight: 700;
         font-size: 0.88rem;
         cursor: pointer;

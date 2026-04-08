@@ -122,15 +122,15 @@
 
 <style>
   .song-card {
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid rgba(27, 49, 80, 0.1);
+    background: var(--surface);
+    border: 1px solid var(--line);
     border-radius: var(--radius-md, 12px);
     padding: 0.65rem 0.75rem;
     transition: border-color 150ms ease;
   }
 
   .song-card.expanded {
-    border-color: rgba(225, 91, 55, 0.25);
+    border-color: var(--accent-line);
   }
 
   .card-main {
@@ -186,7 +186,7 @@
     font-weight: 700;
     padding: 0.1rem 0.45rem;
     border-radius: 999px;
-    background: rgba(27, 49, 80, 0.07);
+    background: var(--line);
     color: var(--ink, #182230);
   }
 
@@ -238,7 +238,7 @@
     gap: 0.5rem;
     padding-top: 0.5rem;
     margin-top: 0.5rem;
-    border-top: 1px solid rgba(27, 49, 80, 0.08);
+    border-top: 1px solid var(--line);
     padding-left: 1.4rem;
   }
 
@@ -248,9 +248,9 @@
     gap: 0.35rem;
     min-height: 2rem;
     padding: 0.3rem 0.75rem;
-    border: 1px solid rgba(27, 49, 80, 0.14);
+    border: 1px solid var(--line);
     border-radius: var(--radius-md, 12px);
-    background: rgba(255, 255, 255, 0.92);
+    background: var(--surface);
     font-size: 0.78rem;
     font-weight: 700;
     color: var(--ink, #182230);
@@ -260,16 +260,16 @@
   }
 
   .edit-btn:active {
-    background: rgba(0, 0, 0, 0.04);
+    background: var(--hover);
   }
 
   .remove-btn {
     color: var(--muted, #8a95a5);
-    border-color: rgba(27, 49, 80, 0.1);
+    border-color: var(--line);
   }
 
   .remove-btn:active {
-    background: rgba(225, 91, 55, 0.06);
+    background: var(--accent-soft);
     color: var(--accent, #e15b37);
   }
 </style>

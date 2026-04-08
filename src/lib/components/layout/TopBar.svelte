@@ -1,8 +1,11 @@
 <script>
   import { getContext } from "svelte";
+  import { cycleTheme, getThemePreference } from "../../theme.svelte.js";
+
   const store = getContext("app");
 
   let menuOpen = $state(false);
+  const themeLabel = { system: "◐ System", light: "☀ Light", dark: "☽ Dark" };
 
   function toggleMenu() {
     menuOpen = !menuOpen;
@@ -51,6 +54,7 @@
         <div class="dropdown">
           <button class="dropdown-item" onclick={handleExport}>Export Data</button>
           <button class="dropdown-item" onclick={handleImport}>Import Data</button>
+          <button class="dropdown-item" onclick={cycleTheme}>Theme: {themeLabel[getThemePreference()]}</button>
           <button class="dropdown-item dropdown-item--danger" onclick={handleDisconnect}>Disconnect</button>
         </div>
       {/if}
@@ -95,13 +99,13 @@
   }
 
   .conn-dot.connected {
-    background: #1f8f61;
-    box-shadow: 0 0 4px rgba(31, 143, 97, 0.4);
+    background: var(--success);
+    box-shadow: 0 0 4px color-mix(in srgb, var(--success) 40%, transparent);
   }
 
   .conn-dot.syncing {
     background: var(--accent);
-    box-shadow: 0 0 6px rgba(225, 91, 55, 0.4);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 40%, transparent);
     animation: dot-pulse 1s ease-in-out infinite;
   }
 

@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint": "biome check src/",
+    "lint:fix": "biome check --fix src/"
   },
   "dependencies": {
     "remotestoragejs": "^2.0.0-beta.8",
@@ -16,6 +18,7 @@
     "svelte": "^5.28.2"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.4.10",
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
     "vite": "^6.2.4",
     "vitest": "^3.2.4"

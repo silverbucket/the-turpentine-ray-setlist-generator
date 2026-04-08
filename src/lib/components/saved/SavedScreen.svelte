@@ -322,8 +322,8 @@
 
   .saved-card {
     border-radius: var(--radius-lg, 16px);
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid rgba(27, 49, 80, 0.1);
+    background: var(--surface);
+    border: 1px solid var(--line);
     padding: 0.75rem;
     display: grid;
     gap: 0.4rem;
@@ -390,8 +390,8 @@
   }
 
   .card-btn.load {
-    background: linear-gradient(140deg, #e15b37 0%, #c94020 100%);
-    color: #fff;
+    background: linear-gradient(140deg, var(--accent) 0%, var(--accent-strong) 100%);
+    color: var(--on-accent);
   }
 
   .action-spacer {
@@ -412,31 +412,31 @@
 
   .card-btn.confirm-delete {
     background: var(--danger, #b91c1c);
-    color: #fff;
+    color: var(--on-accent);
     font-size: 0.72rem;
   }
 
   .card-btn.cancel-delete {
-    background: rgba(27, 49, 80, 0.06);
+    background: var(--hover);
     color: var(--muted, #8a95a5);
     font-size: 0.72rem;
   }
 
   .card-btn.edit {
-    background: rgba(27, 49, 80, 0.06);
+    background: var(--hover);
     color: var(--ink, #182230);
-    border: 1px solid rgba(27, 49, 80, 0.12);
+    border: 1px solid var(--line);
   }
 
   .card-btn.save {
     background: #1f8f61;
-    color: #fff;
+    color: var(--on-accent);
   }
 
   .card-btn.cancel {
-    background: rgba(27, 49, 80, 0.06);
+    background: var(--hover);
     color: var(--muted, #8a95a5);
-    border: 1px solid rgba(27, 49, 80, 0.1);
+    border: 1px solid var(--line);
   }
 
   .edit-form {
@@ -448,9 +448,9 @@
     width: 100%;
     min-height: 2.2rem;
     padding: 0.4rem 0.6rem;
-    border: 1px solid rgba(27, 49, 80, 0.18);
+    border: 1px solid var(--line-strong);
     border-radius: var(--radius-md, 12px);
-    background: #fff;
+    background: var(--paper-strong);
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--ink, #182230);
@@ -490,9 +490,9 @@
     max-height: calc(100vh - 2rem);
     max-height: calc(100dvh - 2rem);
     overflow-y: auto;
-    background: #fff;
+    background: var(--paper-strong);
     border-radius: var(--radius-xl, 20px);
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+    box-shadow: var(--shadow);
     display: grid;
     gap: 0;
     animation: pop-in 200ms ease;
@@ -503,9 +503,9 @@
     top: 0.5rem;
     right: 0.5rem;
     border: none;
-    background: rgba(0, 0, 0, 0.05);
+    background: var(--hover);
     font-size: 1.3rem;
-    color: #666;
+    color: var(--muted);
     cursor: pointer;
     line-height: 1;
     padding: 0;
@@ -519,7 +519,7 @@
   }
 
   .modal-close:active {
-    background: rgba(0, 0, 0, 0.1);
+    background: var(--hover-strong);
   }
 
   /* ---- Print-friendly setlist (black & white) ---- */
@@ -651,13 +651,13 @@
     display: flex;
     gap: 0.5rem;
     padding: 0.5rem 0.75rem 0.75rem;
-    border-top: 1px solid rgba(27, 49, 80, 0.08);
+    border-top: 1px solid var(--line);
   }
 
   .modal-btn {
     flex: 1;
     min-height: 2.4rem;
-    border: 1.5px solid rgba(27, 49, 80, 0.15);
+    border: 1.5px solid var(--line);
     border-radius: var(--radius-md, 12px);
     background: transparent;
     color: var(--ink, #182230);
@@ -673,8 +673,8 @@
   }
 
   .modal-btn.primary {
-    background: linear-gradient(140deg, #e15b37 0%, #c94020 100%);
-    color: #fff;
+    background: linear-gradient(140deg, var(--accent) 0%, var(--accent-strong) 100%);
+    color: var(--on-accent);
     border-color: transparent;
   }
 

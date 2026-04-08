@@ -17,10 +17,10 @@ export function normalizeValue(value) {
 
 export function displayValue(value) {
     if (value === undefined || value === null || value === "") return "default";
-    if (Array.isArray(value)) return value.length === 0 ? "default" : value.join(", ");
+    if (Array.isArray(value))
+        return value.length === 0 ? "default" : value.join(", ");
     return String(value);
 }
-
 
 // ---------------------------------------------------------------------------
 // Full detection (with notes — used for finalization / display)
@@ -37,7 +37,7 @@ export function displayValue(value) {
 export function detectInstrumentSetChange(prevPerf, nextPerf) {
     const members = new Set([
         ...Object.keys(prevPerf),
-        ...Object.keys(nextPerf)
+        ...Object.keys(nextPerf),
     ]);
     const notes = [];
     let magnitude = 0;
@@ -53,7 +53,9 @@ export function detectInstrumentSetChange(prevPerf, nextPerf) {
         }
         if (prev.instrument !== next.instrument) {
             magnitude += 1;
-            notes.push(`${member} instrument ${prev.instrument} -> ${next.instrument}`);
+            notes.push(
+                `${member} instrument ${prev.instrument} -> ${next.instrument}`,
+            );
         }
     }
 
@@ -74,7 +76,7 @@ export function detectInstrumentSetChange(prevPerf, nextPerf) {
 export function detectFieldChange(prevPerf, nextPerf, field, scaleByDelta) {
     const allMembers = new Set([
         ...Object.keys(prevPerf),
-        ...Object.keys(nextPerf)
+        ...Object.keys(nextPerf),
     ]);
     const notes = [];
     let magnitude = 0;
@@ -100,12 +102,13 @@ export function detectFieldChange(prevPerf, nextPerf, field, scaleByDelta) {
         if (!amount) continue;
 
         magnitude += amount;
-        notes.push(`${member} ${field} ${displayValue(prevValue)} -> ${displayValue(nextValue)}`);
+        notes.push(
+            `${member} ${field} ${displayValue(prevValue)} -> ${displayValue(nextValue)}`,
+        );
     }
 
     return { changed: magnitude > 0, magnitude, notes };
 }
-
 
 // ---------------------------------------------------------------------------
 // Lite detection (no notes — used during beam search for speed)
@@ -121,11 +124,18 @@ export function detectInstrumentSetChangeLite(prevPerf, nextPerf) {
 
     for (let i = 0; i < prevKeys.length; i++) {
         const m = prevKeys[i];
-        if (!nextPerf[m]) { magnitude += 1; continue; }
-        if (prevPerf[m].instrument !== nextPerf[m].instrument) { magnitude += 1; }
+        if (!nextPerf[m]) {
+            magnitude += 1;
+            continue;
+        }
+        if (prevPerf[m].instrument !== nextPerf[m].instrument) {
+            magnitude += 1;
+        }
     }
     for (let i = 0; i < nextKeys.length; i++) {
-        if (!prevPerf[nextKeys[i]]) { magnitude += 1; }
+        if (!prevPerf[nextKeys[i]]) {
+            magnitude += 1;
+        }
     }
 
     return { changed: magnitude > 0, magnitude };
@@ -137,7 +147,7 @@ export function detectInstrumentSetChangeLite(prevPerf, nextPerf) {
 export function detectFieldChangeLite(prevPerf, nextPerf, field, scaleByDelta) {
     let magnitude = 0;
     const prevKeys = Object.keys(prevPerf);
-    const nextKeys = Object.keys(nextPerf);
+    const _nextKeys = Object.keys(nextPerf);
 
     // Check members in prev
     for (let i = 0; i < prevKeys.length; i++) {
@@ -148,7 +158,9 @@ export function detectFieldChangeLite(prevPerf, nextPerf, field, scaleByDelta) {
         const left = normalizeValue(prevValue);
         const right = normalizeValue(nextValue);
         if (left === right) continue;
-        const amount = scaleByDelta ? Math.abs((Number(prevValue) || 0) - (Number(nextValue) || 0)) : 1;
+        const amount = scaleByDelta
+            ? Math.abs((Number(prevValue) || 0) - (Number(nextValue) || 0))
+            : 1;
         if (!amount) continue;
         magnitude += amount;
     }
@@ -158,7 +170,6 @@ export function detectFieldChangeLite(prevPerf, nextPerf, field, scaleByDelta) {
 
     return { changed: magnitude > 0, magnitude };
 }
-
 
 // ---------------------------------------------------------------------------
 // Prop kind inference

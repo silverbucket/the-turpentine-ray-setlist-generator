@@ -1,5 +1,14 @@
-import { describe, it, expect } from "vitest";
-import { parseKey, keyDistance, fifthsPosition, fifthsDirection, scoreKeyTransition, MAJOR_KEYS, MINOR_KEYS, ALL_KEYS } from "./keys.js";
+import { describe, expect, it } from "vitest";
+import {
+    ALL_KEYS,
+    fifthsDirection,
+    fifthsPosition,
+    keyDistance,
+    MAJOR_KEYS,
+    MINOR_KEYS,
+    parseKey,
+    scoreKeyTransition,
+} from "./keys.js";
 
 describe("parseKey", () => {
     it("parses major keys", () => {
@@ -66,12 +75,12 @@ describe("keyDistance", () => {
     });
 
     it("returns correct distance for further keys", () => {
-        expect(keyDistance("C", "D")).toBe(2);   // two fifths
-        expect(keyDistance("C", "A")).toBe(3);   // three fifths
-        expect(keyDistance("C", "E")).toBe(4);   // four fifths
-        expect(keyDistance("C", "B")).toBe(5);   // five fifths
-        expect(keyDistance("C", "F#")).toBe(6);  // tritone (max distance)
-        expect(keyDistance("C", "Gb")).toBe(6);  // tritone via enharmonic
+        expect(keyDistance("C", "D")).toBe(2); // two fifths
+        expect(keyDistance("C", "A")).toBe(3); // three fifths
+        expect(keyDistance("C", "E")).toBe(4); // four fifths
+        expect(keyDistance("C", "B")).toBe(5); // five fifths
+        expect(keyDistance("C", "F#")).toBe(6); // tritone (max distance)
+        expect(keyDistance("C", "Gb")).toBe(6); // tritone via enharmonic
     });
 
     it("is symmetric", () => {
@@ -173,7 +182,7 @@ describe("scoreKeyTransition", () => {
     it("adds reversal penalty when direction flips", () => {
         // Both G→D and G→C are 1 fifth apart (distance 1), but G→C reverses direction
         const noReversal = scoreKeyTransition("G", "D", 1, 4); // continues clockwise, dist 1
-        const reversal = scoreKeyTransition("G", "C", 1, 4);   // reverses counterclockwise, dist 1
+        const reversal = scoreKeyTransition("G", "C", 1, 4); // reverses counterclockwise, dist 1
         // Same distance, so the difference is purely the reversal penalty (weight * 1.5 = 6)
         expect(reversal.score - noReversal.score).toBe(6);
     });

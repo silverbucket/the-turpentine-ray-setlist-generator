@@ -1,14 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-    normalizeValue,
-    displayValue,
-    detectInstrumentSetChange,
     detectFieldChange,
-    detectInstrumentSetChangeLite,
     detectFieldChangeLite,
-    inferPropKind
+    detectInstrumentSetChange,
+    detectInstrumentSetChangeLite,
+    displayValue,
+    inferPropKind,
+    normalizeValue,
 } from "./detection.js";
-
 
 // ===================================================================
 // normalizeValue
@@ -39,7 +38,6 @@ describe("normalizeValue", () => {
     });
 });
 
-
 // ===================================================================
 // displayValue
 // ===================================================================
@@ -64,14 +62,19 @@ describe("displayValue", () => {
     });
 });
 
-
 // ===================================================================
 // detectInstrumentSetChange (full)
 // ===================================================================
 describe("detectInstrumentSetChange", () => {
     it("no change when instruments stay the same", () => {
-        const prev = { nick: { instrument: "banjo" }, mark: { instrument: "guitar" } };
-        const next = { nick: { instrument: "banjo" }, mark: { instrument: "guitar" } };
+        const prev = {
+            nick: { instrument: "banjo" },
+            mark: { instrument: "guitar" },
+        };
+        const next = {
+            nick: { instrument: "banjo" },
+            mark: { instrument: "guitar" },
+        };
         const r = detectInstrumentSetChange(prev, next);
         expect(r.changed).toBe(false);
         expect(r.magnitude).toBe(0);
@@ -88,21 +91,33 @@ describe("detectInstrumentSetChange", () => {
     });
 
     it("detects member appearing", () => {
-        const r = detectInstrumentSetChange({}, { nick: { instrument: "banjo" } });
+        const r = detectInstrumentSetChange(
+            {},
+            { nick: { instrument: "banjo" } },
+        );
         expect(r.changed).toBe(true);
         expect(r.magnitude).toBe(1);
         expect(r.notes[0]).toContain("on/off");
     });
 
     it("detects member disappearing", () => {
-        const r = detectInstrumentSetChange({ nick: { instrument: "banjo" } }, {});
+        const r = detectInstrumentSetChange(
+            { nick: { instrument: "banjo" } },
+            {},
+        );
         expect(r.changed).toBe(true);
         expect(r.magnitude).toBe(1);
     });
 
     it("counts each member independently", () => {
-        const prev = { nick: { instrument: "banjo" }, mark: { instrument: "guitar" } };
-        const next = { nick: { instrument: "guitar" }, mark: { instrument: "bass" } };
+        const prev = {
+            nick: { instrument: "banjo" },
+            mark: { instrument: "guitar" },
+        };
+        const next = {
+            nick: { instrument: "guitar" },
+            mark: { instrument: "bass" },
+        };
         const r = detectInstrumentSetChange(prev, next);
         expect(r.magnitude).toBe(2);
     });
@@ -114,7 +129,6 @@ describe("detectInstrumentSetChange", () => {
         expect(r.magnitude).toBe(2); // nick disappears, mark appears
     });
 });
-
 
 // ===================================================================
 // detectInstrumentSetChangeLite
@@ -132,30 +146,35 @@ describe("detectInstrumentSetChangeLite", () => {
     it("detects instrument swap", () => {
         const r = detectInstrumentSetChangeLite(
             { nick: { instrument: "banjo" } },
-            { nick: { instrument: "guitar" } }
+            { nick: { instrument: "guitar" } },
         );
         expect(r.magnitude).toBe(1);
     });
 
     it("detects member appearing", () => {
-        const r = detectInstrumentSetChangeLite({}, { nick: { instrument: "banjo" } });
+        const r = detectInstrumentSetChangeLite(
+            {},
+            { nick: { instrument: "banjo" } },
+        );
         expect(r.magnitude).toBe(1);
     });
 
     it("detects member disappearing", () => {
-        const r = detectInstrumentSetChangeLite({ nick: { instrument: "banjo" } }, {});
+        const r = detectInstrumentSetChangeLite(
+            { nick: { instrument: "banjo" } },
+            {},
+        );
         expect(r.magnitude).toBe(1);
     });
 
     it("counts both directions", () => {
         const r = detectInstrumentSetChangeLite(
             { nick: { instrument: "banjo" } },
-            { mark: { instrument: "guitar" } }
+            { mark: { instrument: "guitar" } },
         );
         expect(r.magnitude).toBe(2);
     });
 });
-
 
 // ===================================================================
 // detectFieldChange (full)
@@ -221,7 +240,6 @@ describe("detectFieldChange", () => {
     });
 });
 
-
 // ===================================================================
 // detectFieldChangeLite
 // ===================================================================
@@ -230,7 +248,8 @@ describe("detectFieldChangeLite", () => {
         const r = detectFieldChangeLite(
             { mark: { tuning: "DADDAD" } },
             { mark: { tuning: "Standard" } },
-            "tuning", false
+            "tuning",
+            false,
         );
         expect(r.changed).toBe(true);
         expect(r.magnitude).toBe(1);
@@ -241,7 +260,8 @@ describe("detectFieldChangeLite", () => {
         const r = detectFieldChangeLite(
             { mark: { tuning: "Standard" } },
             { mark: { tuning: "Standard" } },
-            "tuning", false
+            "tuning",
+            false,
         );
         expect(r.changed).toBe(false);
     });
@@ -250,7 +270,8 @@ describe("detectFieldChangeLite", () => {
         const r = detectFieldChangeLite(
             { nick: { picking: ["slide", "picking"] } },
             { nick: { picking: ["picking", "slide"] } },
-            "picking", false
+            "picking",
+            false,
         );
         expect(r.changed).toBe(false);
     });
@@ -259,7 +280,8 @@ describe("detectFieldChangeLite", () => {
         const r = detectFieldChangeLite(
             { nick: { capo: 0 } },
             { nick: { capo: 4 } },
-            "capo", true
+            "capo",
+            true,
         );
         expect(r.magnitude).toBe(4);
     });
@@ -268,12 +290,12 @@ describe("detectFieldChangeLite", () => {
         const r = detectFieldChangeLite(
             { mark: { tuning: "Standard" } },
             { nick: { tuning: "Open G" } },
-            "tuning", false
+            "tuning",
+            false,
         );
         expect(r.changed).toBe(false);
     });
 });
-
 
 // ===================================================================
 // inferPropKind
