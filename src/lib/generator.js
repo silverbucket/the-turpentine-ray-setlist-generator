@@ -257,14 +257,14 @@ class SetList {
         const normalized = merge({
             count: this._config.general?.count || 15,
             beamWidth: this._config.general?.beamWidth || 20,
-            maxCovers: limits.covers || 2,
-            maxInstrumentals: limits.instrumentals || 2
+            maxCovers: limits.covers ?? 0,
+            maxInstrumentals: limits.instrumentals ?? 0
         }, options || {});
 
         normalized.count = clampInteger(normalized.count, this._config.general?.count || 15, 1);
         normalized.beamWidth = clampInteger(normalized.beamWidth, this._config.general?.beamWidth || 20, 1);
-        normalized.maxCovers = clampInteger(normalized.maxCovers, limits.covers || 2, 0);
-        normalized.maxInstrumentals = clampInteger(normalized.maxInstrumentals, limits.instrumentals || 2, 0);
+        normalized.maxCovers = clampInteger(normalized.maxCovers, limits.covers ?? 0, 0);
+        normalized.maxInstrumentals = clampInteger(normalized.maxInstrumentals, limits.instrumentals ?? 0, 0);
         normalized.show = deepMerge(this._config.show || {}, normalized.show || {});
         return normalized;
     }
@@ -979,10 +979,10 @@ class SetList {
         const nextCoverCount = state.coverCount + (song.cover ? 1 : 0);
         const nextInstrumentalCount = state.instrumentalCount + (song.instrumental ? 1 : 0);
 
-        if (nextCoverCount > this._options.maxCovers) {
+        if (this._options.maxCovers > 0 && nextCoverCount > this._options.maxCovers) {
             return null;
         }
-        if (nextInstrumentalCount > this._options.maxInstrumentals) {
+        if (this._options.maxInstrumentals > 0 && nextInstrumentalCount > this._options.maxInstrumentals) {
             return null;
         }
 

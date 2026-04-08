@@ -374,6 +374,22 @@ describe("generateSetlist — cover and instrumental limits", () => {
         expect(instrumentals.length).toBeLessThanOrEqual(1);
     });
 
+    it("maxCovers=0 means no limit", () => {
+        const songs = Array.from({ length: 10 }, (_, i) =>
+            makeSong(`Song ${i + 1}`, { cover: true })
+        );
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 10, maxCovers: 0 }));
+        expect(result.songs.length).toBe(10);
+    });
+
+    it("maxInstrumentals=0 means no limit", () => {
+        const songs = Array.from({ length: 10 }, (_, i) =>
+            makeSong(`Song ${i + 1}`, { instrumental: true })
+        );
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 10, maxInstrumentals: 0 }));
+        expect(result.songs.length).toBe(10);
+    });
+
     it("all covers with maxCovers=1 produces exactly 1 song", () => {
         const songs = Array.from({ length: 5 }, (_, i) =>
             makeSong(`Cover ${i + 1}`, { cover: true })
