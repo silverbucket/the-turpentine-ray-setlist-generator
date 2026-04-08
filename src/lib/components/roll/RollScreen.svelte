@@ -1,6 +1,7 @@
 <script>
   import { getContext } from "svelte";
   import { anxietyLabel } from "../../anxiety.js";
+  import { DEFAULT_DIE_COLOR, darkenHex, hexToRgb } from "../../utils.js";
   import ChipToggle from "../shared/ChipToggle.svelte";
   import NumberStepper from "../shared/NumberStepper.svelte";
   import SetlistSongCard from "./SetlistSongCard.svelte";
@@ -36,6 +37,11 @@
     }
     prevGenerating = generating;
   });
+
+  // ---- Die color ----
+  let pipColor = $derived(store.appConfig?.ui?.dieColor || DEFAULT_DIE_COLOR);
+  let pipColorDark = $derived(darkenHex(pipColor, 0.78));
+  let pipColorRgb = $derived(hexToRgb(pipColor));
 
   // Dice pip layouts: [x, y] positions on a 0-1 grid for each face value
   const PIP_LAYOUTS = {
@@ -179,13 +185,13 @@
           onchange={(v) => store.updateGenerationField("count", v)}
         />
       </div>
-      <button type="button" class="roll-btn" class:rolling={store.isGenerating} class:landed class:disabled={!readyToRoll} disabled={!readyToRoll} onclick={handleRoll} aria-label="Roll setlist">
+      <button type="button" class="roll-btn" class:rolling={store.isGenerating} class:landed class:disabled={!readyToRoll} disabled={!readyToRoll} onclick={handleRoll} aria-label="Roll setlist" style="--btn-color: {pipColor}; --btn-color-dark: {pipColorDark}; --btn-rgb: {pipColorRgb};">
         <span class="dice-container" class:rolling={store.isGenerating}>
           <svg aria-hidden="true" class="dice-svg" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
             <rect x="3" y="3" width="50" height="50" rx="10" ry="10"
               fill="#fff" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
             {#each PIP_LAYOUTS[diceValue] as [px, py]}
-              <circle cx={6 + px * 44} cy={6 + py * 44} r="4.5" fill="#e15b37"/>
+              <circle cx={6 + px * 44} cy={6 + py * 44} r="4.5" fill={pipColor}/>
             {/each}
           </svg>
         </span>
@@ -363,6 +369,7 @@
           </div>
         {/each}
       {/if}
+
     </div>
   </details>
   </div>
@@ -395,7 +402,7 @@
   <!-- Ready to roll but nothing rolled yet -->
   {#if readyToRoll && !store.generatedSetlist}
     <div class="idle-nudge">
-      <div class="idle-die-face">
+      <div class="idle-die-face" style="--pip-rgb: {pipColorRgb};">
         {#each PIP_LAYOUTS[5] as [px, py]}
           <span class="idle-pip" style="left:{px * 100}%;top:{py * 100}%"></span>
         {/each}
@@ -569,13 +576,13 @@
     padding: 0 0.8rem;
     border: none;
     border-radius: 14px;
-    background: linear-gradient(140deg, #e15b37 0%, #c94020 100%);
+    background: linear-gradient(140deg, var(--btn-color) 0%, var(--btn-color-dark) 100%);
     color: #fff;
     cursor: pointer;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
     box-shadow:
-      0 4px 12px rgba(225, 91, 55, 0.35),
+      0 4px 12px rgba(var(--btn-rgb), 0.35),
       inset 0 1px 0 rgba(255, 255, 255, 0.18);
     transition: transform 120ms ease, box-shadow 120ms ease;
     overflow: hidden;
@@ -584,7 +591,7 @@
   .roll-btn:hover {
     transform: translateY(-2px);
     box-shadow:
-      0 8px 24px rgba(225, 91, 55, 0.4),
+      0 8px 24px rgba(var(--btn-rgb), 0.4),
       inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
 
@@ -598,13 +605,13 @@
   .roll-btn:active:not(.rolling) {
     transform: scale(0.97);
     box-shadow:
-      0 2px 6px rgba(225, 91, 55, 0.25),
+      0 2px 6px rgba(var(--btn-rgb), 0.25),
       inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
 
   .roll-btn.rolling {
     pointer-events: none;
-    background: linear-gradient(140deg, #d4502e 0%, #b83818 100%);
+    background: linear-gradient(140deg, var(--btn-color-dark) 0%, var(--btn-color-dark) 100%);
   }
 
   .roll-btn.landed {
@@ -622,8 +629,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 34px;
+    height: 34px;
     flex-shrink: 0;
     filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
     transition: transform 150ms ease;
@@ -631,8 +638,8 @@
 
   @media (min-width: 400px) {
     .dice-container {
-      width: 36px;
-      height: 36px;
+      width: 44px;
+      height: 44px;
     }
   }
 
@@ -1455,8 +1462,8 @@
     width: 100px;
     height: 100px;
     border-radius: 18px;
-    background: rgba(225, 91, 55, 0.06);
-    border: 2px solid rgba(225, 91, 55, 0.10);
+    background: rgba(var(--pip-rgb), 0.06);
+    border: 2px solid rgba(var(--pip-rgb), 0.10);
     animation: idle-float 3s ease-in-out infinite;
   }
 
@@ -1465,7 +1472,7 @@
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: rgba(225, 91, 55, 0.15);
+    background: rgba(var(--pip-rgb), 0.15);
     transform: translate(-50%, -50%);
   }
 
@@ -1482,5 +1489,6 @@
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-8px); }
   }
+
 
 </style>

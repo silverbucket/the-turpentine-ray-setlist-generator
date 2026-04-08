@@ -109,6 +109,7 @@ export function createDefaultAppConfig({ bandName = "", seedConfig = DEFAULT_CON
         schemaVersion: SCHEMA_VERSION,
         createdAt: timestamp,
         updatedAt: timestamp,
+        ui: { dieColor: null },
         ...baseConfig,
     };
 }
@@ -169,6 +170,16 @@ export function normalizeAppConfig(config) {
     delete normalized.band?.members;
     delete normalized.show?.members;
     delete normalized.catalog;
+
+    // Validate ui.dieColor if present
+    normalized.ui =
+        normalized.ui && typeof normalized.ui === "object" && !Array.isArray(normalized.ui)
+            ? normalized.ui
+            : { dieColor: null };
+    if (normalized.ui.dieColor != null && !/^#[0-9a-fA-F]{6}$/.test(normalized.ui.dieColor)) {
+        normalized.ui.dieColor = null;
+    }
+
     return normalized;
 }
 

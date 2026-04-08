@@ -114,3 +114,32 @@ export function tryParseJson(text, fallback) {
         return fallback;
     }
 }
+
+export const DEFAULT_DIE_COLOR = "#e15b37";
+
+function parseHexChannel(hex, offset) {
+    const v = parseInt(hex.slice(offset, offset + 2), 16);
+    return Number.isFinite(v) ? v : 0;
+}
+
+function clampByte(v) {
+    return Math.min(255, Math.max(0, Math.round(v)));
+}
+
+export function hexToRgb(hex) {
+    if (typeof hex !== "string" || !/^#[0-9a-fA-F]{6}$/.test(hex)) {
+        return hexToRgb(DEFAULT_DIE_COLOR);
+    }
+    return `${parseHexChannel(hex, 1)}, ${parseHexChannel(hex, 3)}, ${parseHexChannel(hex, 5)}`;
+}
+
+export function darkenHex(hex, factor) {
+    if (typeof hex !== "string" || !/^#[0-9a-fA-F]{6}$/.test(hex)) {
+        return darkenHex(DEFAULT_DIE_COLOR, factor);
+    }
+    const f = Number.isFinite(factor) ? Math.min(1, Math.max(0, factor)) : 1;
+    const r = clampByte(parseHexChannel(hex, 1) * f);
+    const g = clampByte(parseHexChannel(hex, 3) * f);
+    const b = clampByte(parseHexChannel(hex, 5) * f);
+    return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+}
