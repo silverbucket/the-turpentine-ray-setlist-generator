@@ -230,7 +230,7 @@
               <input
                 type="checkbox"
                 checked={store.generationOptions.maxCovers < 0}
-                onchange={(e) => store.updateGenerationField("maxCovers", e.currentTarget.checked ? -1 : (store.appConfig?.general?.limits?.covers ?? 2))}
+                onchange={(e) => store.updateGenerationField("maxCovers", e.currentTarget.checked ? -1 : Math.max(0, store.appConfig?.general?.limits?.covers ?? 2))}
               />
               <span>No limit</span>
             </label>
@@ -249,7 +249,7 @@
               <input
                 type="checkbox"
                 checked={store.generationOptions.maxInstrumentals < 0}
-                onchange={(e) => store.updateGenerationField("maxInstrumentals", e.currentTarget.checked ? -1 : (store.appConfig?.general?.limits?.instrumentals ?? 2))}
+                onchange={(e) => store.updateGenerationField("maxInstrumentals", e.currentTarget.checked ? -1 : Math.max(0, store.appConfig?.general?.limits?.instrumentals ?? 2))}
               />
               <span>No limit</span>
             </label>
