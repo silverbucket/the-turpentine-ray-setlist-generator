@@ -21,12 +21,17 @@ let effective = $state(resolve(preference));
 
 apply(effective);
 
-mq.addEventListener("change", () => {
+function onSystemChange() {
   if (preference === "system") {
     effective = resolve("system");
     apply(effective);
   }
-});
+}
+
+mq.addEventListener("change", onSystemChange);
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => mq.removeEventListener("change", onSystemChange));
+}
 
 export function getThemePreference() {
   return preference;
@@ -40,7 +45,7 @@ export function setThemePreference(pref) {
   if (!PREFS.includes(pref)) return;
   preference = pref;
   effective = resolve(pref);
-  localStorage.setItem(STORAGE_KEY, pref);
+  try { localStorage.setItem(STORAGE_KEY, pref); } catch {}
   apply(effective);
 }
 
