@@ -7,9 +7,10 @@
     import RollScreen from "./lib/components/roll/RollScreen.svelte";
     import SavedScreen from "./lib/components/saved/SavedScreen.svelte";
     import SongsScreen from "./lib/components/songs/SongsScreen.svelte";
+    import { generateDieSvgString, updatePwaIcons } from "./lib/pwa-icon.js";
     import { createRemoteStorageRepository } from "./lib/remotestorage.js";
     import { createAppStore } from "./lib/stores/app.svelte.js";
-    import { DEFAULT_DIE_COLOR, darkenHex, hexToRgb } from "./lib/utils.js";
+    import { DEFAULT_DIE_COLOR, hexToRgb } from "./lib/utils.js";
 
     const repo = createRemoteStorageRepository();
     const store = createAppStore(repo);
@@ -23,25 +24,12 @@
     let dieColorRgb = $derived(hexToRgb(dieColor));
 
     let faviconHref = $derived(
-        `data:image/svg+xml,${encodeURIComponent(
-            `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">` +
-            `<path fill="${dieColor}" d="M256 66L420.5 161 256 256 91.5 161Z"/>` +
-            `<path fill="${darkenHex(dieColor, 0.78)}" d="M91.5 161L256 256 256 446 91.5 351Z"/>` +
-            `<path fill="${darkenHex(dieColor, 0.62)}" d="M256 256L420.5 161 420.5 351 256 446Z"/>` +
-            `<path fill="none" stroke="#000" stroke-width="2.5" stroke-opacity=".1" stroke-linejoin="round" d="M256 66L420.5 161 420.5 351 256 446 91.5 351 91.5 161Z"/>` +
-            `<path stroke="#000" stroke-width="2" stroke-opacity=".08" d="M256 256L91.5 161M256 256L420.5 161M256 256L256 446"/>` +
-            `<ellipse cx="256" cy="113.5" rx="18" ry="10" fill="#fff"/>` +
-            `<ellipse cx="338.25" cy="161" rx="18" ry="10" fill="#fff"/>` +
-            `<ellipse cx="256" cy="161" rx="18" ry="10" fill="#fff"/>` +
-            `<ellipse cx="173.75" cy="161" rx="18" ry="10" fill="#fff"/>` +
-            `<ellipse cx="256" cy="208.5" rx="18" ry="10" fill="#fff"/>` +
-            `<ellipse cx="132.6" cy="232" rx="13" ry="16" fill="#ebebeb"/>` +
-            `<ellipse cx="173.8" cy="303" rx="13" ry="16" fill="#ebebeb"/>` +
-            `<ellipse cx="214.9" cy="374" rx="13" ry="16" fill="#ebebeb"/>` +
-            `<ellipse cx="338.3" cy="303" rx="13" ry="16" fill="#d9d9d9"/>` +
-            `</svg>`
-        )}`
+        `data:image/svg+xml,${encodeURIComponent(generateDieSvgString(dieColor))}`
     );
+
+    $effect(() => {
+        void updatePwaIcons(dieColor).catch((e) => console.error("PWA icon update failed", e));
+    });
 </script>
 
 <svelte:head>
