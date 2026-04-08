@@ -211,8 +211,8 @@
         width: 72px;
         height: 72px;
         border-radius: 14px;
-        background: rgba(var(--die-rgb), 0.06);
-        border: 2px solid rgba(var(--die-rgb), 0.12);
+        background: var(--accent-soft);
+        border: 2px solid var(--accent-line);
         animation: pulse-fade 2s ease-in-out infinite;
     }
 
@@ -221,7 +221,7 @@
         width: 10px;
         height: 10px;
         border-radius: 50%;
-        background: rgba(var(--die-rgb), 0.18);
+        background: var(--accent-line);
         transform: translate(-50%, -50%);
     }
 
@@ -280,7 +280,7 @@
         padding: 0.7rem 0.85rem;
         border-radius: var(--radius-md);
         border: 1px solid var(--line);
-        background: rgba(255,255,255,0.92);
+        background: var(--surface);
         color: var(--ink);
         font-size: 0.95rem;
         transition: border-color 140ms ease, box-shadow 140ms ease;
@@ -289,7 +289,7 @@
     input:focus {
         outline: none;
         border-color: var(--accent-line);
-        box-shadow: 0 0 0 0.2rem rgba(225, 91, 55, 0.12);
+        box-shadow: 0 0 0 0.2rem var(--accent-soft);
     }
 
     /* ---- Buttons ---- */
@@ -301,7 +301,7 @@
         padding: 0.7rem 1rem;
         border-radius: var(--radius-md);
         border: 1px solid transparent;
-        background: rgba(255,255,255,0.84);
+        background: var(--surface);
         color: var(--ink);
         font-weight: 800;
         font-size: 0.95rem;
@@ -316,9 +316,9 @@
     }
 
     .btn.primary {
-        color: #fff;
+        color: var(--on-accent);
         background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-        border-color: rgba(0,0,0,0.04);
+        border-color: var(--hover);
     }
 
     .btn:disabled {
@@ -338,7 +338,7 @@
         display: grid;
         place-items: center;
         padding: var(--space-4);
-        background: rgba(30, 38, 52, 0.28);
+        background: var(--overlay);
         backdrop-filter: blur(8px);
         z-index: 50;
     }
@@ -391,7 +391,7 @@
         width: 0.85rem;
         height: 0.85rem;
         border-radius: 999px;
-        border: 2px solid rgba(225, 91, 55, 0.2);
+        border: 2px solid var(--accent-soft);
         border-top-color: var(--accent);
         animation: spin 0.8s linear infinite;
         flex-shrink: 0;
@@ -408,8 +408,8 @@
         font-size: 0.78rem;
         font-weight: 600;
         text-align: center;
-        color: #fff;
-        background: #1b3150;
+        color: var(--toast-fg);
+        background: var(--toast-bg);
         border: none;
         border-radius: 0 0 var(--radius-md, 12px) var(--radius-md, 12px);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -422,13 +422,13 @@
     }
 
     .toast-pill.danger {
-        background: #992f20;
-        color: #fff;
+        background: var(--toast-danger);
+        color: var(--toast-fg);
     }
 
     .toast-pill.warning {
-        background: #7a5c10;
-        color: #fff;
+        background: var(--toast-warning);
+        color: var(--toast-fg);
     }
 
     @keyframes spin {

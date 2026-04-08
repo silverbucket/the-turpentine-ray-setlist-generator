@@ -354,7 +354,11 @@ class SetList {
             if (allowed.length >= 2) {
                 const min = memberShow.minSongsPerInstrument ?? 2;
                 for (const inst of allowed) {
-                    constraints.instruments.push({ member: memberName, instrument: inst, min });
+                    constraints.instruments.push({
+                        member: memberName,
+                        instrument: inst,
+                        min,
+                    });
                 }
             }
 
@@ -364,7 +368,12 @@ class SetList {
                 if (tunings.length >= 2) {
                     const min = minPerTuning[instName] ?? 2;
                     for (const tuning of tunings) {
-                        constraints.tunings.push({ member: memberName, instrument: instName, tuning, min });
+                        constraints.tunings.push({
+                            member: memberName,
+                            instrument: instName,
+                            tuning,
+                            min,
+                        });
                     }
                 }
             }
@@ -518,7 +527,10 @@ class SetList {
             instruments: { ...remainingPotentialCounts.instruments },
             tunings: { ...remainingPotentialCounts.tunings },
         };
-        const capabilities = this._minimumPotentialBySongId[songId] || { instruments: [], tunings: [] };
+        const capabilities = this._minimumPotentialBySongId[songId] || {
+            instruments: [],
+            tunings: [],
+        };
 
         capabilities.instruments.forEach((key) => {
             next.instruments[key] = Math.max(0, (next.instruments[key] || 0) - 1);
@@ -689,7 +701,9 @@ class SetList {
             changeTotals: zeroMap(this._propNames),
             usageCounts: { instruments: {}, tunings: {} },
             remainingPotentialCounts: {
-                instruments: { ...(this._minimumPotentialTotals?.instruments || {}) },
+                instruments: {
+                    ...(this._minimumPotentialTotals?.instruments || {}),
+                },
                 tunings: { ...(this._minimumPotentialTotals?.tunings || {}) },
             },
             keyFifthsDir: 0,

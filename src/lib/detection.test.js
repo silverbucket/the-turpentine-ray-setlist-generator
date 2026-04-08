@@ -67,8 +67,14 @@ describe("displayValue", () => {
 // ===================================================================
 describe("detectInstrumentSetChange", () => {
     it("no change when instruments stay the same", () => {
-        const prev = { nick: { instrument: "banjo" }, mark: { instrument: "guitar" } };
-        const next = { nick: { instrument: "banjo" }, mark: { instrument: "guitar" } };
+        const prev = {
+            nick: { instrument: "banjo" },
+            mark: { instrument: "guitar" },
+        };
+        const next = {
+            nick: { instrument: "banjo" },
+            mark: { instrument: "guitar" },
+        };
         const r = detectInstrumentSetChange(prev, next);
         expect(r.changed).toBe(false);
         expect(r.magnitude).toBe(0);
@@ -98,8 +104,14 @@ describe("detectInstrumentSetChange", () => {
     });
 
     it("counts each member independently", () => {
-        const prev = { nick: { instrument: "banjo" }, mark: { instrument: "guitar" } };
-        const next = { nick: { instrument: "guitar" }, mark: { instrument: "bass" } };
+        const prev = {
+            nick: { instrument: "banjo" },
+            mark: { instrument: "guitar" },
+        };
+        const next = {
+            nick: { instrument: "guitar" },
+            mark: { instrument: "bass" },
+        };
         const r = detectInstrumentSetChange(prev, next);
         expect(r.magnitude).toBe(2);
     });

@@ -142,7 +142,14 @@ function twoTuningCatalog(count, memberName = "nick") {
         makeSong(`Song ${i + 1}`, {
             members: {
                 [memberName]: {
-                    instruments: [{ name: "guitar", tuning: ["Standard", "DADGAD"], capo: 0, picking: [] }],
+                    instruments: [
+                        {
+                            name: "guitar",
+                            tuning: ["Standard", "DADGAD"],
+                            capo: 0,
+                            picking: [],
+                        },
+                    ],
                 },
             },
         }),
@@ -156,8 +163,18 @@ function scarceInstrumentCatalog(memberName = "nick") {
             members: {
                 [memberName]: {
                     instruments: [
-                        { name: "guitar", tuning: ["Standard"], capo: 0, picking: [] },
-                        { name: "banjo", tuning: ["Open G"], capo: 0, picking: [] },
+                        {
+                            name: "guitar",
+                            tuning: ["Standard"],
+                            capo: 0,
+                            picking: [],
+                        },
+                        {
+                            name: "banjo",
+                            tuning: ["Open G"],
+                            capo: 0,
+                            picking: [],
+                        },
                     ],
                 },
             },
@@ -166,8 +183,18 @@ function scarceInstrumentCatalog(memberName = "nick") {
             members: {
                 [memberName]: {
                     instruments: [
-                        { name: "guitar", tuning: ["Standard"], capo: 0, picking: [] },
-                        { name: "banjo", tuning: ["Open G"], capo: 0, picking: [] },
+                        {
+                            name: "guitar",
+                            tuning: ["Standard"],
+                            capo: 0,
+                            picking: [],
+                        },
+                        {
+                            name: "banjo",
+                            tuning: ["Open G"],
+                            capo: 0,
+                            picking: [],
+                        },
                     ],
                 },
             },
@@ -176,7 +203,14 @@ function scarceInstrumentCatalog(memberName = "nick") {
             makeSong(`Song ${String.fromCharCode(67 + i)}`, {
                 members: {
                     [memberName]: {
-                        instruments: [{ name: "guitar", tuning: ["Standard"], capo: 0, picking: [] }],
+                        instruments: [
+                            {
+                                name: "guitar",
+                                tuning: ["Standard"],
+                                capo: 0,
+                                picking: [],
+                            },
+                        ],
                     },
                 },
             }),
@@ -190,14 +224,28 @@ function scarceTuningCatalog(memberName = "nick") {
         makeSong("Song A", {
             members: {
                 [memberName]: {
-                    instruments: [{ name: "guitar", tuning: ["Standard", "DADGAD"], capo: 0, picking: [] }],
+                    instruments: [
+                        {
+                            name: "guitar",
+                            tuning: ["Standard", "DADGAD"],
+                            capo: 0,
+                            picking: [],
+                        },
+                    ],
                 },
             },
         }),
         makeSong("Song B", {
             members: {
                 [memberName]: {
-                    instruments: [{ name: "guitar", tuning: ["Standard", "DADGAD"], capo: 0, picking: [] }],
+                    instruments: [
+                        {
+                            name: "guitar",
+                            tuning: ["Standard", "DADGAD"],
+                            capo: 0,
+                            picking: [],
+                        },
+                    ],
                 },
             },
         }),
@@ -205,7 +253,14 @@ function scarceTuningCatalog(memberName = "nick") {
             makeSong(`Song ${String.fromCharCode(67 + i)}`, {
                 members: {
                     [memberName]: {
-                        instruments: [{ name: "guitar", tuning: ["Standard"], capo: 0, picking: [] }],
+                        instruments: [
+                            {
+                                name: "guitar",
+                                tuning: ["Standard"],
+                                capo: 0,
+                                picking: [],
+                            },
+                        ],
                     },
                 },
             }),
@@ -234,7 +289,14 @@ function overlappingInstrumentCatalog(memberName = "nick", instrumentCount = 32)
             makeSong(`Fixed Song ${index + 1}`, {
                 members: {
                     [memberName]: {
-                        instruments: [{ name: instrumentNames[0], tuning: sharedTuning, capo: 0, picking: [] }],
+                        instruments: [
+                            {
+                                name: instrumentNames[0],
+                                tuning: sharedTuning,
+                                capo: 0,
+                                picking: [],
+                            },
+                        ],
                     },
                 },
             }),
@@ -249,16 +311,46 @@ function anxietyPressureCatalog() {
             members: {
                 mark: {
                     instruments: [
-                        { name: "guitar", tuning: ["Standard"], capo: 0, picking: [] },
-                        { name: "guitar", tuning: ["DADDAD"], capo: 0, picking: [] },
-                        { name: "mandolin", tuning: ["Standard"], capo: 0, picking: [] },
+                        {
+                            name: "guitar",
+                            tuning: ["Standard"],
+                            capo: 0,
+                            picking: [],
+                        },
+                        {
+                            name: "guitar",
+                            tuning: ["DADDAD"],
+                            capo: 0,
+                            picking: [],
+                        },
+                        {
+                            name: "mandolin",
+                            tuning: ["Standard"],
+                            capo: 0,
+                            picking: [],
+                        },
                     ],
                 },
                 nick: {
                     instruments: [
-                        { name: "banjo", tuning: ["Open G"], capo: 0, picking: ["picking"] },
-                        { name: "banjo", tuning: ["Open D"], capo: 0, picking: ["clawhammer"] },
-                        { name: "guitar", tuning: ["Standard"], capo: 2, picking: ["picking"] },
+                        {
+                            name: "banjo",
+                            tuning: ["Open G"],
+                            capo: 0,
+                            picking: ["picking"],
+                        },
+                        {
+                            name: "banjo",
+                            tuning: ["Open D"],
+                            capo: 0,
+                            picking: ["clawhammer"],
+                        },
+                        {
+                            name: "guitar",
+                            tuning: ["Standard"],
+                            capo: 2,
+                            picking: ["picking"],
+                        },
                     ],
                 },
             },
@@ -383,7 +475,9 @@ describe("generateSetlist — cover and instrumental limits", () => {
 
     it("NaN maxCovers falls back to config default", () => {
         const songs = Array.from({ length: 10 }, (_, i) => makeSong(`Song ${i + 1}`, { cover: true }));
-        const config = makeConfig({ general: { limits: { covers: 1, instrumentals: -1 } } });
+        const config = makeConfig({
+            general: { limits: { covers: 1, instrumentals: -1 } },
+        });
         const result = generateSetlist(songs, config, deterministicOptions({ count: 10, maxCovers: NaN }));
         const covers = result.songs.filter((s) => s.cover);
         expect(covers.length).toBeLessThanOrEqual(1);
@@ -421,7 +515,11 @@ describe("generateSetlist — position rules", () => {
     it("avoids notGoodOpener in first position (across seeds)", () => {
         const songs = [
             makeSong("Opener", { notGoodOpener: true }),
-            ...simpleCatalog(14).map((s, i) => ({ ...s, id: `other-${i}`, name: `Other ${i + 1}` })),
+            ...simpleCatalog(14).map((s, i) => ({
+                ...s,
+                id: `other-${i}`,
+                name: `Other ${i + 1}`,
+            })),
         ];
         const config = makeConfig();
         let openerFirst = 0;
@@ -436,7 +534,11 @@ describe("generateSetlist — position rules", () => {
     it("avoids notGoodCloser in last position (across seeds)", () => {
         const songs = [
             makeSong("Closer", { notGoodCloser: true }),
-            ...simpleCatalog(14).map((s, i) => ({ ...s, id: `other-${i}`, name: `Other ${i + 1}` })),
+            ...simpleCatalog(14).map((s, i) => ({
+                ...s,
+                id: `other-${i}`,
+                name: `Other ${i + 1}`,
+            })),
         ];
         const config = makeConfig();
         let closerLast = 0;
@@ -452,7 +554,11 @@ describe("generateSetlist — position rules", () => {
         const songs = [
             makeSong("Cover 1", { cover: true }),
             makeSong("Cover 2", { cover: true }),
-            ...simpleCatalog(13).map((s, i) => ({ ...s, id: `other-${i}`, name: `Other ${i + 1}` })),
+            ...simpleCatalog(13).map((s, i) => ({
+                ...s,
+                id: `other-${i}`,
+                name: `Other ${i + 1}`,
+            })),
         ];
         const config = makeConfig();
         let coverEarly = 0;
@@ -478,7 +584,14 @@ describe("generateSetlist — variant expansion", () => {
             makeSong("Tune", {
                 members: {
                     nick: {
-                        instruments: [{ name: "banjo", tuning: ["Open G"], capo: 0, picking: ["clawhammer"] }],
+                        instruments: [
+                            {
+                                name: "banjo",
+                                tuning: ["Open G"],
+                                capo: 0,
+                                picking: ["clawhammer"],
+                            },
+                        ],
                     },
                 },
             }),
@@ -510,7 +623,16 @@ describe("generateSetlist — variant expansion", () => {
         const songs = [
             makeSong("Only Banjo", {
                 members: {
-                    nick: { instruments: [{ name: "banjo", tuning: ["Open G"], capo: 0, picking: [] }] },
+                    nick: {
+                        instruments: [
+                            {
+                                name: "banjo",
+                                tuning: ["Open G"],
+                                capo: 0,
+                                picking: [],
+                            },
+                        ],
+                    },
                 },
             }),
             makeSong("Filler"),
@@ -535,10 +657,32 @@ describe("generateSetlist — change detection", () => {
     it("detects tuning changes in transition notes", () => {
         const songs = [
             makeSong("Song A", {
-                members: { nick: { instruments: [{ name: "guitar", tuning: ["Standard"], capo: 0, picking: [] }] } },
+                members: {
+                    nick: {
+                        instruments: [
+                            {
+                                name: "guitar",
+                                tuning: ["Standard"],
+                                capo: 0,
+                                picking: [],
+                            },
+                        ],
+                    },
+                },
             }),
             makeSong("Song B", {
-                members: { nick: { instruments: [{ name: "guitar", tuning: ["DADGAD"], capo: 0, picking: [] }] } },
+                members: {
+                    nick: {
+                        instruments: [
+                            {
+                                name: "guitar",
+                                tuning: ["DADGAD"],
+                                capo: 0,
+                                picking: [],
+                            },
+                        ],
+                    },
+                },
             }),
         ];
         const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 2 }));
@@ -553,14 +697,28 @@ describe("generateSetlist — change detection", () => {
             makeSong("Song A", {
                 members: {
                     nick: {
-                        instruments: [{ name: "guitar", tuning: ["Standard"], capo: 0, picking: ["slide", "picking"] }],
+                        instruments: [
+                            {
+                                name: "guitar",
+                                tuning: ["Standard"],
+                                capo: 0,
+                                picking: ["slide", "picking"],
+                            },
+                        ],
                     },
                 },
             }),
             makeSong("Song B", {
                 members: {
                     nick: {
-                        instruments: [{ name: "guitar", tuning: ["Standard"], capo: 0, picking: ["picking", "slide"] }],
+                        instruments: [
+                            {
+                                name: "guitar",
+                                tuning: ["Standard"],
+                                capo: 0,
+                                picking: ["picking", "slide"],
+                            },
+                        ],
                     },
                 },
             }),
@@ -575,7 +733,18 @@ describe("generateSetlist — change detection", () => {
         const songs = [
             makeSong("Song A", { members: {} }),
             makeSong("Song B", {
-                members: { nick: { instruments: [{ name: "banjo", tuning: ["Open G"], capo: 0, picking: [] }] } },
+                members: {
+                    nick: {
+                        instruments: [
+                            {
+                                name: "banjo",
+                                tuning: ["Open G"],
+                                capo: 0,
+                                picking: [],
+                            },
+                        ],
+                    },
+                },
             }),
         ];
         const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 2 }));
@@ -586,7 +755,18 @@ describe("generateSetlist — change detection", () => {
     it("detects member disappearing as instrument set change", () => {
         const songs = [
             makeSong("Song A", {
-                members: { nick: { instruments: [{ name: "banjo", tuning: ["Open G"], capo: 0, picking: [] }] } },
+                members: {
+                    nick: {
+                        instruments: [
+                            {
+                                name: "banjo",
+                                tuning: ["Open G"],
+                                capo: 0,
+                                picking: [],
+                            },
+                        ],
+                    },
+                },
             }),
             makeSong("Song B", { members: {} }),
         ];
@@ -598,10 +778,32 @@ describe("generateSetlist — change detection", () => {
     it("capo change magnitude reflects numeric delta", () => {
         const songs = [
             makeSong("Song A", {
-                members: { nick: { instruments: [{ name: "guitar", tuning: ["Standard"], capo: 0, picking: [] }] } },
+                members: {
+                    nick: {
+                        instruments: [
+                            {
+                                name: "guitar",
+                                tuning: ["Standard"],
+                                capo: 0,
+                                picking: [],
+                            },
+                        ],
+                    },
+                },
             }),
             makeSong("Song B", {
-                members: { nick: { instruments: [{ name: "guitar", tuning: ["Standard"], capo: 3, picking: [] }] } },
+                members: {
+                    nick: {
+                        instruments: [
+                            {
+                                name: "guitar",
+                                tuning: ["Standard"],
+                                capo: 3,
+                                picking: [],
+                            },
+                        ],
+                    },
+                },
             }),
         ];
         const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 2 }));
@@ -770,8 +972,18 @@ describe("generateSetlist — minSongsPerInstrument", () => {
                 members: {
                     nick: {
                         instruments: [
-                            { name: "guitar", tuning: ["Standard"], capo: 0, picking: [] },
-                            { name: "banjo", tuning: ["Open G"], capo: 0, picking: [] },
+                            {
+                                name: "guitar",
+                                tuning: ["Standard"],
+                                capo: 0,
+                                picking: [],
+                            },
+                            {
+                                name: "banjo",
+                                tuning: ["Open G"],
+                                capo: 0,
+                                picking: [],
+                            },
                         ],
                     },
                 },
@@ -780,7 +992,14 @@ describe("generateSetlist — minSongsPerInstrument", () => {
                 makeSong(`Song ${i + 2}`, {
                     members: {
                         nick: {
-                            instruments: [{ name: "guitar", tuning: ["Standard"], capo: 0, picking: [] }],
+                            instruments: [
+                                {
+                                    name: "guitar",
+                                    tuning: ["Standard"],
+                                    capo: 0,
+                                    picking: [],
+                                },
+                            ],
                         },
                     },
                 }),
@@ -969,12 +1188,26 @@ describe("scoreFixedOrder", () => {
             {
                 id: "1",
                 name: "A",
-                performance: { nick: { instrument: "guitar", tuning: "Standard", capo: 0, picking: [] } },
+                performance: {
+                    nick: {
+                        instrument: "guitar",
+                        tuning: "Standard",
+                        capo: 0,
+                        picking: [],
+                    },
+                },
             },
             {
                 id: "2",
                 name: "B",
-                performance: { nick: { instrument: "guitar", tuning: "DADGAD", capo: 0, picking: [] } },
+                performance: {
+                    nick: {
+                        instrument: "guitar",
+                        tuning: "DADGAD",
+                        capo: 0,
+                        picking: [],
+                    },
+                },
             },
         ];
         const result = scoreFixedOrder(songs, config);
@@ -984,7 +1217,14 @@ describe("scoreFixedOrder", () => {
     });
 
     it("scores identical songs as 0", () => {
-        const perf = { nick: { instrument: "guitar", tuning: "Standard", capo: 0, picking: [] } };
+        const perf = {
+            nick: {
+                instrument: "guitar",
+                tuning: "Standard",
+                capo: 0,
+                picking: [],
+            },
+        };
         const songs = [
             { id: "1", name: "A", performance: perf },
             { id: "2", name: "B", performance: perf },
@@ -999,12 +1239,26 @@ describe("scoreFixedOrder", () => {
             {
                 id: "1",
                 name: "A",
-                performance: { nick: { instrument: "guitar", tuning: "Standard", capo: 0, picking: [] } },
+                performance: {
+                    nick: {
+                        instrument: "guitar",
+                        tuning: "Standard",
+                        capo: 0,
+                        picking: [],
+                    },
+                },
             },
             {
                 id: "2",
                 name: "B",
-                performance: { nick: { instrument: "guitar", tuning: "DADGAD", capo: 0, picking: [] } },
+                performance: {
+                    nick: {
+                        instrument: "guitar",
+                        tuning: "DADGAD",
+                        capo: 0,
+                        picking: [],
+                    },
+                },
             },
         ];
         const result = scoreFixedOrder(songs, config);
@@ -1018,14 +1272,24 @@ describe("scoreFixedOrder", () => {
                 id: "1",
                 name: "A",
                 performance: {
-                    nick: { instrument: "guitar", tuning: "Standard", capo: 0, picking: ["slide", "picking"] },
+                    nick: {
+                        instrument: "guitar",
+                        tuning: "Standard",
+                        capo: 0,
+                        picking: ["slide", "picking"],
+                    },
                 },
             },
             {
                 id: "2",
                 name: "B",
                 performance: {
-                    nick: { instrument: "guitar", tuning: "Standard", capo: 0, picking: ["picking", "slide"] },
+                    nick: {
+                        instrument: "guitar",
+                        tuning: "Standard",
+                        capo: 0,
+                        picking: ["picking", "slide"],
+                    },
                 },
             },
         ];
@@ -1038,12 +1302,26 @@ describe("scoreFixedOrder", () => {
             {
                 id: "1",
                 name: "A",
-                performance: { nick: { instrument: "guitar", tuning: "Standard", capo: 0, picking: [] } },
+                performance: {
+                    nick: {
+                        instrument: "guitar",
+                        tuning: "Standard",
+                        capo: 0,
+                        picking: [],
+                    },
+                },
             },
             {
                 id: "2",
                 name: "B",
-                performance: { nick: { instrument: "banjo", tuning: "Open G", capo: 0, picking: ["clawhammer"] } },
+                performance: {
+                    nick: {
+                        instrument: "banjo",
+                        tuning: "Open G",
+                        capo: 0,
+                        picking: ["clawhammer"],
+                    },
+                },
             },
         ];
         const result = scoreFixedOrder(songs, config);
@@ -1055,13 +1333,27 @@ describe("scoreFixedOrder", () => {
             {
                 id: "1",
                 name: "A",
-                performance: { nick: { instrument: "banjo", tuning: "Open G", capo: 0, picking: [] } },
+                performance: {
+                    nick: {
+                        instrument: "banjo",
+                        tuning: "Open G",
+                        capo: 0,
+                        picking: [],
+                    },
+                },
             },
             { id: "2", name: "B", performance: {} },
             {
                 id: "3",
                 name: "C",
-                performance: { nick: { instrument: "banjo", tuning: "Open G", capo: 0, picking: [] } },
+                performance: {
+                    nick: {
+                        instrument: "banjo",
+                        tuning: "Open G",
+                        capo: 0,
+                        picking: [],
+                    },
+                },
             },
         ];
         const result = scoreFixedOrder(songs, config);
@@ -1072,7 +1364,14 @@ describe("scoreFixedOrder", () => {
     });
 
     it("includes key flow scoring when options.keyFlow is true", () => {
-        const perf = { nick: { instrument: "guitar", tuning: "Standard", capo: 0, picking: [] } };
+        const perf = {
+            nick: {
+                instrument: "guitar",
+                tuning: "Standard",
+                capo: 0,
+                picking: [],
+            },
+        };
         const songs = [
             { id: "1", name: "A", key: "C", performance: perf },
             { id: "2", name: "B", key: "F#", performance: perf },
@@ -1104,7 +1403,11 @@ describe("generateSetlist — edge cases", () => {
         const result = generateSetlist(
             songs,
             makeConfig(),
-            deterministicOptions({ count: 5, maxCovers: 5, maxInstrumentals: 5 }),
+            deterministicOptions({
+                count: 5,
+                maxCovers: 5,
+                maxInstrumentals: 5,
+            }),
         );
         expect(result.songs.length).toBeGreaterThan(0);
     });
@@ -1112,7 +1415,18 @@ describe("generateSetlist — edge cases", () => {
     it("handles mixed catalog — some songs with members, some without", () => {
         const songs = [
             makeSong("With Members", {
-                members: { nick: { instruments: [{ name: "guitar", tuning: ["Standard"], capo: 0, picking: [] }] } },
+                members: {
+                    nick: {
+                        instruments: [
+                            {
+                                name: "guitar",
+                                tuning: ["Standard"],
+                                capo: 0,
+                                picking: [],
+                            },
+                        ],
+                    },
+                },
             }),
             makeSong("Without Members"),
             makeSong("Also Without"),
@@ -1183,7 +1497,16 @@ describe("buildDefaultPerformance", () => {
     it("returns performance for a song with members", () => {
         const song = makeSong("Tune", {
             members: {
-                nick: { instruments: [{ name: "guitar", tuning: ["Standard"], capo: 0, picking: ["pick"] }] },
+                nick: {
+                    instruments: [
+                        {
+                            name: "guitar",
+                            tuning: ["Standard"],
+                            capo: 0,
+                            picking: ["pick"],
+                        },
+                    ],
+                },
             },
         });
         const perf = buildDefaultPerformance(song);
@@ -1200,9 +1523,22 @@ describe("buildDefaultPerformance", () => {
 
     it("returns empty object when show constraints filter all instruments", () => {
         const song = makeSong("Filtered", {
-            members: { nick: { instruments: [{ name: "banjo", tuning: ["Open G"], capo: 0, picking: [] }] } },
+            members: {
+                nick: {
+                    instruments: [
+                        {
+                            name: "banjo",
+                            tuning: ["Open G"],
+                            capo: 0,
+                            picking: [],
+                        },
+                    ],
+                },
+            },
         });
-        const perf = buildDefaultPerformance(song, { members: { nick: { allowedInstruments: ["guitar"] } } });
+        const perf = buildDefaultPerformance(song, {
+            members: { nick: { allowedInstruments: ["guitar"] } },
+        });
         expect(perf).toEqual({});
     });
 });
@@ -1210,7 +1546,16 @@ describe("buildDefaultPerformance", () => {
 describe("generateSetlist — key flow", () => {
     function _makeKeySongs() {
         const members = {
-            alice: { instruments: [{ name: "guitar", tuning: ["Standard"], capo: 0, picking: ["flatpick"] }] },
+            alice: {
+                instruments: [
+                    {
+                        name: "guitar",
+                        tuning: ["Standard"],
+                        capo: 0,
+                        picking: ["flatpick"],
+                    },
+                ],
+            },
         };
         return [
             makeSong("Song C", { key: "C", members }),
@@ -1227,7 +1572,16 @@ describe("generateSetlist — key flow", () => {
 
     it("with keyFlow enabled, close keys score lower than distant keys (fixed order)", () => {
         const members = {
-            alice: { instruments: [{ name: "guitar", tuning: ["Standard"], capo: 0, picking: ["flatpick"] }] },
+            alice: {
+                instruments: [
+                    {
+                        name: "guitar",
+                        tuning: ["Standard"],
+                        capo: 0,
+                        picking: ["flatpick"],
+                    },
+                ],
+            },
         };
         const songsClose = [
             makeSong("S1", { key: "C", members }),
@@ -1239,7 +1593,9 @@ describe("generateSetlist — key flow", () => {
             makeSong("S2", { key: "F#", members }),
             makeSong("S3", { key: "B", members }),
         ];
-        const config = makeConfig({ general: { count: 3, weighting: { keyFlow: 4 } } });
+        const config = makeConfig({
+            general: { count: 3, weighting: { keyFlow: 4 } },
+        });
         const ids = ["s1", "s2", "s3"];
         const opts = { seed: 42, keyFlow: true, count: 3, fixedSongIds: ids };
 
@@ -1252,7 +1608,16 @@ describe("generateSetlist — key flow", () => {
 
     it("with keyFlow disabled, key distance has no effect on score", () => {
         const members = {
-            alice: { instruments: [{ name: "guitar", tuning: ["Standard"], capo: 0, picking: ["flatpick"] }] },
+            alice: {
+                instruments: [
+                    {
+                        name: "guitar",
+                        tuning: ["Standard"],
+                        capo: 0,
+                        picking: ["flatpick"],
+                    },
+                ],
+            },
         };
         const songsClose = [
             makeSong("S1", { key: "C", members }),
@@ -1277,7 +1642,16 @@ describe("generateSetlist — key flow", () => {
 
     it("songs without keys are scored neutrally when key flow is enabled", () => {
         const members = {
-            alice: { instruments: [{ name: "guitar", tuning: ["Standard"], capo: 0, picking: ["flatpick"] }] },
+            alice: {
+                instruments: [
+                    {
+                        name: "guitar",
+                        tuning: ["Standard"],
+                        capo: 0,
+                        picking: ["flatpick"],
+                    },
+                ],
+            },
         };
         const songsWithKeys = [
             makeSong("S1", { key: "C", members }),
@@ -1289,7 +1663,9 @@ describe("generateSetlist — key flow", () => {
             makeSong("S2", { key: "", members }),
             makeSong("S3", { key: "", members }),
         ];
-        const config = makeConfig({ general: { count: 3, weighting: { keyFlow: 4 } } });
+        const config = makeConfig({
+            general: { count: 3, weighting: { keyFlow: 4 } },
+        });
         const ids = ["s1", "s2", "s3"];
         const opts = { seed: 42, keyFlow: true, count: 3, fixedSongIds: ids };
 
@@ -1302,9 +1678,25 @@ describe("generateSetlist — key flow", () => {
 
     it("penalizes direction reversals on the circle of fifths", () => {
         const members = {
-            alice: { instruments: [{ name: "guitar", tuning: ["Standard"], capo: 0, picking: ["flatpick"] }] },
+            alice: {
+                instruments: [
+                    {
+                        name: "guitar",
+                        tuning: ["Standard"],
+                        capo: 0,
+                        picking: ["flatpick"],
+                    },
+                ],
+            },
         };
-        const perf = { alice: { instrument: "guitar", tuning: "Standard", capo: 0, picking: "flatpick" } };
+        const perf = {
+            alice: {
+                instrument: "guitar",
+                tuning: "Standard",
+                capo: 0,
+                picking: "flatpick",
+            },
+        };
         // Progressive: C → G → D → A (all clockwise on circle of fifths)
         const progressive = [
             { ...makeSong("S1", { key: "C", members }), performance: perf },
@@ -1319,9 +1711,13 @@ describe("generateSetlist — key flow", () => {
             { ...makeSong("S3", { key: "F", members }), performance: perf },
             { ...makeSong("S4", { key: "D", members }), performance: perf },
         ];
-        const config = makeConfig({ general: { count: 4, weighting: { keyFlow: 4 } } });
+        const config = makeConfig({
+            general: { count: 4, weighting: { keyFlow: 4 } },
+        });
 
-        const progResult = scoreFixedOrder(progressive, config, { keyFlow: true });
+        const progResult = scoreFixedOrder(progressive, config, {
+            keyFlow: true,
+        });
         const zigResult = scoreFixedOrder(zigzag, config, { keyFlow: true });
 
         // Progressive should score lower (better) than zigzag due to no direction reversals

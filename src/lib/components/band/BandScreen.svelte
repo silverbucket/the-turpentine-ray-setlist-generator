@@ -545,7 +545,7 @@
     }
 
     .back-btn:active {
-        background: rgba(0, 0, 0, 0.04);
+        background: var(--hover);
     }
 
     /* Card */
@@ -632,7 +632,7 @@
         padding: 0.6rem 0.9rem;
         border-radius: var(--radius-md, 16px);
         border: 1px solid var(--line, rgba(27, 49, 80, 0.12));
-        background: rgba(255, 255, 255, 0.92);
+        background: var(--surface);
         font-size: 1rem;
         box-sizing: border-box;
     }
@@ -648,7 +648,7 @@
         padding: 0.5rem 0.7rem;
         border-radius: var(--radius-md, 16px);
         border: 1px solid var(--line, rgba(27, 49, 80, 0.12));
-        background: rgba(255, 255, 255, 0.92);
+        background: var(--surface);
         font-size: 0.9rem;
         font-weight: 600;
         color: var(--ink, #182230);
@@ -713,7 +713,7 @@
         font-size: 0.72rem;
         font-weight: 700;
         color: var(--muted, #617086);
-        background: rgba(27, 49, 80, 0.07);
+        background: var(--line);
         min-width: 1.4rem;
         height: 1.4rem;
         display: inline-flex;
@@ -752,7 +752,7 @@
         border-radius: var(--radius-md, 16px);
         border: none;
         background: var(--ink, #182230);
-        color: #fff;
+        color: var(--on-ink);
         font-size: 0.82rem;
         font-weight: 700;
         cursor: pointer;
@@ -777,7 +777,7 @@
     }
 
     .link-card:active {
-        background: rgba(0, 0, 0, 0.03);
+        background: var(--hover);
     }
 
     .link-card-label {
@@ -799,7 +799,7 @@
         border-radius: var(--radius-md, 16px);
         border: none;
         background: var(--accent, #e15b37);
-        color: #fff;
+        color: var(--on-accent);
         font-size: 1rem;
         font-weight: 800;
         cursor: pointer;
@@ -952,7 +952,7 @@
         border-radius: 999px;
         font-size: 0.72rem;
         font-weight: 600;
-        background: rgba(27, 49, 80, 0.07);
+        background: var(--line);
         color: var(--muted, #617086);
     }
 

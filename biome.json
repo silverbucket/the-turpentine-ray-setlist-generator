@@ -8,16 +8,14 @@
     "html": {
         "experimentalFullSupportEnabled": true
     },
+    "files": {
+        "includes": ["**", "!!**/dist"]
+    },
     "formatter": {
+        "enabled": true,
         "indentStyle": "space",
         "indentWidth": 4,
         "lineWidth": 120
-    },
-    "javascript": {
-        "formatter": {
-            "quoteStyle": "double",
-            "semicolons": "always"
-        }
     },
     "linter": {
         "enabled": true,
@@ -26,9 +24,57 @@
             "correctness": {
                 "noUnusedVariables": "warn",
                 "noUnusedImports": "warn"
+            },
+            "style": {
+                "useExponentiationOperator": "warn"
+            },
+            "complexity": {
+                "noImportantStyles": "off"
             }
         }
     },
+    "javascript": {
+        "formatter": {
+            "quoteStyle": "double",
+            "semicolons": "always"
+        }
+    },
+    "css": {
+        "linter": {
+            "enabled": true
+        },
+        "formatter": {
+            "enabled": true,
+            "indentStyle": "space",
+            "indentWidth": 4
+        }
+    },
+    "overrides": [
+        {
+            "includes": ["**/*.svelte"],
+            "linter": {
+                "enabled": false
+            },
+            "formatter": {
+                "enabled": false
+            }
+        },
+        {
+            "includes": ["**/*.svelte.js"],
+            "linter": {
+                "enabled": false
+            },
+            "formatter": {
+                "enabled": false
+            }
+        },
+        {
+            "includes": ["index.html"],
+            "linter": {
+                "enabled": false
+            }
+        }
+    ],
     "assist": {
         "enabled": true,
         "actions": {
@@ -36,8 +82,5 @@
                 "organizeImports": "on"
             }
         }
-    },
-    "files": {
-        "includes": ["src/**", "*.js", "*.json"]
     }
 }

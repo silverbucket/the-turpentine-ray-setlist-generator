@@ -153,7 +153,7 @@
         font-size: 0.9rem;
         border: none;
         background: var(--accent, #e15b37);
-        color: #fff;
+        color: var(--on-accent);
         cursor: pointer;
         touch-action: manipulation;
     }
@@ -167,8 +167,8 @@
         min-height: 2.8rem;
         padding: 0.6rem 0.9rem;
         border-radius: var(--radius-md, 12px);
-        border: 1px solid rgba(27, 49, 80, 0.14);
-        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid var(--line);
+        background: var(--surface);
         font-size: 1rem;
         box-sizing: border-box;
     }
@@ -193,17 +193,17 @@
         padding: 0.35rem 0.7rem;
         border-radius: 999px;
         border: 1px solid rgba(200, 120, 40, 0.3);
-        background: rgba(255, 180, 60, 0.08);
+        background: var(--warning-soft);
         font-size: 0.8rem;
         font-weight: 600;
-        color: #b07020;
+        color: var(--muted);
         cursor: pointer;
         touch-action: manipulation;
         min-height: 2.2rem;
     }
 
     .status-chip.active {
-        background: rgba(255, 160, 40, 0.2);
+        background: var(--warning-soft);
         border-color: rgba(200, 120, 40, 0.5);
     }
 
@@ -217,7 +217,7 @@
         display: inline-flex;
         border-radius: var(--radius-md, 12px);
         overflow: hidden;
-        border: 1px solid rgba(27, 49, 80, 0.14);
+        border: 1px solid var(--line);
         flex-shrink: 0;
     }
 
@@ -225,13 +225,13 @@
         min-height: 2.4rem;
         padding: 0.4rem 0.7rem;
         border: none;
-        background: rgba(248, 250, 252, 0.96);
+        background: var(--paper-soft);
         font-size: 0.82rem;
         font-weight: 600;
         cursor: pointer;
         touch-action: manipulation;
         color: var(--ink, #182230);
-        border-right: 1px solid rgba(27, 49, 80, 0.1);
+        border-right: 1px solid var(--line);
     }
 
     .seg-btn:last-child {
@@ -275,8 +275,8 @@
         text-align: left;
         padding: 0.85rem 1rem;
         border-radius: var(--radius-md, 12px);
-        border: 1px solid rgba(27, 49, 80, 0.1);
-        background: rgba(255, 255, 255, 0.82);
+        border: 1px solid var(--line);
+        background: var(--paper);
         cursor: pointer;
         touch-action: manipulation;
         min-height: 3.2rem;
@@ -320,13 +320,13 @@
         border-radius: 999px;
         font-size: 0.72rem;
         font-weight: 600;
-        background: rgba(27, 49, 80, 0.07);
+        background: var(--line);
         color: var(--muted, #6b7a8d);
     }
 
     .pill.warn {
-        background: rgba(255, 160, 40, 0.15);
-        color: #b07020;
+        background: var(--warning-soft);
+        color: var(--muted);
     }
 
     .song-members {
@@ -348,7 +348,7 @@
 
     .incomplete-reason {
         font-size: 0.75rem;
-        color: #b07020;
+        color: var(--muted);
         font-weight: 600;
     }
 </style>

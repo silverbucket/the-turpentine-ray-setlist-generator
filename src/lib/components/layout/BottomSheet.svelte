@@ -28,7 +28,7 @@
   .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: var(--overlay);
     z-index: 500;
     display: flex;
     align-items: flex-end;
