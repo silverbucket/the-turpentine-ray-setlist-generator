@@ -9,6 +9,7 @@
     import SongsScreen from "./lib/components/songs/SongsScreen.svelte";
     import { createRemoteStorageRepository } from "./lib/remotestorage.js";
     import { createAppStore } from "./lib/stores/app.svelte.js";
+    import { DEFAULT_DIE_COLOR, darkenHex, hexToRgb } from "./lib/utils.js";
 
     const repo = createRemoteStorageRepository();
     const store = createAppStore(repo);
@@ -17,10 +18,35 @@
     onMount(() => {
         return store.init();
     });
+
+    let dieColor = $derived(store.appConfig?.ui?.dieColor || DEFAULT_DIE_COLOR);
+    let dieColorRgb = $derived(hexToRgb(dieColor));
+
+    let faviconHref = $derived(
+        `data:image/svg+xml,${encodeURIComponent(
+            `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">` +
+            `<path fill="${dieColor}" d="M256 66L420.5 161 256 256 91.5 161Z"/>` +
+            `<path fill="${darkenHex(dieColor, 0.78)}" d="M91.5 161L256 256 256 446 91.5 351Z"/>` +
+            `<path fill="${darkenHex(dieColor, 0.62)}" d="M256 256L420.5 161 420.5 351 256 446Z"/>` +
+            `<path fill="none" stroke="#000" stroke-width="2.5" stroke-opacity=".1" stroke-linejoin="round" d="M256 66L420.5 161 420.5 351 256 446 91.5 351 91.5 161Z"/>` +
+            `<path stroke="#000" stroke-width="2" stroke-opacity=".08" d="M256 256L91.5 161M256 256L420.5 161M256 256L256 446"/>` +
+            `<ellipse cx="256" cy="113.5" rx="18" ry="10" fill="#fff"/>` +
+            `<ellipse cx="338.25" cy="161" rx="18" ry="10" fill="#fff"/>` +
+            `<ellipse cx="256" cy="161" rx="18" ry="10" fill="#fff"/>` +
+            `<ellipse cx="173.75" cy="161" rx="18" ry="10" fill="#fff"/>` +
+            `<ellipse cx="256" cy="208.5" rx="18" ry="10" fill="#fff"/>` +
+            `<ellipse cx="132.6" cy="232" rx="13" ry="16" fill="#ebebeb"/>` +
+            `<ellipse cx="173.8" cy="303" rx="13" ry="16" fill="#ebebeb"/>` +
+            `<ellipse cx="214.9" cy="374" rx="13" ry="16" fill="#ebebeb"/>` +
+            `<ellipse cx="338.3" cy="303" rx="13" ry="16" fill="#d9d9d9"/>` +
+            `</svg>`
+        )}`
+    );
 </script>
 
 <svelte:head>
     <title>{store.appTitle}</title>
+    <link rel="icon" type="image/svg+xml" href={faviconHref} />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 </svelte:head>
 
@@ -56,7 +82,7 @@
 {:else if !store.initialSyncComplete}
     <main class="sync-shell">
         <div class="sync-content">
-            <div class="sync-die-face">
+            <div class="sync-die-face" style="--die-rgb: {dieColorRgb};">
                 <span class="sync-pip" style="left:25%;top:25%"></span>
                 <span class="sync-pip" style="left:75%;top:25%"></span>
                 <span class="sync-pip" style="left:50%;top:50%"></span>

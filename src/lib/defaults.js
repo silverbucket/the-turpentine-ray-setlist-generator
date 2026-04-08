@@ -7,8 +7,8 @@ const DEFAULT_CONFIG_TEMPLATE = {
         count: 9,
         beamWidth: 512,
         limits: {
-            covers: 2,
-            instrumentals: 2,
+            covers: -1,
+            instrumentals: -1,
         },
         order: {
             first: [
@@ -116,6 +116,7 @@ export function createDefaultAppConfig({
         schemaVersion: SCHEMA_VERSION,
         createdAt: timestamp,
         updatedAt: timestamp,
+        ui: { dieColor: null },
         ...baseConfig,
     };
 }
@@ -179,6 +180,21 @@ export function normalizeAppConfig(config) {
     delete normalized.band?.members;
     delete normalized.show?.members;
     delete normalized.catalog;
+
+    // Validate ui.dieColor if present
+    normalized.ui =
+        normalized.ui &&
+        typeof normalized.ui === "object" &&
+        !Array.isArray(normalized.ui)
+            ? normalized.ui
+            : { dieColor: null };
+    if (
+        normalized.ui.dieColor != null &&
+        !/^#[0-9a-fA-F]{6}$/.test(normalized.ui.dieColor)
+    ) {
+        normalized.ui.dieColor = null;
+    }
+
     return normalized;
 }
 

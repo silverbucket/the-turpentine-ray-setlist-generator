@@ -106,8 +106,8 @@ export function createAppStore(repo) {
         return {
             count: source.general?.count || 15,
             beamWidth: source.general?.beamWidth || 20,
-            maxCovers: source.general?.limits?.covers || 0,
-            maxInstrumentals: source.general?.limits?.instrumentals || 0,
+            maxCovers: source.general?.limits?.covers ?? -1,
+            maxInstrumentals: source.general?.limits?.instrumentals ?? -1,
             keyFlow: false,
             seed: "",
             randomness: {

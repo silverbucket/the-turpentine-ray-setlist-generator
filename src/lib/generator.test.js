@@ -519,6 +519,78 @@ describe("generateSetlist — cover and instrumental limits", () => {
         expect(instrumentals.length).toBeLessThanOrEqual(1);
     });
 
+    it("maxCovers=-1 means no limit", () => {
+        const songs = Array.from({ length: 10 }, (_, i) =>
+            makeSong(`Song ${i + 1}`, { cover: true }),
+        );
+        const result = generateSetlist(
+            songs,
+            makeConfig(),
+            deterministicOptions({ count: 10, maxCovers: -1 }),
+        );
+        expect(result.songs.length).toBe(10);
+    });
+
+    it("maxInstrumentals=-1 means no limit", () => {
+        const songs = Array.from({ length: 10 }, (_, i) =>
+            makeSong(`Song ${i + 1}`, { instrumental: true }),
+        );
+        const result = generateSetlist(
+            songs,
+            makeConfig(),
+            deterministicOptions({ count: 10, maxInstrumentals: -1 }),
+        );
+        expect(result.songs.length).toBe(10);
+    });
+
+    it("NaN maxCovers falls back to config default", () => {
+        const songs = Array.from({ length: 10 }, (_, i) =>
+            makeSong(`Song ${i + 1}`, { cover: true }),
+        );
+        const config = makeConfig({
+            general: { limits: { covers: 1, instrumentals: -1 } },
+        });
+        const result = generateSetlist(
+            songs,
+            config,
+            deterministicOptions({ count: 10, maxCovers: NaN }),
+        );
+        const covers = result.songs.filter((s) => s.cover);
+        expect(covers.length).toBeLessThanOrEqual(1);
+    });
+
+    it("maxCovers=0 means no covers allowed", () => {
+        const songs = [
+            ...Array.from({ length: 5 }, (_, i) =>
+                makeSong(`Cover ${i + 1}`, { cover: true }),
+            ),
+            ...Array.from({ length: 5 }, (_, i) =>
+                makeSong(`Original ${i + 1}`),
+            ),
+        ];
+        const result = generateSetlist(
+            songs,
+            makeConfig(),
+            deterministicOptions({ count: 5, maxCovers: 0 }),
+        );
+        expect(result.songs.filter((s) => s.cover).length).toBe(0);
+    });
+
+    it("maxInstrumentals=0 means no instrumentals allowed", () => {
+        const songs = [
+            ...Array.from({ length: 5 }, (_, i) =>
+                makeSong(`Inst ${i + 1}`, { instrumental: true }),
+            ),
+            ...Array.from({ length: 5 }, (_, i) => makeSong(`Vocal ${i + 1}`)),
+        ];
+        const result = generateSetlist(
+            songs,
+            makeConfig(),
+            deterministicOptions({ count: 5, maxInstrumentals: 0 }),
+        );
+        expect(result.songs.filter((s) => s.instrumental).length).toBe(0);
+    });
+
     it("all covers with maxCovers=1 produces exactly 1 song", () => {
         const songs = Array.from({ length: 5 }, (_, i) =>
             makeSong(`Cover ${i + 1}`, { cover: true }),
