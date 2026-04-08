@@ -1,5 +1,6 @@
 <script>
     import { getContext } from "svelte";
+    import { DEFAULT_DIE_COLOR } from "../../utils.js";
     const store = getContext("app");
 
     let bandNameDraft = $state(store.appConfig?.bandName ?? "");
@@ -80,7 +81,7 @@
     }
 
     const PIP_COLOR_OPTIONS = [
-        "#e15b37", "#ef4444", "#d94f7a", "#ec4899",
+        DEFAULT_DIE_COLOR, "#ef4444", "#d94f7a", "#ec4899",
         "#a855f7", "#8b5cf6", "#6366f1", "#3b82f6",
         "#0ea5e9", "#14b8a6", "#10b981", "#22c55e",
         "#84cc16", "#eab308", "#f59e0b", "#f97316",
@@ -345,7 +346,7 @@
                     onkeydown={handleBandNameKeydown}
                 />
             </label>
-            {#if store.connectionStatus === 'connected'}
+            {#if store.connectionStatus === "connected"}
                 <div class="field-group">
                     <span class="field-label">Die color</span>
                     <div class="pip-color-swatches">
