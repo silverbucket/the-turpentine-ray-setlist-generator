@@ -94,8 +94,18 @@
             </div>
             <div class="sync-label">
                 <span class="spinner"></span>
-                Syncing&hellip;
+                {store.syncStatusLabel}
             </div>
+            {#if store.syncLogEntries.length > 0}
+                <div class="sync-console" role="log" aria-live="polite">
+                    {#each store.syncLogEntries as entry (entry.id)}
+                        <div class="sync-console-line">
+                            <span class="sync-console-time">{entry.time}</span>
+                            <span>{entry.message}</span>
+                        </div>
+                    {/each}
+                </div>
+            {/if}
         </div>
     </main>
 {:else}
@@ -207,6 +217,7 @@
         flex-direction: column;
         align-items: center;
         gap: var(--space-4);
+        width: min(100%, 34rem);
     }
 
     .sync-die-face {
@@ -235,6 +246,36 @@
         font-size: 0.9rem;
         font-weight: 600;
         color: var(--muted);
+    }
+
+    .sync-console {
+        width: 100%;
+        max-height: min(34vh, 18rem);
+        overflow: auto;
+        padding: 0.85rem 1rem;
+        border-radius: var(--radius-lg);
+        background: rgba(10, 14, 18, 0.72);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: var(--shadow);
+        color: rgba(244, 241, 234, 0.88);
+        font-family: "SFMono-Regular", "SF Mono", ui-monospace, monospace;
+        font-size: 0.78rem;
+        line-height: 1.5;
+    }
+
+    .sync-console-line {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.7rem;
+    }
+
+    .sync-console-line + .sync-console-line {
+        margin-top: 0.3rem;
+    }
+
+    .sync-console-time {
+        color: rgba(244, 241, 234, 0.5);
+        white-space: nowrap;
     }
 
     @keyframes pulse-fade {

@@ -17,6 +17,139 @@ const OBJECT_SCHEMA = {
     additionalProperties: true,
 };
 
+const AUTH_MESSAGE_TYPE = "setlist-roller-auth-result";
+const AUTH_POPUP_TIMEOUT_MS = 180000;
+
+export function isIosStandaloneAuthContext(env = globalThis.window) {
+    if (!env) return false;
+    const displayStandalone = env.matchMedia?.("(display-mode: standalone)")?.matches ?? false;
+    const legacyStandalone = env.navigator?.standalone === true;
+    if (!displayStandalone && !legacyStandalone) return false;
+    const ua = env.navigator?.userAgent || "";
+    const isiPadLike = env.navigator?.platform === "MacIntel" && env.navigator?.maxTouchPoints > 1;
+    return /iPad|iPhone|iPod/.test(ua) || isiPadLike;
+}
+
+export function buildAuthorizeUrl(options) {
+    const redirect = new URL(options.redirectUri);
+    const state = options.state ?? (redirect.hash ? redirect.hash.substring(1) : "");
+    const responseType = options.response_type || "token";
+    const url = new URL(options.authURL);
+    url.searchParams.set("redirect_uri", options.redirectUri.replace(/#.*$/, ""));
+    url.searchParams.set("scope", options.scope);
+    url.searchParams.set("client_id", options.clientId);
+    for (const [key, value] of Object.entries({
+        state,
+        response_type: responseType,
+        code_challenge: options.code_challenge,
+        code_challenge_method: options.code_challenge_method,
+        token_access_type: options.token_access_type,
+    })) {
+        if (value) url.searchParams.set(key, value);
+    }
+    return url.toString();
+}
+
+export function createStandaloneAuthMessageHandler({ attemptId, origin, onSuccess, onError }) {
+    return (event) => {
+        if (event.origin !== origin) return false;
+        const payload = event.data;
+        if (payload?.type !== AUTH_MESSAGE_TYPE || payload?.attemptId !== attemptId) return false;
+
+        const params = payload.params || {};
+        if (params.error) {
+            onError(new Error(`Authorization failed: ${params.error}`));
+            return true;
+        }
+        if (!params.access_token) {
+            onError(new Error("Authorization did not return an access token."));
+            return true;
+        }
+
+        onSuccess({
+            accessToken: params.access_token,
+            state: params.state || "",
+        });
+        return true;
+    };
+}
+
+export function authorizeWithStandalonePopup(
+    remoteStorage,
+    options,
+    {
+        env = globalThis.window,
+        emitError = (error) => {
+            throw error;
+        },
+    } = {},
+) {
+    if (!env) {
+        throw new Error("Standalone authorization requires a browser window.");
+    }
+
+    const attemptId = globalThis.crypto?.randomUUID?.() || `auth-${Date.now()}`;
+    const redirectUri = `${env.location.origin}/auth-relay.html?attempt=${encodeURIComponent(attemptId)}`;
+    const authUrl = buildAuthorizeUrl({
+        ...options,
+        redirectUri,
+        clientId: options.clientId || env.location.origin,
+    });
+
+    const popup = env.open(authUrl, "_blank", "popup=yes,width=480,height=720");
+    if (!popup) {
+        throw new Error("Authorization popup was blocked.");
+    }
+
+    let finished = false;
+    let closePoll = null;
+    let timeoutId = null;
+
+    const cleanup = () => {
+        env.removeEventListener("message", onMessage);
+        if (closePoll) env.clearInterval(closePoll);
+        if (timeoutId) env.clearTimeout(timeoutId);
+    };
+
+    const fail = (message) => {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        emitError(new Error(message));
+    };
+
+    const onMessage = createStandaloneAuthMessageHandler({
+        attemptId,
+        origin: env.location.origin,
+        onSuccess: ({ accessToken, state }) => {
+            if (finished) return;
+            finished = true;
+            cleanup();
+            remoteStorage.remote.configure({ token: accessToken });
+            if (state) {
+                env.location.hash = state;
+            }
+        },
+        onError: (error) => {
+            if (finished) return;
+            finished = true;
+            cleanup();
+            emitError(error);
+        },
+    });
+
+    env.addEventListener("message", onMessage);
+
+    closePoll = env.setInterval(() => {
+        if (!popup.closed || finished) return;
+        fail("Authorization window was closed before login finished.");
+    }, 500);
+
+    timeoutId = env.setTimeout(() => {
+        fail("Authorization timed out before the app received a token.");
+    }, AUTH_POPUP_TIMEOUT_MS);
+}
+
 export function createRemoteStorageRepository() {
     const remoteStorage = new RemoteStorage({
         changeEvents: {
@@ -28,6 +161,15 @@ export function createRemoteStorageRepository() {
         logging: false,
     });
 
+    const localEventHandlers = new Map();
+    function emitLocal(eventName, payload) {
+        const handlers = localEventHandlers.get(eventName);
+        if (!handlers) return;
+        for (const handler of handlers) {
+            handler(payload);
+        }
+    }
+
     remoteStorage.access.claim(APP_SCOPE, "rw");
     remoteStorage.caching.enable(`/${APP_SCOPE}/`);
 
@@ -38,6 +180,26 @@ export function createRemoteStorageRepository() {
     client.declareType(TYPES.meta, OBJECT_SCHEMA);
     client.declareType(TYPES.setlist, OBJECT_SCHEMA);
     client.declareType(TYPES.member, OBJECT_SCHEMA);
+
+    const defaultAuthorize = remoteStorage.authorize.bind(remoteStorage);
+    remoteStorage.authorize = (options) => {
+        if (isIosStandaloneAuthContext()) {
+            try {
+                const authorizeOptions = { ...(options ?? {}) };
+                remoteStorage.access.setStorageType(remoteStorage.remote.storageApi);
+                if (typeof authorizeOptions.scope === "undefined") {
+                    authorizeOptions.scope = remoteStorage.access.scopeParameter;
+                }
+                authorizeWithStandalonePopup(remoteStorage, authorizeOptions, {
+                    emitError: (error) => emitLocal("error", error),
+                });
+            } catch (error) {
+                emitLocal("error", error instanceof Error ? error : new Error(String(error)));
+            }
+            return;
+        }
+        defaultAuthorize(options);
+    };
 
     return {
         remoteStorage,
@@ -101,7 +263,14 @@ export function createRemoteStorageRepository() {
 
         on(eventName, handler) {
             remoteStorage.on(eventName, handler);
-            return () => remoteStorage.removeEventListener(eventName, handler);
+            if (!localEventHandlers.has(eventName)) {
+                localEventHandlers.set(eventName, new Set());
+            }
+            localEventHandlers.get(eventName).add(handler);
+            return () => {
+                remoteStorage.removeEventListener(eventName, handler);
+                localEventHandlers.get(eventName)?.delete(handler);
+            };
         },
 
         onChange(handler) {
@@ -121,13 +290,43 @@ export function createRemoteStorageRepository() {
             return remoteStorage.remote?.token || "";
         },
 
-        async loadAll() {
+        async loadAll({ onStep } = {}) {
+            onStep?.("Loading songs");
+            const songsPromise = this.listSongs().then((songs) => {
+                onStep?.(`Loaded ${songs.length} songs`);
+                return songs;
+            });
+
+            onStep?.("Loading settings");
+            const configPromise = this.getConfig().then((config) => {
+                onStep?.(config ? "Loaded settings" : "No settings found yet");
+                return config;
+            });
+
+            onStep?.("Loading bootstrap info");
+            const bootstrapPromise = this.getBootstrapMeta().then((bootstrap) => {
+                onStep?.(bootstrap ? "Loaded bootstrap info" : "No bootstrap info found");
+                return bootstrap;
+            });
+
+            onStep?.("Loading saved setlists");
+            const setlistsPromise = this.listSetlists().then((setlists) => {
+                onStep?.(`Loaded ${setlists.length} saved setlists`);
+                return setlists;
+            });
+
+            onStep?.("Loading band members");
+            const membersPromise = this.listMembers().then((members) => {
+                onStep?.(`Loaded ${Object.keys(members || {}).length} band members`);
+                return members;
+            });
+
             const [songs, config, bootstrap, setlists, members] = await Promise.all([
-                this.listSongs(),
-                this.getConfig(),
-                this.getBootstrapMeta(),
-                this.listSetlists(),
-                this.listMembers(),
+                songsPromise,
+                configPromise,
+                bootstrapPromise,
+                setlistsPromise,
+                membersPromise,
             ]);
 
             return { songs, config, bootstrap, setlists, members };
