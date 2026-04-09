@@ -520,7 +520,7 @@
   /* Hero */
   .hero {
     position: sticky;
-    top: 48px;
+    top: var(--top-bar-height);
     z-index: 50;
     background: var(--paper, rgba(255, 255, 255, 0.96));
     backdrop-filter: blur(16px);
@@ -530,7 +530,7 @@
     padding: 0.6rem;
     display: grid;
     gap: 0.5rem;
-    max-height: calc(100vh - 48px - var(--bottom-nav-height, 56px) - var(--safe-bottom, 0px) - 1rem);
+    max-height: calc(100vh - var(--top-bar-height) - var(--bottom-nav-height, 56px) - var(--safe-bottom, 0px) - 1rem);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
