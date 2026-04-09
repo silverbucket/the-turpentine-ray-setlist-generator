@@ -20,17 +20,17 @@ const OBJECT_SCHEMA = {
 const AUTH_MESSAGE_TYPE = "setlist-roller-auth-result";
 const AUTH_POPUP_TIMEOUT_MS = 180000;
 
-function isIosStandaloneAuthContext() {
-    if (typeof window === "undefined") return false;
-    const displayStandalone = window.matchMedia?.("(display-mode: standalone)")?.matches ?? false;
-    const legacyStandalone = window.navigator?.standalone === true;
+export function isIosStandaloneAuthContext(env = globalThis.window) {
+    if (!env) return false;
+    const displayStandalone = env.matchMedia?.("(display-mode: standalone)")?.matches ?? false;
+    const legacyStandalone = env.navigator?.standalone === true;
     if (!displayStandalone && !legacyStandalone) return false;
-    const ua = window.navigator?.userAgent || "";
-    const isiPadLike = window.navigator?.platform === "MacIntel" && window.navigator?.maxTouchPoints > 1;
+    const ua = env.navigator?.userAgent || "";
+    const isiPadLike = env.navigator?.platform === "MacIntel" && env.navigator?.maxTouchPoints > 1;
     return /iPad|iPhone|iPod/.test(ua) || isiPadLike;
 }
 
-function buildAuthorizeUrl(options) {
+export function buildAuthorizeUrl(options) {
     const redirect = new URL(options.redirectUri);
     const state = options.state ?? (redirect.hash ? redirect.hash.substring(1) : "");
     const responseType = options.response_type || "token";
@@ -50,20 +50,53 @@ function buildAuthorizeUrl(options) {
     return url.toString();
 }
 
-function authorizeWithStandalonePopup(remoteStorage, options) {
-    if (typeof window === "undefined") {
+export function createStandaloneAuthMessageHandler({ attemptId, origin, onSuccess, onError }) {
+    return (event) => {
+        if (event.origin !== origin) return false;
+        const payload = event.data;
+        if (payload?.type !== AUTH_MESSAGE_TYPE || payload?.attemptId !== attemptId) return false;
+
+        const params = payload.params || {};
+        if (params.error) {
+            onError(new Error(`Authorization failed: ${params.error}`));
+            return true;
+        }
+        if (!params.access_token) {
+            onError(new Error("Authorization did not return an access token."));
+            return true;
+        }
+
+        onSuccess({
+            accessToken: params.access_token,
+            state: params.state || "",
+        });
+        return true;
+    };
+}
+
+export function authorizeWithStandalonePopup(
+    remoteStorage,
+    options,
+    {
+        env = globalThis.window,
+        emitError = (error) => {
+            throw error;
+        },
+    } = {},
+) {
+    if (!env) {
         throw new Error("Standalone authorization requires a browser window.");
     }
 
     const attemptId = globalThis.crypto?.randomUUID?.() || `auth-${Date.now()}`;
-    const redirectUri = `${window.location.origin}/auth-relay.html?attempt=${encodeURIComponent(attemptId)}`;
+    const redirectUri = `${env.location.origin}/auth-relay.html?attempt=${encodeURIComponent(attemptId)}`;
     const authUrl = buildAuthorizeUrl({
         ...options,
         redirectUri,
-        clientId: options.clientId || window.location.origin,
+        clientId: options.clientId || env.location.origin,
     });
 
-    const popup = window.open(authUrl, "_blank", "popup=yes,width=480,height=720");
+    const popup = env.open(authUrl, "_blank", "popup=yes,width=480,height=720");
     if (!popup) {
         throw new Error("Authorization popup was blocked.");
     }
@@ -73,50 +106,46 @@ function authorizeWithStandalonePopup(remoteStorage, options) {
     let timeoutId = null;
 
     const cleanup = () => {
-        window.removeEventListener("message", onMessage);
-        if (closePoll) window.clearInterval(closePoll);
-        if (timeoutId) window.clearTimeout(timeoutId);
+        env.removeEventListener("message", onMessage);
+        if (closePoll) env.clearInterval(closePoll);
+        if (timeoutId) env.clearTimeout(timeoutId);
     };
 
     const fail = (message) => {
         if (finished) return;
         finished = true;
         cleanup();
-        remoteStorage._emit("error", new Error(message));
+        emitError(new Error(message));
     };
 
-    const onMessage = (event) => {
-        if (event.origin !== window.location.origin) return;
-        const payload = event.data;
-        if (payload?.type !== AUTH_MESSAGE_TYPE || payload?.attemptId !== attemptId) return;
+    const onMessage = createStandaloneAuthMessageHandler({
+        attemptId,
+        origin: env.location.origin,
+        onSuccess: ({ accessToken, state }) => {
+            if (finished) return;
+            finished = true;
+            cleanup();
+            remoteStorage.remote.configure({ token: accessToken });
+            if (state) {
+                env.location.hash = state;
+            }
+        },
+        onError: (error) => {
+            if (finished) return;
+            finished = true;
+            cleanup();
+            emitError(error);
+        },
+    });
 
-        finished = true;
-        cleanup();
+    env.addEventListener("message", onMessage);
 
-        const params = payload.params || {};
-        if (params.error) {
-            remoteStorage._emit("error", new Error(`Authorization failed: ${params.error}`));
-            return;
-        }
-        if (!params.access_token) {
-            remoteStorage._emit("error", new Error("Authorization did not return an access token."));
-            return;
-        }
-
-        remoteStorage.remote.configure({ token: params.access_token });
-        if (params.state) {
-            window.location.hash = params.state;
-        }
-    };
-
-    window.addEventListener("message", onMessage);
-
-    closePoll = window.setInterval(() => {
+    closePoll = env.setInterval(() => {
         if (!popup.closed || finished) return;
         fail("Authorization window was closed before login finished.");
     }, 500);
 
-    timeoutId = window.setTimeout(() => {
+    timeoutId = env.setTimeout(() => {
         fail("Authorization timed out before the app received a token.");
     }, AUTH_POPUP_TIMEOUT_MS);
 }
@@ -131,6 +160,15 @@ export function createRemoteStorageRepository() {
         },
         logging: false,
     });
+
+    const localEventHandlers = new Map();
+    function emitLocal(eventName, payload) {
+        const handlers = localEventHandlers.get(eventName);
+        if (!handlers) return;
+        for (const handler of handlers) {
+            handler(payload);
+        }
+    }
 
     remoteStorage.access.claim(APP_SCOPE, "rw");
     remoteStorage.caching.enable(`/${APP_SCOPE}/`);
@@ -151,9 +189,11 @@ export function createRemoteStorageRepository() {
                 if (typeof options.scope === "undefined") {
                     options.scope = remoteStorage.access.scopeParameter;
                 }
-                authorizeWithStandalonePopup(remoteStorage, options);
+                authorizeWithStandalonePopup(remoteStorage, options, {
+                    emitError: (error) => emitLocal("error", error),
+                });
             } catch (error) {
-                remoteStorage._emit("error", error instanceof Error ? error : new Error(String(error)));
+                emitLocal("error", error instanceof Error ? error : new Error(String(error)));
             }
             return;
         }
@@ -222,7 +262,14 @@ export function createRemoteStorageRepository() {
 
         on(eventName, handler) {
             remoteStorage.on(eventName, handler);
-            return () => remoteStorage.removeEventListener(eventName, handler);
+            if (!localEventHandlers.has(eventName)) {
+                localEventHandlers.set(eventName, new Set());
+            }
+            localEventHandlers.get(eventName).add(handler);
+            return () => {
+                remoteStorage.removeEventListener(eventName, handler);
+                localEventHandlers.get(eventName)?.delete(handler);
+            };
         },
 
         onChange(handler) {
@@ -244,24 +291,42 @@ export function createRemoteStorageRepository() {
 
         async loadAll({ onStep } = {}) {
             onStep?.("Loading songs");
-            const songs = await this.listSongs();
-            onStep?.(`Loaded ${songs.length} songs`);
+            const songsPromise = this.listSongs().then((songs) => {
+                onStep?.(`Loaded ${songs.length} songs`);
+                return songs;
+            });
 
             onStep?.("Loading settings");
-            const config = await this.getConfig();
-            onStep?.(config ? "Loaded settings" : "No settings found yet");
+            const configPromise = this.getConfig().then((config) => {
+                onStep?.(config ? "Loaded settings" : "No settings found yet");
+                return config;
+            });
 
             onStep?.("Loading bootstrap info");
-            const bootstrap = await this.getBootstrapMeta();
-            onStep?.(bootstrap ? "Loaded bootstrap info" : "No bootstrap info found");
+            const bootstrapPromise = this.getBootstrapMeta().then((bootstrap) => {
+                onStep?.(bootstrap ? "Loaded bootstrap info" : "No bootstrap info found");
+                return bootstrap;
+            });
 
             onStep?.("Loading saved setlists");
-            const setlists = await this.listSetlists();
-            onStep?.(`Loaded ${setlists.length} saved setlists`);
+            const setlistsPromise = this.listSetlists().then((setlists) => {
+                onStep?.(`Loaded ${setlists.length} saved setlists`);
+                return setlists;
+            });
 
             onStep?.("Loading band members");
-            const members = await this.listMembers();
-            onStep?.(`Loaded ${Object.keys(members || {}).length} band members`);
+            const membersPromise = this.listMembers().then((members) => {
+                onStep?.(`Loaded ${Object.keys(members || {}).length} band members`);
+                return members;
+            });
+
+            const [songs, config, bootstrap, setlists, members] = await Promise.all([
+                songsPromise,
+                configPromise,
+                bootstrapPromise,
+                setlistsPromise,
+                membersPromise,
+            ]);
 
             return { songs, config, bootstrap, setlists, members };
         },
