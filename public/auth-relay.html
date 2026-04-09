@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Setlist Roller Login</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: #111318;
+        color: #f4f1ea;
+      }
+
+      main {
+        width: min(100%, 420px);
+        padding: 24px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 1.1rem;
+      }
+
+      p {
+        margin: 0;
+        line-height: 1.5;
+        color: rgba(244, 241, 234, 0.8);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Returning to Setlist Roller</h1>
+      <p id="message">Finishing login and handing control back to the installed app.</p>
+    </main>
+    <script>
+      (() => {
+        const params = {};
+        const query = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+
+        for (const [key, value] of query.entries()) {
+          params[key] = value;
+        }
+        for (const [key, value] of hashParams.entries()) {
+          params[key] = value;
+        }
+
+        const message = document.getElementById("message");
+        if (!window.opener) {
+          message.textContent = "Login finished here, but this window cannot reach the installed app automatically. Return to the app and try again.";
+          return;
+        }
+
+        window.opener.postMessage({
+          type: "setlist-roller-auth-result",
+          attemptId: params.attempt || "",
+          params,
+        }, window.location.origin);
+
+        message.textContent = "Login finished. This window can be closed.";
+        window.setTimeout(() => window.close(), 300);
+      })();
+    </script>
+  </body>
+</html>
