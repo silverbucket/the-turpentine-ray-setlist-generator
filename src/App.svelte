@@ -515,7 +515,7 @@
     /* ---- Toast pill ---- */
     .toast-pill {
         position: fixed;
-        top: calc(env(safe-area-inset-top, 0px) + 48px);
+        top: var(--top-bar-height);
         left: 50%;
         transform: translateX(-50%);
         max-width: calc(100vw - 2rem);
