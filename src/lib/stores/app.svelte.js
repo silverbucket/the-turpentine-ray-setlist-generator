@@ -46,9 +46,10 @@ export function createAppStore(repo) {
 
     // ---- sync ----
     let syncIndicatorVisible = $state(false);
-    let syncStatusLabel = $state("All changes saved");
+    let syncStatusLabel = $state("Preparing connection");
     let syncActiveCount = 0;
     let syncIndicatorTimer = null;
+    let syncLogEntries = $state([]);
 
     // ---- generation options (loaded properly on connect via loadUserLocalData) ----
     let generationOptions = $state(defaultGenerationOptions(DEFAULT_APP_CONFIG));
@@ -288,11 +289,29 @@ export function createAppStore(repo) {
         }, duration);
     }
 
+    function pushSyncLog(message) {
+        if (!message) return;
+        const time = new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+        });
+        syncLogEntries = [
+            ...syncLogEntries.slice(-11),
+            { id: uid("sync-log"), time, message },
+        ];
+    }
+
+    function clearSyncLog() {
+        syncLogEntries = [];
+    }
+
     // ---- sync indicators ----
     function beginSync(label = "Syncing") {
         syncActiveCount += 1;
         syncStatusLabel = label;
         syncIndicatorVisible = true;
+        pushSyncLog(label);
         if (syncIndicatorTimer) {
             clearTimeout(syncIndicatorTimer);
             syncIndicatorTimer = null;
@@ -336,8 +355,11 @@ export function createAppStore(repo) {
             addToast("Put in a remoteStorage address first.", "danger");
             return;
         }
+        clearSyncLog();
         connectionStatus = "connecting";
         loadError = "";
+        syncStatusLabel = "Connecting to remoteStorage";
+        pushSyncLog(`Connecting to ${connectAddress.trim()}`);
         repo.connect(connectAddress.trim(), token || undefined);
     }
 
@@ -385,7 +407,10 @@ export function createAppStore(repo) {
         editorSong = null;
 
         // 3. Switch rs.js to new account without destroying IndexedDB
+        clearSyncLog();
         connectionStatus = "connecting";
+        syncStatusLabel = "Switching accounts";
+        pushSyncLog(`Switching to ${address}`);
         if (repo.isConnected()) {
             repo.switchTo(address, savedToken);
         } else {
@@ -449,7 +474,12 @@ export function createAppStore(repo) {
         try {
             busyMessage = quiet ? "" : "Loading your songs...";
             loadError = "";
-            const data = await repo.loadAll();
+            const data = await repo.loadAll({
+                onStep: (message) => {
+                    syncStatusLabel = message;
+                    pushSyncLog(message);
+                },
+            });
             songs = data.songs.map(normalizeSongRecord);
             bootstrapMeta = data.bootstrap;
             appConfig = data.config ? normalizeAppConfig(data.config) : null;
@@ -475,9 +505,11 @@ export function createAppStore(repo) {
             generationOptions = deepMerge(defaultGenerationOptions(appConfig), generationOptions || {});
             persistGenerationOptions();
             scheduleSnapshot();
+            pushSyncLog("Initial data load finished");
         } catch (error) {
             loadError = error?.message || "Could not load remote data.";
             addToast(loadError, "danger");
+            pushSyncLog(loadError);
         } finally {
             busyMessage = "";
             initialSyncComplete = true;
@@ -1505,8 +1537,10 @@ export function createAppStore(repo) {
         let needsReload = false;
 
         // Migrate config: read raw config to check for band.members before normalization strips them
+        pushSyncLog("Checking data migrations");
         const rawConfig = await repo.getRawConfig();
         if (rawConfig?.band?.members && Object.keys(rawConfig.band.members).length > 0) {
+            pushSyncLog("Migrating band members from legacy config");
             // Extract members from old config and write only those not already migrated
             for (const [name, data] of Object.entries(rawConfig.band.members)) {
                 if (!bandMembers[name]) {
@@ -1526,6 +1560,7 @@ export function createAppStore(repo) {
             const localKey = storageKey("saved-sets");
             const raw = localStorage.getItem(localKey);
             if (raw) {
+                pushSyncLog("Migrating saved setlists from local storage");
                 const localSets = stripEnergy(tryParseJson(raw, []) || []);
                 if (localSets.length > 0) {
                     // Normalize via rs-migrate before uploading
@@ -1544,7 +1579,10 @@ export function createAppStore(repo) {
         }
 
         if (needsReload && !skipReload) {
+            pushSyncLog("Reloading after migrations");
             await reloadAll({ quiet: true });
+        } else {
+            pushSyncLog("No migrations needed");
         }
     }
 
@@ -1560,12 +1598,31 @@ export function createAppStore(repo) {
             }
         }, 800);
 
-        repo.on("connected", async () => {
+        const detachConnecting = repo.on("connecting", () => {
+            syncStatusLabel = "Discovering remote storage";
+            pushSyncLog("Discovering remote storage endpoint");
+        });
+        const detachAuthing = repo.on("authing", () => {
+            syncStatusLabel = "Waiting for authorization";
+            pushSyncLog("Authorization required");
+        });
+        const detachSyncStarted = repo.on("sync-started", () => {
+            pushSyncLog("Sync cycle started");
+        });
+        const detachSyncReqDone = repo.on("sync-req-done", (event) => {
+            pushSyncLog(`Sync request finished, ${event?.tasksRemaining ?? 0} remaining`);
+        });
+        const detachSyncDone = repo.on("sync-done", (event) => {
+            pushSyncLog(event?.completed ? "Sync cycle completed" : "Sync cycle paused for retry");
+        });
+
+        const detachConnected = repo.on("connected", async () => {
             clearTimeout(pendingTimer);
             connectionStatus = "connected";
             connectAddress = repo.getUserAddress() || connectAddress;
             currentUserAddress = connectAddress;
             loadUserLocalData();
+            pushSyncLog(`Connected as ${currentUserAddress}`);
 
             if (initialSyncComplete) {
                 // Snapshot already restored (account switch) — don't overwrite
@@ -1576,6 +1633,7 @@ export function createAppStore(repo) {
                 } catch (err) {
                     console.error("Migration failed:", err);
                     addToast("Data migration encountered an error. Some data may need re-syncing.", "danger");
+                    pushSyncLog("Data migration encountered an error");
                 }
             } else {
                 // First load or switch without snapshot — read from cache
@@ -1586,6 +1644,7 @@ export function createAppStore(repo) {
                 } catch (err) {
                     console.error("Migration/reload failed:", err);
                     addToast("Data sync encountered an error. Some data may need re-syncing.", "danger");
+                    pushSyncLog("Initial sync encountered an error");
                 } finally {
                     endSync();
                 }
@@ -1594,7 +1653,7 @@ export function createAppStore(repo) {
             knownAccounts = getKnownAccounts();
         });
 
-        repo.on("disconnected", () => {
+        const detachDisconnected = repo.on("disconnected", () => {
             terminateWorker();
             isGenerating = false;
             connectionStatus = "disconnected";
@@ -1612,17 +1671,19 @@ export function createAppStore(repo) {
             initialSyncComplete = false;
             selectedSongId = "";
             editorSong = null;
+            pushSyncLog("Disconnected");
         });
 
-        repo.on("error", (error) => {
+        const detachError = repo.on("error", (error) => {
             loadError = error?.message || "remoteStorage error.";
             addToast(loadError, "danger");
+            pushSyncLog(loadError);
             // Fully disconnect so the RS instance resets its auth state,
             // allowing the user to reconnect from the login screen.
             repo.disconnect();
         });
 
-        repo.onChange(async (event) => {
+        const detachChange = repo.onChange(async (event) => {
             if (connectionStatus === "connected" && event?.origin !== "window") {
                 beginSync(event?.origin === "remote" ? "Pulling remote changes" : "Syncing");
                 try { await reloadAll({ quiet: true }); }
@@ -1634,6 +1695,15 @@ export function createAppStore(repo) {
             window.removeEventListener("hashchange", syncRouteFromHash);
             clearTimeout(pendingTimer);
             if (syncIndicatorTimer) clearTimeout(syncIndicatorTimer);
+            detachConnecting();
+            detachAuthing();
+            detachSyncStarted();
+            detachSyncReqDone();
+            detachSyncDone();
+            detachConnected();
+            detachDisconnected();
+            detachError();
+            detachChange();
         };
     }
 
@@ -1664,6 +1734,7 @@ export function createAppStore(repo) {
         get syncIndicatorVisible() { return syncIndicatorVisible; },
         get syncStatusLabel() { return syncStatusLabel; },
         get syncActivelyRunning() { return syncActiveCount > 0; },
+        get syncLogEntries() { return syncLogEntries; },
         get generationOptions() { return generationOptions; },
         get editorSong() { return editorSong; },
         get selectedSongId() { return selectedSongId; },
