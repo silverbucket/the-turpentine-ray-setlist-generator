@@ -93,7 +93,7 @@
     top: 0;
     left: 0;
     right: 0;
-    min-height: var(--top-bar-height);
+    height: var(--top-bar-height);
     padding-top: env(safe-area-inset-top, 0px);
     display: grid;
     grid-template-columns: 1fr auto 1fr;
