@@ -195,7 +195,7 @@ export function createRemoteStorageRepository() {
     }
 
     function reserveStandaloneAuthPopup(env = globalThis.window) {
-        if (!isIosStandaloneAuthContext(env) || reservedAuthPopup && !reservedAuthPopup.closed) {
+        if (!isIosStandaloneAuthContext(env) || (reservedAuthPopup && !reservedAuthPopup.closed)) {
             return reservedAuthPopup;
         }
         const popup = env?.open?.("", "_blank", AUTH_POPUP_FEATURES) || null;

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 const remoteStorageMockState = vi.hoisted(() => ({
     instance: null,
     defaultAuthorize: null,
