@@ -1578,9 +1578,13 @@ export function createAppStore(repo) {
             }
         }
 
-        if (needsReload && !skipReload) {
-            pushSyncLog("Reloading after migrations");
-            await reloadAll({ quiet: true });
+        if (needsReload) {
+            if (skipReload) {
+                pushSyncLog("Migrations applied; reload skipped");
+            } else {
+                pushSyncLog("Reloading after migrations");
+                await reloadAll({ quiet: true });
+            }
         } else {
             pushSyncLog("No migrations needed");
         }

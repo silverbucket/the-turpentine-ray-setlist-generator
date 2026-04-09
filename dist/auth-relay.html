@@ -49,15 +49,13 @@
       (() => {
         const params = {};
         const query = new URLSearchParams(window.location.search);
-        const hash = window.location.hash.replace(/^#/, "");
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
 
         for (const [key, value] of query.entries()) {
           params[key] = value;
         }
-        for (const pair of hash.split("&")) {
-          if (!pair?.includes("=")) continue;
-          const [key, value] = pair.split("=");
-          params[decodeURIComponent(key)] = decodeURIComponent(value || "");
+        for (const [key, value] of hashParams.entries()) {
+          params[key] = value;
         }
 
         const message = document.getElementById("message");

@@ -185,11 +185,12 @@ export function createRemoteStorageRepository() {
     remoteStorage.authorize = (options) => {
         if (isIosStandaloneAuthContext()) {
             try {
+                const authorizeOptions = { ...(options ?? {}) };
                 remoteStorage.access.setStorageType(remoteStorage.remote.storageApi);
-                if (typeof options.scope === "undefined") {
-                    options.scope = remoteStorage.access.scopeParameter;
+                if (typeof authorizeOptions.scope === "undefined") {
+                    authorizeOptions.scope = remoteStorage.access.scopeParameter;
                 }
-                authorizeWithStandalonePopup(remoteStorage, options, {
+                authorizeWithStandalonePopup(remoteStorage, authorizeOptions, {
                     emitError: (error) => emitLocal("error", error),
                 });
             } catch (error) {
