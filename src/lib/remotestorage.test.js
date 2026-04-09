@@ -15,6 +15,7 @@ import {
     createRemoteStorageRepository,
     createStandaloneAuthMessageHandler,
     isIosStandaloneAuthContext,
+    normalizeStandaloneAuthorizeOptions,
 } from "./remotestorage.js";
 
 let originalWindow;
@@ -150,6 +151,65 @@ describe("buildAuthorizeUrl", () => {
         expect(url.searchParams.get("code_challenge")).toBe("challenge");
         expect(url.searchParams.get("code_challenge_method")).toBe("S256");
         expect(url.searchParams.get("token_access_type")).toBe("offline");
+    });
+});
+
+describe("normalizeStandaloneAuthorizeOptions", () => {
+    it("fills in redirectUri and clientId from the current location", () => {
+        const options = normalizeStandaloneAuthorizeOptions(
+            { authURL: "https://auth.example.com/oauth", scope: "setlist-roller:rw" },
+            {
+                location: {
+                    origin: "https://app.example.com",
+                    pathname: "/app",
+                },
+            },
+        );
+
+        expect(options.redirectUri).toBe("https://app.example.com/app");
+        expect(options.clientId).toBe("https://app.example.com");
+        expect(options.scope).toBe("setlist-roller:rw");
+    });
+
+    it("preserves a trailing slash when the current pathname is root", () => {
+        const options = normalizeStandaloneAuthorizeOptions(
+            { authURL: "https://auth.example.com/oauth", scope: "setlist-roller:rw" },
+            {
+                location: {
+                    origin: "https://app.example.com",
+                    pathname: "/",
+                },
+            },
+        );
+
+        expect(options.redirectUri).toBe("https://app.example.com/");
+        expect(options.clientId).toBe("https://app.example.com");
+    });
+
+    it("rejects empty or non-string scopes", () => {
+        expect(() =>
+            normalizeStandaloneAuthorizeOptions(
+                { authURL: "https://auth.example.com/oauth", scope: "" },
+                {
+                    location: {
+                        origin: "https://app.example.com",
+                        pathname: "/",
+                    },
+                },
+            ),
+        ).toThrow("undefined or empty scope");
+
+        expect(() =>
+            normalizeStandaloneAuthorizeOptions(
+                { authURL: "https://auth.example.com/oauth", scope: null },
+                {
+                    location: {
+                        origin: "https://app.example.com",
+                        pathname: "/",
+                    },
+                },
+            ),
+        ).toThrow("undefined or empty scope");
     });
 });
 
@@ -376,15 +436,15 @@ describe("createRemoteStorageRepository", () => {
         expect(() =>
             repo.remoteStorage.authorize({
                 authURL: "https://auth.example.com/oauth",
-                clientId: "https://app.example.com",
-                redirectUri: "https://app.example.com",
-                scope: "setlist-roller:rw",
             }),
         ).not.toThrow();
         expect(remoteStorageMockState.instance.access.setStorageType).toHaveBeenCalledWith("webdav");
         expect(remoteStorageMockState.defaultAuthorize).not.toHaveBeenCalled();
         expect(errorHandler).toHaveBeenCalledTimes(1);
         expect(errorHandler.mock.calls[0][0].message).toContain("popup was blocked");
+        const authUrl = globalThis.window.open.mock.calls[0][0];
+        const redirectUri = new URL(authUrl).searchParams.get("redirect_uri");
+        expect(redirectUri).toMatch(/^https:\/\/app\.example\.com\/auth-relay\.html\?attempt=/);
     });
 
     it("closes the reserved popup on disconnect", () => {
@@ -578,18 +638,72 @@ describe("createRemoteStorageRepository", () => {
         repo.connect("user@example.com");
 
         expect(globalThis.window.open).toHaveBeenCalledTimes(1);
-        expect(globalThis.window.open).toHaveBeenCalledWith("", "_blank", "popup=yes,width=480,height=720");
+        const [popupUrl, popupTarget, popupFeatures] = globalThis.window.open.mock.calls[0];
+        expect(popupUrl).toBe("");
+        expect(popupTarget).toBe("_blank");
+        expect(popupFeatures).toContain("popup=yes");
+        expect(popupFeatures).toContain("width=480");
+        expect(popupFeatures).toContain("height=720");
         expect(remoteStorageMockState.instance.connect).toHaveBeenCalledWith("user@example.com", undefined);
 
         repo.remoteStorage.authorize({
             authURL: "https://auth.example.com/oauth",
-            clientId: "https://app.example.com",
-            redirectUri: "https://app.example.com",
-            scope: "setlist-roller:rw",
         });
 
         expect(globalThis.window.open).toHaveBeenCalledTimes(1);
         expect(popup.location.replace).toHaveBeenCalledTimes(1);
         expect(popup.location.replace.mock.calls[0][0]).toContain("https://auth.example.com/oauth");
+        expect(decodeURIComponent(popup.location.replace.mock.calls[0][0])).toContain(
+            "redirect_uri=https://app.example.com/auth-relay.html",
+        );
+    });
+
+    it("pre-opens a popup during tokenless switchTo and closes it on disconnect", () => {
+        const reservedPopup = {
+            closed: false,
+            location: {
+                replace: vi.fn(),
+                href: "",
+            },
+            document: {
+                write: vi.fn(),
+                close: vi.fn(),
+            },
+            close: vi.fn(),
+        };
+        globalThis.window = {
+            matchMedia: vi.fn(() => ({ matches: true })),
+            navigator: {
+                standalone: true,
+                userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+                platform: "iPhone",
+                maxTouchPoints: 5,
+            },
+            location: {
+                origin: "https://app.example.com",
+                hash: "",
+            },
+            open: vi.fn(() => reservedPopup),
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            setInterval: vi.fn(() => 1),
+            clearInterval: vi.fn(),
+            setTimeout: vi.fn(() => 2),
+            clearTimeout: vi.fn(),
+        };
+
+        const repo = createRemoteStorageRepository();
+
+        repo.switchTo("other@example.com");
+
+        expect(globalThis.window.open).toHaveBeenCalledTimes(1);
+        expect(remoteStorageMockState.instance.remote.configure).toHaveBeenCalledWith({ token: null });
+        expect(remoteStorageMockState.instance.connect).toHaveBeenCalledWith("other@example.com", undefined);
+
+        repo.disconnect();
+
+        expect(reservedPopup.close).toHaveBeenCalledTimes(1);
+        expect(remoteStorageMockState.instance.caching.reset).toHaveBeenCalledTimes(1);
+        expect(remoteStorageMockState.instance.disconnect).toHaveBeenCalledTimes(1);
     });
 });

@@ -51,6 +51,27 @@ export function buildAuthorizeUrl(options) {
     return url.toString();
 }
 
+export function normalizeStandaloneAuthorizeOptions(options, env = globalThis.window) {
+    const authorizeOptions = { ...(options ?? {}) };
+    if (typeof authorizeOptions.scope !== "string" || authorizeOptions.scope.trim() === "") {
+        throw new Error("Cannot authorize due to undefined or empty scope; did you forget to access.claim()?");
+    }
+    if (typeof authorizeOptions.redirectUri === "undefined") {
+        if (!env?.location?.origin) {
+            throw new Error("Standalone authorization requires a browser location.");
+        }
+        let redirectUri = env.location.origin;
+        if (env.location.pathname) {
+            redirectUri += env.location.pathname;
+        }
+        authorizeOptions.redirectUri = redirectUri;
+    }
+    if (typeof authorizeOptions.clientId === "undefined") {
+        authorizeOptions.clientId = new URL(authorizeOptions.redirectUri).origin;
+    }
+    return authorizeOptions;
+}
+
 export function createStandaloneAuthMessageHandler({ attemptId, origin, onSuccess, onError }) {
     return (event) => {
         if (event.origin !== origin) return false;
@@ -228,11 +249,11 @@ export function createRemoteStorageRepository() {
     remoteStorage.authorize = (options) => {
         if (isIosStandaloneAuthContext()) {
             try {
-                const authorizeOptions = { ...(options ?? {}) };
                 remoteStorage.access.setStorageType(remoteStorage.remote.storageApi);
-                if (typeof authorizeOptions.scope === "undefined") {
-                    authorizeOptions.scope = remoteStorage.access.scopeParameter;
-                }
+                const authorizeOptions = normalizeStandaloneAuthorizeOptions({
+                    ...(options ?? {}),
+                    scope: options?.scope ?? remoteStorage.access.scopeParameter,
+                });
                 authorizeWithStandalonePopup(remoteStorage, authorizeOptions, {
                     popup: releaseReservedAuthPopup(),
                     emitError: (error) => emitLocal("error", error),
@@ -251,14 +272,15 @@ export function createRemoteStorageRepository() {
         client,
 
         connect(userAddress, token) {
+            const normalizedToken = token || undefined;
             // Re-enable caching in case it was reset by a previous disconnect
             remoteStorage.caching.enable(`/${APP_SCOPE}/`);
-            if (!token) {
+            if (!normalizedToken) {
                 reserveStandaloneAuthPopup();
             } else {
                 releaseReservedAuthPopup({ close: true });
             }
-            remoteStorage.connect(userAddress, token);
+            remoteStorage.connect(userAddress, normalizedToken);
         },
 
         disconnect() {
