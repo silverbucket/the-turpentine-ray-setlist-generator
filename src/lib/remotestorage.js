@@ -98,11 +98,12 @@ export function authorizeWithStandalonePopup(
         clientId: options.clientId || env.location.origin,
     });
 
-    const popup = providedPopup || env.open(authUrl, "_blank", AUTH_POPUP_FEATURES);
+    const popup =
+        providedPopup && !providedPopup.closed ? providedPopup : env.open(authUrl, "_blank", AUTH_POPUP_FEATURES);
     if (!popup) {
         throw new Error("Authorization popup was blocked.");
     }
-    if (providedPopup) {
+    if (popup === providedPopup) {
         try {
             popup.location.replace(authUrl);
         } catch {

@@ -387,6 +387,158 @@ describe("createRemoteStorageRepository", () => {
         expect(errorHandler.mock.calls[0][0].message).toContain("popup was blocked");
     });
 
+    it("closes the reserved popup on disconnect", () => {
+        const popup = {
+            closed: false,
+            document: { write: vi.fn(), close: vi.fn() },
+            close: vi.fn(),
+        };
+        globalThis.window = {
+            matchMedia: vi.fn(() => ({ matches: true })),
+            navigator: {
+                standalone: true,
+                userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+                platform: "iPhone",
+                maxTouchPoints: 5,
+            },
+            location: { origin: "https://app.example.com", hash: "" },
+            open: vi.fn(() => popup),
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            setInterval: vi.fn(),
+            clearInterval: vi.fn(),
+            setTimeout: vi.fn(),
+            clearTimeout: vi.fn(),
+        };
+
+        const repo = createRemoteStorageRepository();
+        repo.connect("user@example.com");
+        expect(popup.close).not.toHaveBeenCalled();
+
+        repo.disconnect();
+        expect(popup.close).toHaveBeenCalledTimes(1);
+        expect(remoteStorageMockState.instance.caching.reset).toHaveBeenCalled();
+        expect(remoteStorageMockState.instance.disconnect).toHaveBeenCalled();
+    });
+
+    it("reserves a popup during standalone switchTo without a token", () => {
+        const popup = {
+            closed: false,
+            document: { write: vi.fn(), close: vi.fn() },
+            close: vi.fn(),
+        };
+        globalThis.window = {
+            matchMedia: vi.fn(() => ({ matches: true })),
+            navigator: {
+                standalone: true,
+                userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+                platform: "iPhone",
+                maxTouchPoints: 5,
+            },
+            location: { origin: "https://app.example.com", hash: "" },
+            open: vi.fn(() => popup),
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            setInterval: vi.fn(),
+            clearInterval: vi.fn(),
+            setTimeout: vi.fn(),
+            clearTimeout: vi.fn(),
+        };
+
+        const repo = createRemoteStorageRepository();
+        repo.switchTo("other@example.com");
+
+        expect(globalThis.window.open).toHaveBeenCalledWith("", "_blank", "popup=yes,width=480,height=720");
+        expect(remoteStorageMockState.instance.connect).toHaveBeenCalledWith("other@example.com", undefined);
+    });
+
+    it("closes reserved popup during switchTo with a token", () => {
+        const popup = {
+            closed: false,
+            document: { write: vi.fn(), close: vi.fn() },
+            close: vi.fn(),
+        };
+        globalThis.window = {
+            matchMedia: vi.fn(() => ({ matches: true })),
+            navigator: {
+                standalone: true,
+                userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+                platform: "iPhone",
+                maxTouchPoints: 5,
+            },
+            location: { origin: "https://app.example.com", hash: "" },
+            open: vi.fn(() => popup),
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            setInterval: vi.fn(),
+            clearInterval: vi.fn(),
+            setTimeout: vi.fn(),
+            clearTimeout: vi.fn(),
+        };
+
+        const repo = createRemoteStorageRepository();
+        // First connect without token to reserve a popup
+        repo.connect("user@example.com");
+        expect(popup.close).not.toHaveBeenCalled();
+
+        // Switch with a token — should close the reserved popup
+        repo.switchTo("other@example.com", "saved-token");
+        expect(popup.close).toHaveBeenCalledTimes(1);
+        expect(remoteStorageMockState.instance.connect).toHaveBeenLastCalledWith("other@example.com", "saved-token");
+    });
+
+    it("falls back to a fresh popup when the reserved popup was closed by the user", () => {
+        const closedPopup = {
+            closed: true,
+            location: { replace: vi.fn(), href: "" },
+            document: { write: vi.fn(), close: vi.fn() },
+            close: vi.fn(),
+        };
+        const freshPopup = {
+            closed: false,
+            location: { replace: vi.fn(), href: "" },
+            document: { write: vi.fn(), close: vi.fn() },
+            close: vi.fn(),
+        };
+        let openCallCount = 0;
+        globalThis.window = {
+            matchMedia: vi.fn(() => ({ matches: true })),
+            navigator: {
+                standalone: true,
+                userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+                platform: "iPhone",
+                maxTouchPoints: 5,
+            },
+            location: { origin: "https://app.example.com", hash: "" },
+            open: vi.fn(() => {
+                openCallCount++;
+                return openCallCount === 1 ? closedPopup : freshPopup;
+            }),
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            setInterval: vi.fn(() => 1),
+            clearInterval: vi.fn(),
+            setTimeout: vi.fn(() => 2),
+            clearTimeout: vi.fn(),
+        };
+
+        const repo = createRemoteStorageRepository();
+        repo.connect("user@example.com");
+
+        // The reserved popup is now "closed" (user dismissed it)
+        repo.remoteStorage.authorize({
+            authURL: "https://auth.example.com/oauth",
+            clientId: "https://app.example.com",
+            redirectUri: "https://app.example.com",
+            scope: "setlist-roller:rw",
+        });
+
+        // Should have opened a fresh popup since the reserved one was closed
+        expect(globalThis.window.open).toHaveBeenCalledTimes(2);
+        // The fresh popup should NOT have location.replace called (it was opened with the auth URL directly)
+        expect(freshPopup.location.replace).not.toHaveBeenCalled();
+    });
+
     it("pre-opens a popup during standalone connect and reuses it for authorize", () => {
         const popup = {
             closed: false,
