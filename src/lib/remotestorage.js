@@ -21,7 +21,7 @@ const AUTH_MESSAGE_TYPE = "setlist-roller-auth-result";
 const AUTH_POPUP_TIMEOUT_MS = 180000;
 const AUTH_POPUP_FEATURES = "popup=yes,width=480,height=720";
 const STANDALONE_AUTH_FAILURE_MESSAGE =
-    "Authorization did not start correctly in the installed app. If iOS opened login in Safari, close it and retry, or sign in in Safari instead of the home-screen app.";
+    "Authorization did not start correctly in the installed app. If iOS opened login in Safari, close it and retry, or sign in via Safari instead of the home-screen app.";
 const REMOTE_STORAGE_EVENTS = new Set([
     "ready",
     "authing",
