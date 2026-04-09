@@ -1,10 +1,71 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+const remoteStorageMockState = vi.hoisted(() => ({
+    instance: null,
+    defaultAuthorize: null,
+}));
+
+vi.mock("remotestoragejs", () => ({
+    default: vi.fn(() => remoteStorageMockState.instance),
+}));
+
 import {
     authorizeWithStandalonePopup,
     buildAuthorizeUrl,
+    createRemoteStorageRepository,
     createStandaloneAuthMessageHandler,
     isIosStandaloneAuthContext,
 } from "./remotestorage.js";
+
+let originalWindow;
+
+beforeEach(() => {
+    const defaultAuthorize = vi.fn();
+    const remoteStorage = {
+        access: {
+            claim: vi.fn(),
+            setStorageType: vi.fn(),
+            scopeParameter: "setlist-roller:rw",
+        },
+        caching: {
+            enable: vi.fn(),
+            reset: vi.fn(),
+        },
+        scope: vi.fn(() => ({
+            declareType: vi.fn(),
+            on: vi.fn(),
+            removeEventListener: vi.fn(),
+        })),
+        remote: {
+            storageApi: "webdav",
+            configure: vi.fn(),
+            connected: false,
+            userAddress: "",
+            token: "",
+        },
+        authorize: defaultAuthorize,
+        on: vi.fn(),
+        removeEventListener: vi.fn(),
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        startSync: vi.fn(),
+        connected: false,
+    };
+
+    remoteStorageMockState.instance = remoteStorage;
+    remoteStorageMockState.defaultAuthorize = defaultAuthorize;
+    originalWindow = globalThis.window;
+});
+
+afterEach(() => {
+    vi.restoreAllMocks();
+    remoteStorageMockState.instance = null;
+    remoteStorageMockState.defaultAuthorize = null;
+    if (typeof originalWindow === "undefined") {
+        delete globalThis.window;
+    } else {
+        globalThis.window = originalWindow;
+    }
+});
 
 describe("isIosStandaloneAuthContext", () => {
     it("returns false without a browser-like environment", () => {
@@ -246,5 +307,136 @@ describe("authorizeWithStandalonePopup", () => {
         expect(timeoutCallback).toBeTypeOf("function");
         expect(clearInterval).toHaveBeenCalledWith(1);
         expect(clearTimeout).toHaveBeenCalledWith(2);
+    });
+});
+
+describe("createRemoteStorageRepository", () => {
+    it("does not throw when standalone authorize is called without options", () => {
+        globalThis.window = {
+            matchMedia: vi.fn(() => ({ matches: true })),
+            navigator: {
+                standalone: true,
+                userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+                platform: "iPhone",
+                maxTouchPoints: 5,
+            },
+            location: {
+                origin: "https://app.example.com",
+                hash: "",
+            },
+            open: vi.fn(() => null),
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            setInterval: vi.fn(),
+            clearInterval: vi.fn(),
+            setTimeout: vi.fn(),
+            clearTimeout: vi.fn(),
+        };
+
+        const repo = createRemoteStorageRepository();
+        const errorHandler = vi.fn();
+
+        repo.on("error", errorHandler);
+
+        expect(() => repo.remoteStorage.authorize()).not.toThrow();
+        expect(remoteStorageMockState.instance.access.setStorageType).toHaveBeenCalledWith("webdav");
+        expect(remoteStorageMockState.defaultAuthorize).not.toHaveBeenCalled();
+        expect(errorHandler).toHaveBeenCalledTimes(1);
+        expect(errorHandler.mock.calls[0][0]).toBeInstanceOf(Error);
+    });
+
+    it("uses the standalone popup authorize path and emits popup errors", () => {
+        globalThis.window = {
+            matchMedia: vi.fn(() => ({ matches: true })),
+            navigator: {
+                standalone: true,
+                userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+                platform: "iPhone",
+                maxTouchPoints: 5,
+            },
+            location: {
+                origin: "https://app.example.com",
+                hash: "",
+            },
+            open: vi.fn(() => null),
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            setInterval: vi.fn(),
+            clearInterval: vi.fn(),
+            setTimeout: vi.fn(),
+            clearTimeout: vi.fn(),
+        };
+
+        const repo = createRemoteStorageRepository();
+        const errorHandler = vi.fn();
+
+        repo.on("error", errorHandler);
+
+        expect(() =>
+            repo.remoteStorage.authorize({
+                authURL: "https://auth.example.com/oauth",
+                clientId: "https://app.example.com",
+                redirectUri: "https://app.example.com",
+                scope: "setlist-roller:rw",
+            }),
+        ).not.toThrow();
+        expect(remoteStorageMockState.instance.access.setStorageType).toHaveBeenCalledWith("webdav");
+        expect(remoteStorageMockState.defaultAuthorize).not.toHaveBeenCalled();
+        expect(errorHandler).toHaveBeenCalledTimes(1);
+        expect(errorHandler.mock.calls[0][0].message).toContain("popup was blocked");
+    });
+
+    it("pre-opens a popup during standalone connect and reuses it for authorize", () => {
+        const popup = {
+            closed: false,
+            location: {
+                replace: vi.fn(),
+                href: "",
+            },
+            document: {
+                write: vi.fn(),
+                close: vi.fn(),
+            },
+            close: vi.fn(),
+        };
+        globalThis.window = {
+            matchMedia: vi.fn(() => ({ matches: true })),
+            navigator: {
+                standalone: true,
+                userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+                platform: "iPhone",
+                maxTouchPoints: 5,
+            },
+            location: {
+                origin: "https://app.example.com",
+                hash: "",
+            },
+            open: vi.fn(() => popup),
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            setInterval: vi.fn(() => 1),
+            clearInterval: vi.fn(),
+            setTimeout: vi.fn(() => 2),
+            clearTimeout: vi.fn(),
+        };
+
+        const repo = createRemoteStorageRepository();
+
+        repo.connect("user@example.com");
+
+        expect(globalThis.window.open).toHaveBeenCalledTimes(1);
+        expect(globalThis.window.open).toHaveBeenCalledWith("", "_blank", "popup=yes,width=480,height=720");
+        expect(remoteStorageMockState.instance.connect).toHaveBeenCalledWith("user@example.com", undefined);
+
+        repo.remoteStorage.authorize({
+            authURL: "https://auth.example.com/oauth",
+            clientId: "https://app.example.com",
+            redirectUri: "https://app.example.com",
+            scope: "setlist-roller:rw",
+        });
+
+        expect(globalThis.window.open).toHaveBeenCalledTimes(1);
+        expect(popup.location.replace).toHaveBeenCalledTimes(1);
+        expect(popup.location.replace.mock.calls[0][0]).toContain("https://auth.example.com/oauth");
     });
 });

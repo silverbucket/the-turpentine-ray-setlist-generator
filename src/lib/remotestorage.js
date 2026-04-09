@@ -19,6 +19,7 @@ const OBJECT_SCHEMA = {
 
 const AUTH_MESSAGE_TYPE = "setlist-roller-auth-result";
 const AUTH_POPUP_TIMEOUT_MS = 180000;
+const AUTH_POPUP_FEATURES = "popup=yes,width=480,height=720";
 
 export function isIosStandaloneAuthContext(env = globalThis.window) {
     if (!env) return false;
@@ -79,6 +80,7 @@ export function authorizeWithStandalonePopup(
     options,
     {
         env = globalThis.window,
+        popup: providedPopup = null,
         emitError = (error) => {
             throw error;
         },
@@ -96,9 +98,16 @@ export function authorizeWithStandalonePopup(
         clientId: options.clientId || env.location.origin,
     });
 
-    const popup = env.open(authUrl, "_blank", "popup=yes,width=480,height=720");
+    const popup = providedPopup || env.open(authUrl, "_blank", AUTH_POPUP_FEATURES);
     if (!popup) {
         throw new Error("Authorization popup was blocked.");
+    }
+    if (providedPopup) {
+        try {
+            popup.location.replace(authUrl);
+        } catch {
+            popup.location.href = authUrl;
+        }
     }
 
     let finished = false;
@@ -162,12 +171,45 @@ export function createRemoteStorageRepository() {
     });
 
     const localEventHandlers = new Map();
+    let reservedAuthPopup = null;
+
     function emitLocal(eventName, payload) {
         const handlers = localEventHandlers.get(eventName);
         if (!handlers) return;
         for (const handler of handlers) {
             handler(payload);
         }
+    }
+
+    function releaseReservedAuthPopup({ close = false } = {}) {
+        const popup = reservedAuthPopup;
+        reservedAuthPopup = null;
+        if (!popup || popup.closed) return null;
+        if (!close) return popup;
+        try {
+            popup.close();
+        } catch {
+            // Ignore popup close failures; they'll self-resolve on the client.
+        }
+        return null;
+    }
+
+    function reserveStandaloneAuthPopup(env = globalThis.window) {
+        if (!isIosStandaloneAuthContext(env) || reservedAuthPopup && !reservedAuthPopup.closed) {
+            return reservedAuthPopup;
+        }
+        const popup = env?.open?.("", "_blank", AUTH_POPUP_FEATURES) || null;
+        if (!popup) return null;
+        reservedAuthPopup = popup;
+        try {
+            popup.document?.write?.(
+                "<!doctype html><title>Setlist Roller Login</title><p style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px\">Preparing login…</p>",
+            );
+            popup.document?.close?.();
+        } catch {
+            // about:blank remains usable even if we cannot write into it.
+        }
+        return popup;
     }
 
     remoteStorage.access.claim(APP_SCOPE, "rw");
@@ -191,9 +233,11 @@ export function createRemoteStorageRepository() {
                     authorizeOptions.scope = remoteStorage.access.scopeParameter;
                 }
                 authorizeWithStandalonePopup(remoteStorage, authorizeOptions, {
+                    popup: releaseReservedAuthPopup(),
                     emitError: (error) => emitLocal("error", error),
                 });
             } catch (error) {
+                releaseReservedAuthPopup({ close: true });
                 emitLocal("error", error instanceof Error ? error : new Error(String(error)));
             }
             return;
@@ -208,11 +252,17 @@ export function createRemoteStorageRepository() {
         connect(userAddress, token) {
             // Re-enable caching in case it was reset by a previous disconnect
             remoteStorage.caching.enable(`/${APP_SCOPE}/`);
+            if (!token) {
+                reserveStandaloneAuthPopup();
+            } else {
+                releaseReservedAuthPopup({ close: true });
+            }
             remoteStorage.connect(userAddress, token);
         },
 
         disconnect() {
             // Reset the local cache before disconnecting to prevent data leaking to the next account
+            releaseReservedAuthPopup({ close: true });
             remoteStorage.caching.reset();
             remoteStorage.disconnect();
         },
@@ -227,6 +277,11 @@ export function createRemoteStorageRepository() {
             remoteStorage.remote.connected = false;
             // Re-enable caching and connect to new account
             remoteStorage.caching.enable(`/${APP_SCOPE}/`);
+            if (!token) {
+                reserveStandaloneAuthPopup();
+            } else {
+                releaseReservedAuthPopup({ close: true });
+            }
             remoteStorage.connect(userAddress, token || undefined);
         },
 
