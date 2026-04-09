@@ -484,6 +484,12 @@ describe("createRemoteStorageRepository", () => {
         expect(remoteStorageMockState.instance.connect).toHaveBeenCalledWith("user@example.com", undefined);
     });
 
+    it("ignores non-string connect tokens", () => {
+        const repo = createRemoteStorageRepository();
+        repo.connect("user@example.com", { type: "click" });
+        expect(remoteStorageMockState.instance.connect).toHaveBeenCalledWith("user@example.com", undefined);
+    });
+
     it("switches accounts in standalone mode without pre-opening a popup", () => {
         globalThis.window = {
             matchMedia: vi.fn(() => ({ matches: true })),

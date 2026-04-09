@@ -10,6 +10,9 @@ const STORAGE_PREFIX = "setlist-roller";
 const MAX_SAVED_SETS = 5;
 
 function randomFrom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+export function normalizeAuthToken(token) {
+    return typeof token === "string" && token.length > 0 ? token : undefined;
+}
 
 export function createAppStore(repo) {
     // ---- per-user localStorage scoping ----
@@ -355,12 +358,13 @@ export function createAppStore(repo) {
             addToast("Put in a remoteStorage address first.", "danger");
             return;
         }
+        const normalizedToken = normalizeAuthToken(token);
         clearSyncLog();
         connectionStatus = "connecting";
         loadError = "";
         syncStatusLabel = "Connecting to remoteStorage";
         pushSyncLog(`Connecting to ${connectAddress.trim()}`);
-        repo.connect(connectAddress.trim(), token || undefined);
+        repo.connect(connectAddress.trim(), normalizedToken);
     }
 
     function disconnectStorage() {
@@ -372,7 +376,7 @@ export function createAppStore(repo) {
     }
 
     function connectToAccount(address) {
-        const savedToken = getAccountToken(address);
+        const savedToken = normalizeAuthToken(getAccountToken(address));
 
         // 1. Save current account's data before touching state
         if (repo.isConnected()) {

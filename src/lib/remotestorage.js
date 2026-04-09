@@ -22,6 +22,25 @@ const AUTH_POPUP_TIMEOUT_MS = 180000;
 const AUTH_POPUP_FEATURES = "popup=yes,width=480,height=720";
 const STANDALONE_AUTH_FAILURE_MESSAGE =
     "Authorization did not start correctly in the installed app. If iOS opened login in Safari, close it and retry, or sign in in Safari instead of the home-screen app.";
+const REMOTE_STORAGE_EVENTS = new Set([
+    "ready",
+    "authing",
+    "connecting",
+    "connected",
+    "disconnected",
+    "not-connected",
+    "conflict",
+    "error",
+    "features-loaded",
+    "sync-interval-change",
+    "sync-started",
+    "sync-req-done",
+    "sync-done",
+    "wire-busy",
+    "wire-done",
+    "network-offline",
+    "network-online",
+]);
 
 export function isIosStandaloneAuthContext(env = globalThis.window) {
     if (!env) return false;
@@ -72,6 +91,10 @@ export function normalizeStandaloneAuthorizeOptions(options, env = globalThis.wi
         authorizeOptions.clientId = new URL(authorizeOptions.redirectUri).origin;
     }
     return authorizeOptions;
+}
+
+function normalizeBearerToken(token) {
+    return typeof token === "string" && token.length > 0 ? token : undefined;
 }
 
 export function createStandaloneAuthMessageHandler({ attemptId, origin, onSuccess, onError }) {
@@ -242,7 +265,7 @@ export function createRemoteStorageRepository() {
         client,
 
         connect(userAddress, token) {
-            const normalizedToken = token || undefined;
+            const normalizedToken = normalizeBearerToken(token);
             // Re-enable caching in case it was reset by a previous disconnect
             remoteStorage.caching.enable(`/${APP_SCOPE}/`);
             remoteStorage.connect(userAddress, normalizedToken);
@@ -264,7 +287,7 @@ export function createRemoteStorageRepository() {
             remoteStorage.remote.connected = false;
             // Re-enable caching and connect to new account
             remoteStorage.caching.enable(`/${APP_SCOPE}/`);
-            remoteStorage.connect(userAddress, token || undefined);
+            remoteStorage.connect(userAddress, normalizeBearerToken(token));
         },
 
         async sync() {
@@ -299,13 +322,17 @@ export function createRemoteStorageRepository() {
         },
 
         on(eventName, handler) {
-            remoteStorage.on(eventName, handler);
+            if (REMOTE_STORAGE_EVENTS.has(eventName)) {
+                remoteStorage.on(eventName, handler);
+            }
             if (!localEventHandlers.has(eventName)) {
                 localEventHandlers.set(eventName, new Set());
             }
             localEventHandlers.get(eventName).add(handler);
             return () => {
-                remoteStorage.removeEventListener(eventName, handler);
+                if (REMOTE_STORAGE_EVENTS.has(eventName)) {
+                    remoteStorage.removeEventListener(eventName, handler);
+                }
                 localEventHandlers.get(eventName)?.delete(handler);
             };
         },
