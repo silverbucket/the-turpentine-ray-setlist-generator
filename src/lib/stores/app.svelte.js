@@ -1610,6 +1610,10 @@ export function createAppStore(repo) {
             syncStatusLabel = "Waiting for authorization";
             pushSyncLog("Authorization required");
         });
+        const detachStandaloneRedirect = repo.on("standalone-auth-redirect", () => {
+            syncStatusLabel = "Opening authorization";
+            pushSyncLog("Redirecting this app to the remoteStorage login");
+        });
         const detachSyncStarted = repo.on("sync-started", () => {
             pushSyncLog("Sync cycle started");
         });
@@ -1701,6 +1705,7 @@ export function createAppStore(repo) {
             if (syncIndicatorTimer) clearTimeout(syncIndicatorTimer);
             detachConnecting();
             detachAuthing();
+            detachStandaloneRedirect();
             detachSyncStarted();
             detachSyncReqDone();
             detachSyncDone();
