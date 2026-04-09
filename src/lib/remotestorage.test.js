@@ -170,6 +170,47 @@ describe("normalizeStandaloneAuthorizeOptions", () => {
         expect(options.clientId).toBe("https://app.example.com");
         expect(options.scope).toBe("setlist-roller:rw");
     });
+
+    it("preserves a trailing slash when the current pathname is root", () => {
+        const options = normalizeStandaloneAuthorizeOptions(
+            { authURL: "https://auth.example.com/oauth", scope: "setlist-roller:rw" },
+            {
+                location: {
+                    origin: "https://app.example.com",
+                    pathname: "/",
+                },
+            },
+        );
+
+        expect(options.redirectUri).toBe("https://app.example.com/");
+        expect(options.clientId).toBe("https://app.example.com");
+    });
+
+    it("rejects empty or non-string scopes", () => {
+        expect(() =>
+            normalizeStandaloneAuthorizeOptions(
+                { authURL: "https://auth.example.com/oauth", scope: "" },
+                {
+                    location: {
+                        origin: "https://app.example.com",
+                        pathname: "/",
+                    },
+                },
+            ),
+        ).toThrow("undefined or empty scope");
+
+        expect(() =>
+            normalizeStandaloneAuthorizeOptions(
+                { authURL: "https://auth.example.com/oauth", scope: null },
+                {
+                    location: {
+                        origin: "https://app.example.com",
+                        pathname: "/",
+                    },
+                },
+            ),
+        ).toThrow("undefined or empty scope");
+    });
 });
 
 describe("createStandaloneAuthMessageHandler", () => {

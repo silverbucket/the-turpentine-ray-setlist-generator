@@ -53,7 +53,7 @@ export function buildAuthorizeUrl(options) {
 
 export function normalizeStandaloneAuthorizeOptions(options, env = globalThis.window) {
     const authorizeOptions = { ...(options ?? {}) };
-    if (typeof authorizeOptions.scope === "undefined") {
+    if (typeof authorizeOptions.scope !== "string" || authorizeOptions.scope.trim() === "") {
         throw new Error("Cannot authorize due to undefined or empty scope; did you forget to access.claim()?");
     }
     if (typeof authorizeOptions.redirectUri === "undefined") {
@@ -61,13 +61,13 @@ export function normalizeStandaloneAuthorizeOptions(options, env = globalThis.wi
             throw new Error("Standalone authorization requires a browser location.");
         }
         let redirectUri = env.location.origin;
-        if (env.location.pathname && env.location.pathname !== "/") {
+        if (env.location.pathname) {
             redirectUri += env.location.pathname;
         }
         authorizeOptions.redirectUri = redirectUri;
     }
     if (typeof authorizeOptions.clientId === "undefined") {
-        authorizeOptions.clientId = authorizeOptions.redirectUri.match(/^(https?:\/\/[^/]+)/)?.[0];
+        authorizeOptions.clientId = new URL(authorizeOptions.redirectUri).origin;
     }
     return authorizeOptions;
 }
