@@ -5,22 +5,14 @@
   const store = getContext("app");
 
   let menuOpen = $state(false);
-  let addingAccount = $state(false);
-  let newAddress = $state("");
   const themeLabel = { system: "◐ System", light: "☀ Light", dark: "☽ Dark" };
 
   function toggleMenu() {
     menuOpen = !menuOpen;
-    if (!menuOpen) {
-      addingAccount = false;
-      newAddress = "";
-    }
   }
 
   function closeMenu() {
     menuOpen = false;
-    addingAccount = false;
-    newAddress = "";
   }
 
   let currentAccount = $derived(
@@ -37,14 +29,9 @@
   }
 
   function handleAddAccount() {
-    addingAccount = true;
-  }
-
-  function submitNewAccount() {
-    const addr = newAddress.trim();
-    if (!addr) return;
     closeMenu();
-    store.connectToAccount(addr);
+    store.connectAddress = "";
+    store.disconnectStorage();
   }
 </script>
 
@@ -90,21 +77,7 @@
           {/if}
 
           <div class="dropdown-divider"></div>
-          {#if addingAccount}
-            <div class="dropdown-add-form">
-              <input
-                class="add-input"
-                bind:value={newAddress}
-                placeholder="you@example.com"
-                aria-label="remoteStorage address"
-                autocomplete="off"
-                onkeydown={(e) => { if (e.key === "Enter") submitNewAccount(); }}
-              />
-              <button type="button" class="add-submit" onclick={submitNewAccount} disabled={!newAddress.trim()}>Connect</button>
-            </div>
-          {:else}
-            <button type="button" class="dropdown-item dropdown-item--add" onclick={handleAddAccount}>Add Account</button>
-          {/if}
+          <button type="button" class="dropdown-item dropdown-item--add" onclick={handleAddAccount}>Add Account</button>
 
           <div class="dropdown-divider"></div>
           <button type="button" class="dropdown-item" onclick={cycleTheme}>Theme: {themeLabel[getThemePreference()]}</button>
@@ -320,49 +293,5 @@
   .dropdown-item--add {
     font-weight: 700;
     color: var(--accent);
-  }
-
-  .dropdown-add-form {
-    display: grid;
-    gap: 8px;
-    padding: 10px 12px;
-    border-top: 1px solid var(--line);
-  }
-
-  .add-input {
-    width: 100%;
-    padding: 6px 10px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--line);
-    background: var(--surface);
-    color: var(--ink);
-    font-size: 13px;
-  }
-
-  .add-input:focus {
-    outline: none;
-    border-color: var(--accent-line);
-    box-shadow: 0 0 0 0.15rem var(--accent-soft);
-  }
-
-  .add-submit {
-    padding: 6px 12px;
-    border-radius: var(--radius-md);
-    border: none;
-    background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-    color: var(--on-accent);
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  .add-submit:active {
-    transform: scale(0.98);
-  }
-
-  .add-submit:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
   }
 </style>

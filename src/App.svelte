@@ -58,7 +58,7 @@
                 />
             </label>
 
-            <button type="button" class="btn primary" onclick={store.connectStorage} disabled={store.connectionStatus === "connecting"}>
+            <button type="button" class="btn primary" onclick={() => store.connectStorage()} disabled={store.connectionStatus === "connecting"}>
                 {store.connectionStatus === "connecting" ? "Connecting..." : "Connect"}
             </button>
 
