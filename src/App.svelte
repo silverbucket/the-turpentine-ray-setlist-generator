@@ -8,7 +8,7 @@
     import SavedScreen from "./lib/components/saved/SavedScreen.svelte";
     import SongsScreen from "./lib/components/songs/SongsScreen.svelte";
     import { generateDieSvgString, updatePwaIcons } from "./lib/pwa-icon.js";
-    import { createRemoteStorageRepository } from "./lib/remotestorage.js";
+    import { createRemoteStorageRepository, isIosStandaloneAuthContext } from "./lib/remotestorage.js";
     import { createAppStore } from "./lib/stores/app.svelte.js";
     import { DEFAULT_DIE_COLOR, hexToRgb } from "./lib/utils.js";
 
@@ -29,6 +29,21 @@
 
     $effect(() => {
         void updatePwaIcons(dieColor).catch((e) => console.error("PWA icon update failed", e));
+    });
+
+    // iOS standalone PWA: after the sync-shell → app-shell DOM swap,
+    // WebKit's compositor has stale hit-test regions for the new
+    // fixed-position elements (TopBar, BottomNav). A micro-scroll
+    // forces the compositor to rebuild its layer hit-test tree.
+    $effect(() => {
+        if (store.initialSyncComplete && isIosStandaloneAuthContext()) {
+            requestAnimationFrame(() => {
+                const x = window.scrollX;
+                const y = window.scrollY;
+                window.scrollTo(x, y + 1);
+                requestAnimationFrame(() => window.scrollTo(x, y));
+            });
+        }
     });
 </script>
 
