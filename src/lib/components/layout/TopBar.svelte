@@ -92,7 +92,7 @@
     top: 0;
     left: 0;
     right: 0;
-    height: 48px;
+    height: var(--top-bar-height);
     padding-top: env(safe-area-inset-top, 0px);
     display: grid;
     grid-template-columns: 1fr auto 1fr;
@@ -111,6 +111,8 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    overflow: hidden;
+    min-width: 0;
   }
 
   .conn-dot {
@@ -154,6 +156,8 @@
     align-items: center;
     justify-content: flex-end;
     gap: 8px;
+    position: relative;
+    z-index: 1;
   }
 
   .menu-wrapper {
@@ -174,6 +178,7 @@
     color: var(--ink);
     border-radius: var(--radius-md);
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 
   .menu-btn:active {
@@ -212,6 +217,7 @@
     color: var(--ink);
     text-align: left;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 
   .dropdown-item:active {
@@ -293,5 +299,4 @@
     font-weight: 700;
     color: var(--accent);
   }
-
 </style>

@@ -62,7 +62,7 @@
     --space-8: 2rem;
 
     /* Layout */
-    --top-bar-height: 48px;
+    --top-bar-height: calc(48px + env(safe-area-inset-top, 0px));
     --bottom-nav-height: 56px;
     --safe-bottom: env(safe-area-inset-bottom, 0px);
 }

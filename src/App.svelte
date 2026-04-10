@@ -58,7 +58,7 @@
                 />
             </label>
 
-            <button type="button" class="btn primary" onclick={store.connectStorage} disabled={store.connectionStatus === "connecting"}>
+            <button type="button" class="btn primary" onclick={() => store.connectStorage()} disabled={store.connectionStatus === "connecting"}>
                 {store.connectionStatus === "connecting" ? "Connecting..." : "Connect"}
             </button>
 
@@ -394,7 +394,7 @@
         align-items: center;
         border: 1px solid var(--line);
         border-radius: var(--radius-md);
-        background: rgba(255,255,255,0.6);
+        background: var(--surface);
         overflow: hidden;
     }
 
@@ -515,7 +515,7 @@
     /* ---- Toast pill ---- */
     .toast-pill {
         position: fixed;
-        top: calc(env(safe-area-inset-top, 0px) + 48px);
+        top: var(--top-bar-height);
         left: 50%;
         transform: translateX(-50%);
         max-width: calc(100vw - 2rem);
