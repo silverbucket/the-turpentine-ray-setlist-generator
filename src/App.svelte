@@ -38,8 +38,10 @@
     $effect(() => {
         if (store.initialSyncComplete && isIosStandaloneAuthContext()) {
             requestAnimationFrame(() => {
-                window.scrollTo(0, 1);
-                requestAnimationFrame(() => window.scrollTo(0, 0));
+                const x = window.scrollX;
+                const y = window.scrollY;
+                window.scrollTo(x, y + 1);
+                requestAnimationFrame(() => window.scrollTo(x, y));
             });
         }
     });
