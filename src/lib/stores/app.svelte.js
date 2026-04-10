@@ -1599,12 +1599,23 @@ export function createAppStore(repo) {
         syncRouteFromHash();
         window.addEventListener("hashchange", syncRouteFromHash);
 
-        // If RS doesn't fire "connected" quickly, we're not auto-reconnecting — show login
-        const pendingTimer = setTimeout(() => {
+        // Safety timeout in case RS never fires "connected" or "not-connected"
+        // (e.g. library bug or feature loading hangs).
+        const safetyTimer = setTimeout(() => {
             if (connectionStatus === "pending") {
                 connectionStatus = "disconnected";
             }
-        }, 800);
+        }, 10000);
+
+        // RS fires "not-connected" after features load when there is no stored
+        // token and no OAuth redirect params. This replaces the old fixed 800ms
+        // timer that could race against async feature init (IndexedDB open).
+        const detachNotConnected = repo.on("not-connected", () => {
+            clearTimeout(safetyTimer);
+            if (connectionStatus === "pending") {
+                connectionStatus = "disconnected";
+            }
+        });
 
         const detachConnecting = repo.on("connecting", () => {
             syncStatusLabel = "Discovering remote storage";
@@ -1629,7 +1640,7 @@ export function createAppStore(repo) {
         });
 
         const detachConnected = repo.on("connected", async () => {
-            clearTimeout(pendingTimer);
+            clearTimeout(safetyTimer);
             connectionStatus = "connected";
             connectAddress = repo.getUserAddress() || connectAddress;
             currentUserAddress = connectAddress;
@@ -1705,7 +1716,7 @@ export function createAppStore(repo) {
 
         return () => {
             window.removeEventListener("hashchange", syncRouteFromHash);
-            clearTimeout(pendingTimer);
+            clearTimeout(safetyTimer);
             if (syncIndicatorTimer) clearTimeout(syncIndicatorTimer);
             detachConnecting();
             detachAuthing();
@@ -1715,6 +1726,7 @@ export function createAppStore(repo) {
             detachSyncDone();
             detachConnected();
             detachDisconnected();
+            detachNotConnected();
             detachError();
             detachChange();
         };
