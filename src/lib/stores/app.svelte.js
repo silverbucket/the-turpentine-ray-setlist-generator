@@ -367,11 +367,44 @@ export function createAppStore(repo) {
         repo.connect(connectAddress.trim(), normalizedToken);
     }
 
+    function resetToLoginState() {
+        terminateWorker();
+        isGenerating = false;
+        connectionStatus = "disconnected";
+        clearUserLocalStorage();
+        clearUnscopedLocalStorage();
+        currentUserAddress = "";
+        songs = [];
+        appConfig = null;
+        generatedSetlist = null;
+        setlistLocked = false;
+        setlistSaved = false;
+        savedSetlists = [];
+        bandMembers = {};
+        showFirstRunPrompt = false;
+        initialSyncComplete = false;
+        selectedSongId = "";
+        editorSong = null;
+    }
+
     function disconnectStorage() {
         // Save current token before disconnecting so we can switch back later
         if (currentUserAddress) {
             saveKnownAccount(currentUserAddress, appConfig?.bandName || "", repo.getToken());
         }
+        repo.disconnect();
+    }
+
+    function startAddAccountFlow() {
+        if (currentUserAddress) {
+            saveKnownAccount(currentUserAddress, appConfig?.bandName || "", repo.getToken());
+            knownAccounts = getKnownAccounts();
+        }
+        connectAddress = "";
+        loadError = "";
+        clearSyncLog();
+        syncStatusLabel = "Preparing connection";
+        resetToLoginState();
         repo.disconnect();
     }
 
@@ -1677,23 +1710,7 @@ export function createAppStore(repo) {
         });
 
         const detachDisconnected = repo.on("disconnected", () => {
-            terminateWorker();
-            isGenerating = false;
-            connectionStatus = "disconnected";
-            clearUserLocalStorage();
-            clearUnscopedLocalStorage();
-            currentUserAddress = "";
-            songs = [];
-            appConfig = null;
-            generatedSetlist = null;
-            setlistLocked = false;
-            setlistSaved = false;
-            savedSetlists = [];
-            bandMembers = {};
-            showFirstRunPrompt = false;
-            initialSyncComplete = false;
-            selectedSongId = "";
-            editorSong = null;
+            resetToLoginState();
             pushSyncLog("Disconnected");
         });
 
@@ -1808,6 +1825,7 @@ export function createAppStore(repo) {
         get knownAccounts() { return knownAccounts; },
         connectToAccount,
         forgetAccount,
+        startAddAccountFlow,
 
         // actions
         init,

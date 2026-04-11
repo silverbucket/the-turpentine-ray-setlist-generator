@@ -30,8 +30,7 @@
 
   function handleAddAccount() {
     closeMenu();
-    store.connectAddress = "";
-    store.disconnectStorage();
+    store.startAddAccountFlow();
   }
 </script>
 

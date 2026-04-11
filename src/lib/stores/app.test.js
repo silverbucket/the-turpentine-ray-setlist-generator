@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { normalizeAuthToken } from "./app.svelte.js";
+import { createAppStore, normalizeAuthToken } from "./app.svelte.js";
 
 describe("normalizeAuthToken", () => {
     it("keeps non-empty string tokens", () => {
@@ -11,5 +11,24 @@ describe("normalizeAuthToken", () => {
         expect(normalizeAuthToken({ type: "click" })).toBeUndefined();
         expect(normalizeAuthToken("")).toBeUndefined();
         expect(normalizeAuthToken(null)).toBeUndefined();
+    });
+});
+
+describe("startAddAccountFlow", () => {
+    it("returns to the login screen immediately before remoteStorage confirms disconnect", () => {
+        const repo = {
+            disconnect: vi.fn(),
+            getToken: vi.fn(() => ""),
+        };
+        const store = createAppStore(repo);
+
+        store.connectAddress = "band@example.com";
+
+        store.startAddAccountFlow();
+
+        expect(store.connectionStatus).toBe("disconnected");
+        expect(store.connectAddress).toBe("");
+        expect(store.initialSyncComplete).toBe(false);
+        expect(repo.disconnect).toHaveBeenCalledTimes(1);
     });
 });
