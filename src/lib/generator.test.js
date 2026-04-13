@@ -1753,3 +1753,72 @@ describe("notes field", () => {
         expect(result.songs[0].notes).toBe("");
     });
 });
+
+describe("generateSetlist — opener diversity", () => {
+    it("does not collapse opener onto a single song when one tuning is in the minority", () => {
+        // 5 songs in Drop D tuning (key of D), 15 songs in Standard tuning (various keys)
+        const dropDSongs = Array.from({ length: 5 }, (_, i) =>
+            makeSong(`Drop Song ${i + 1}`, {
+                key: "D",
+                members: {
+                    nick: {
+                        instruments: [{ name: "guitar", tuning: ["Drop D"], capo: 0, picking: [] }],
+                    },
+                },
+            }),
+        );
+        const standardSongs = Array.from({ length: 15 }, (_, i) =>
+            makeSong(`Standard Song ${i + 1}`, {
+                key: ["G", "A", "C", "E", "F", "Bb", "Eb", "Ab", "B", "F#", "Bm", "Em", "Am", "Dm", "Cm"][i],
+                members: {
+                    nick: {
+                        instruments: [{ name: "guitar", tuning: ["Standard"], capo: 0, picking: [] }],
+                    },
+                },
+            }),
+        );
+        const songs = [...dropDSongs, ...standardSongs];
+        const config = makeConfig();
+
+        const keyCounts = {};
+        const seeds = 30;
+        for (let seed = 1; seed <= seeds; seed++) {
+            const result = generateSetlist(songs, config, {
+                count: 9,
+                seed,
+                beamWidth: 64,
+                randomness: { temperature: 1.6 },
+            });
+            const key = result.songs[0]?.key || "unknown";
+            keyCounts[key] = (keyCounts[key] || 0) + 1;
+        }
+        const maxCount = Math.max(...Object.values(keyCounts));
+        // No single key should dominate the opener across 30 seeds
+        expect(maxCount / seeds).toBeLessThanOrEqual(0.6);
+    });
+
+    it("key flow does not bias opener selection toward central keys", () => {
+        // D is central on the circle of fifths for guitar keys — it should not dominate
+        // the opener even with key flow enabled
+        const keys = ["D", "D", "D", "G", "G", "G", "A", "A", "E", "E", "C", "C", "F", "Bb", "F#"];
+        const songs = keys.map((key, i) => makeSong(`Song ${i + 1}`, { key, members: {} }));
+        const config = makeConfig();
+
+        const keyCounts = {};
+        const seeds = 30;
+        for (let seed = 1; seed <= seeds; seed++) {
+            const result = generateSetlist(songs, config, {
+                count: 9,
+                seed,
+                beamWidth: 64,
+                keyFlow: true,
+                randomness: { temperature: 1.2 },
+            });
+            const key = result.songs[0]?.key || "unknown";
+            keyCounts[key] = (keyCounts[key] || 0) + 1;
+        }
+        const dCount = keyCounts.D || 0;
+        // D is 3/15 = 20% of catalog, should not appear as opener more than 50%
+        expect(dCount / seeds).toBeLessThanOrEqual(0.5);
+    });
+});

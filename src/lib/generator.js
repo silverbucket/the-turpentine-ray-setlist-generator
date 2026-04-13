@@ -694,6 +694,7 @@ class SetList {
             coverCount: 0,
             instrumentalCount: 0,
             lastItem: null,
+            firstSongId: null,
             rankScore: 0,
             _tiebreaker: 0,
             propChangeCounts: zeroMap(this._propNames),
@@ -792,6 +793,7 @@ class SetList {
         const pool = nextStates.slice(0, poolSize);
         const selected = [];
         const lastSongCounts = {};
+        const firstSongCounts = {};
         const temperature = clampFloat(this._randomness.beamTemperature, 1.1, 0.01);
         const maxStatesPerLastSong = clampInteger(this._randomness.maxStatesPerLastSong, 24, 1);
 
@@ -815,13 +817,21 @@ class SetList {
 
             const chosen = pool.splice(chosenIndex, 1)[0];
             const lastSongId = chosen.lastItem ? chosen.lastItem.id : "none";
-            const used = lastSongCounts[lastSongId] || 0;
+            const lastUsed = lastSongCounts[lastSongId] || 0;
 
-            if (used >= maxStatesPerLastSong) {
+            if (lastUsed >= maxStatesPerLastSong) {
                 continue;
             }
 
-            lastSongCounts[lastSongId] = used + 1;
+            const firstSongId = chosen.firstSongId || "none";
+            const firstUsed = firstSongCounts[firstSongId] || 0;
+
+            if (firstUsed >= maxStatesPerLastSong) {
+                continue;
+            }
+
+            lastSongCounts[lastSongId] = lastUsed + 1;
+            firstSongCounts[firstSongId] = firstUsed + 1;
             selected.push(chosen);
         }
 
@@ -1052,6 +1062,7 @@ class SetList {
                 coverCount: nextCoverCount,
                 instrumentalCount: nextInstrumentalCount,
                 lastItem: variantState.item,
+                firstSongId: state.firstSongId || song.id,
                 rankScore: newScore + this._randomJitter(this._randomness.stateJitter),
                 _tiebreaker: this._rng(),
                 propChangeCounts: variantState.propChangeCounts,
