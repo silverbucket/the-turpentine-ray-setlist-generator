@@ -3,8 +3,8 @@ import { CONFIG_SECTIONS } from "../config-meta.js";
 import { blankSong, DEFAULT_APP_CONFIG, normalizeAppConfig, normalizeMemberRecord, normalizeSongRecord } from "../defaults.js";
 import { buildDefaultPerformance, scoreFixedOrder } from "../generator.js";
 import GeneratorWorker from "../generator.worker.js?worker";
-import { migrator } from "../migrations.js";
 import { MAJOR_KEYS, MINOR_KEYS } from "../keys.js";
+import { migrator } from "../migrations.js";
 import { clone, deepMerge, formatDelimitedList, getByPath, nowIso, parseDelimitedList, setByPath, titleForBand, tryParseJson, uid } from "../utils.js";
 
 const STORAGE_PREFIX = "setlist-roller";
