@@ -3,6 +3,7 @@ import { CONFIG_SECTIONS } from "../config-meta.js";
 import { blankSong, DEFAULT_APP_CONFIG, normalizeAppConfig, normalizeMemberRecord, normalizeSongRecord } from "../defaults.js";
 import { buildDefaultPerformance, scoreFixedOrder } from "../generator.js";
 import GeneratorWorker from "../generator.worker.js?worker";
+import { pruneStaleKeys, sortKeys } from "../keys.js";
 import { migrator } from "../migrations.js";
 import { clone, deepMerge, formatDelimitedList, getByPath, nowIso, parseDelimitedList, setByPath, titleForBand, tryParseJson, uid } from "../utils.js";
 
@@ -63,6 +64,7 @@ export function createAppStore(repo) {
     let editReturnView = $state("");
     let songSearch = $state("");
     let songFilter = $state("all");
+    let songKeyFilters = $state(new Set());
 
     // ---- band editing ----
     let expandedBandMember = $state("");
@@ -93,6 +95,14 @@ export function createAppStore(repo) {
     let allInstrumentNamesList = $derived(buildAllInstrumentNames());
     let instrumentTypeCount = $derived(allInstrumentNamesList.length);
     let visibleSongs = $derived(computeVisibleSongs());
+    let usedKeys = $derived(
+        sortKeys([...new Set(songs.map((s) => s.key).filter(Boolean))]),
+    );
+
+    $effect(() => {
+        const pruned = pruneStaleKeys(songKeyFilters, usedKeys);
+        if (pruned) songKeyFilters = pruned;
+    });
 
     // ---- helpers ----
 
@@ -201,6 +211,7 @@ export function createAppStore(repo) {
             if (songFilter === "originals" && song.cover) return false;
             if (songFilter === "incomplete" && !isSongIncomplete(song)) return false;
             if (songFilter === "unpracticed" && !song.unpracticed) return false;
+            if (songKeyFilters.size > 0 && !songKeyFilters.has(song.key)) return false;
             if (!query) return true;
             return [song.name, song.key, ...Object.keys(song.members || {})]
                 .join(" ").toLowerCase().includes(query);
@@ -1767,6 +1778,15 @@ export function createAppStore(repo) {
         set songSearch(v) { songSearch = v; },
         get songFilter() { return songFilter; },
         set songFilter(v) { songFilter = v; },
+        get songKeyFilters() { return songKeyFilters; },
+        get usedKeys() { return usedKeys; },
+        toggleKeyFilter(key) {
+            const next = new Set(songKeyFilters);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            songKeyFilters = next;
+        },
+        clearKeyFilters() { songKeyFilters = new Set(); },
         get expandedBandMember() { return expandedBandMember; },
         set expandedBandMember(v) { expandedBandMember = v; },
         get newMemberName() { return newMemberName; },

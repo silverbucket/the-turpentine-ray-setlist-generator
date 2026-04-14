@@ -108,6 +108,30 @@ export function keyDistance(keyA, keyB) {
  * @param {number} weight - key flow weight (penalty multiplier)
  * @returns {{ score: number, dir: number }}
  */
+/**
+ * Sort an array of key strings in chromatic order (major then minor).
+ * Keys not in the canonical list are placed at the end.
+ */
+export function sortKeys(keys) {
+    const order = [...MAJOR_KEYS, ...MINOR_KEYS];
+    return [...keys].sort((a, b) => {
+        const ai = order.indexOf(a);
+        const bi = order.indexOf(b);
+        return (ai === -1 ? order.length : ai) - (bi === -1 ? order.length : bi);
+    });
+}
+
+/**
+ * Remove entries from a Set that are not present in validKeys.
+ * Returns null if nothing was pruned, or a new Set if entries were removed.
+ */
+export function pruneStaleKeys(filterSet, validKeys) {
+    if (filterSet.size === 0) return null;
+    const valid = new Set(validKeys);
+    const pruned = new Set([...filterSet].filter((k) => valid.has(k)));
+    return pruned.size !== filterSet.size ? pruned : null;
+}
+
 export function scoreKeyTransition(prevKey, nextKey, prevDir, weight) {
     const dist = keyDistance(prevKey, nextKey);
     if (dist === null) return { score: 0, dir: prevDir };

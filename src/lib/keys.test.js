@@ -7,7 +7,9 @@ import {
     MAJOR_KEYS,
     MINOR_KEYS,
     parseKey,
+    pruneStaleKeys,
     scoreKeyTransition,
+    sortKeys,
 } from "./keys.js";
 
 describe("parseKey", () => {
@@ -191,6 +193,46 @@ describe("scoreKeyTransition", () => {
         const result = scoreKeyTransition("C", "Am", 3, 2); // relative major/minor = distance 0
         expect(result.score).toBe(0);
         expect(result.dir).toBe(3); // preserved
+    });
+});
+
+describe("sortKeys", () => {
+    it("sorts canonical keys in chromatic major-then-minor order", () => {
+        expect(sortKeys(["Am", "G", "C", "Em"])).toEqual(["C", "G", "Em", "Am"]);
+    });
+
+    it("places non-canonical keys at the end", () => {
+        expect(sortKeys(["Db", "C", "G"])).toEqual(["C", "G", "Db"]);
+    });
+
+    it("handles an empty array", () => {
+        expect(sortKeys([])).toEqual([]);
+    });
+
+    it("does not mutate the input", () => {
+        const input = ["G", "C"];
+        sortKeys(input);
+        expect(input).toEqual(["G", "C"]);
+    });
+});
+
+describe("pruneStaleKeys", () => {
+    it("returns null when nothing to prune", () => {
+        expect(pruneStaleKeys(new Set(["C", "G"]), ["C", "G", "Am"])).toBeNull();
+    });
+
+    it("returns null for an empty filter set", () => {
+        expect(pruneStaleKeys(new Set(), ["C"])).toBeNull();
+    });
+
+    it("removes keys not in the valid list", () => {
+        const result = pruneStaleKeys(new Set(["C", "G", "Am"]), ["C"]);
+        expect(result).toEqual(new Set(["C"]));
+    });
+
+    it("returns empty set when all keys are stale", () => {
+        const result = pruneStaleKeys(new Set(["G"]), ["C", "Am"]);
+        expect(result).toEqual(new Set());
     });
 });
 

@@ -1,5 +1,6 @@
 <script>
     import { getContext } from "svelte";
+    import ChipToggle from "../shared/ChipToggle.svelte";
     import SongEditor from "./SongEditor.svelte";
 
     const store = getContext("app");
@@ -66,6 +67,27 @@
             {/each}
         </div>
     </div>
+
+    {#if store.usedKeys.length > 0}
+        <div class="key-filter-section">
+            <div class="key-filter-header">
+                <span class="key-filter-label">Key</span>
+                {#if store.songKeyFilters.size > 0}
+                    <button type="button" class="key-clear-btn" onclick={() => store.clearKeyFilters()}>
+                        Clear
+                    </button>
+                {/if}
+            </div>
+            <div class="key-chips">
+                {#each store.usedKeys as key}
+                    <ChipToggle
+                        checked={store.songKeyFilters.has(key)}
+                        onchange={() => store.toggleKeyFilter(key)}
+                    >{key}</ChipToggle>
+                {/each}
+            </div>
+        </div>
+    {/if}
 
     {#if store.emptyCatalog}
         <div class="empty-state">
@@ -241,6 +263,42 @@
     .seg-btn.active {
         background: var(--accent-soft, rgba(225, 91, 55, 0.12));
         color: var(--accent-strong, #c64724);
+    }
+
+    .key-filter-section {
+        display: grid;
+        gap: 0.4rem;
+    }
+
+    .key-filter-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .key-filter-label {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--muted, #6b7a8d);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .key-clear-btn {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--accent-strong, #c64724);
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0.2rem 0.4rem;
+        touch-action: manipulation;
+    }
+
+    .key-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
     }
 
     .empty-state {
