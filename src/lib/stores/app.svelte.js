@@ -3,7 +3,7 @@ import { CONFIG_SECTIONS } from "../config-meta.js";
 import { blankSong, DEFAULT_APP_CONFIG, normalizeAppConfig, normalizeMemberRecord, normalizeSongRecord } from "../defaults.js";
 import { buildDefaultPerformance, scoreFixedOrder } from "../generator.js";
 import GeneratorWorker from "../generator.worker.js?worker";
-import { MAJOR_KEYS, MINOR_KEYS } from "../keys.js";
+import { pruneStaleKeys, sortKeys } from "../keys.js";
 import { migrator } from "../migrations.js";
 import { clone, deepMerge, formatDelimitedList, getByPath, nowIso, parseDelimitedList, setByPath, titleForBand, tryParseJson, uid } from "../utils.js";
 
@@ -96,11 +96,13 @@ export function createAppStore(repo) {
     let instrumentTypeCount = $derived(allInstrumentNamesList.length);
     let visibleSongs = $derived(computeVisibleSongs());
     let usedKeys = $derived(
-        [...new Set(songs.map((s) => s.key).filter(Boolean))].sort((a, b) => {
-            const order = [...MAJOR_KEYS, ...MINOR_KEYS];
-            return order.indexOf(a) - order.indexOf(b);
-        }),
+        sortKeys([...new Set(songs.map((s) => s.key).filter(Boolean))]),
     );
+
+    $effect(() => {
+        const pruned = pruneStaleKeys(songKeyFilters, usedKeys);
+        if (pruned) songKeyFilters = pruned;
+    });
 
     // ---- helpers ----
 
