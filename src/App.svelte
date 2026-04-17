@@ -357,7 +357,7 @@
         border: 1px solid var(--line);
         background: var(--surface);
         color: var(--ink);
-        font-size: 0.95rem;
+        font-size: 1rem;
         transition: border-color 140ms ease, box-shadow 140ms ease;
     }
 

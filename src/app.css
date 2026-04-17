@@ -130,6 +130,12 @@ textarea {
     color: inherit;
 }
 
+input,
+select,
+textarea {
+    font-size: 16px;
+}
+
 button {
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;

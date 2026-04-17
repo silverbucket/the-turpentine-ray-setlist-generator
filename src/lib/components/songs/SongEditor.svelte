@@ -735,13 +735,13 @@
     }
 
     .field-input.small {
-        min-height: 2.2rem;
+        min-height: 2.4rem;
         padding: 0.4rem 0.7rem;
-        font-size: 0.85rem;
+        font-size: 1rem;
     }
 
     .add-sm-btn {
-        min-height: 2.2rem;
+        min-height: 2.4rem;
         padding: 0.4rem 0.75rem;
         border-radius: var(--radius-md, 12px);
         border: none;
