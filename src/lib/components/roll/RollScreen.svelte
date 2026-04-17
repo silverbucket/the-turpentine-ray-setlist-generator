@@ -413,43 +413,44 @@
 
   <!-- Setlist result -->
   {#if store.generatedSetlist}
-    <section class="result-section">
-      <div class="song-list" bind:this={songListEl}>
-        {#each store.generatedSetlist.songs as song, i}
-          <div class="song-list-item" class:drag-over={dragIndex !== null && dragOverIndex === i && dragIndex !== i}>
-            <SetlistSongCard
-              {song}
-              index={i}
-              prevSong={i > 0 ? store.generatedSetlist.songs[i - 1] : null}
-              onDragStart={handleDragStart}
-              onEdit={handleEditSong}
-              onRemove={(idx) => store.removeSetlistSong(idx)}
-            />
-          </div>
-        {/each}
-      </div>
+    {#key store.setlistViewVersion}
+      <section class="result-section">
+        <div class="song-list" bind:this={songListEl}>
+          {#each store.generatedSetlist.songs as song, i (song.id)}
+            <div class="song-list-item" class:drag-over={dragIndex !== null && dragOverIndex === i && dragIndex !== i}>
+              <SetlistSongCard
+                {song}
+                index={i}
+                prevSong={i > 0 ? store.generatedSetlist.songs[i - 1] : null}
+                onDragStart={handleDragStart}
+                onEdit={handleEditSong}
+                onRemove={(idx) => store.removeSetlistSong(idx)}
+              />
+            </div>
+          {/each}
+        </div>
 
-      <div class="roadie-score">
-        <span class="roadie-label">Bass Player Anxiety</span>
-        <span class="roadie-val">{anxietyLevel.scaled}/10</span>
-        <p class="roadie-hint">{anxietyLevel.label}</p>
-      </div>
+        <div class="roadie-score">
+          <span class="roadie-label">Bass Player Anxiety</span>
+          <span class="roadie-val">{anxietyLevel.scaled}/10</span>
+          <p class="roadie-hint">{anxietyLevel.label}</p>
+        </div>
 
-      <div class="setlist-actions">
-        <button type="button" class="save-set-btn add-song-btn" onclick={() => { showAddSongPicker = true; }}>+ Add song</button>
-        {#if store.setlistLocked}
-          <div class="locked-badge">🔒 Locked in</div>
-          {#if store.setlistSaved}
-            <div class="saved-badge">✓ Saved</div>
+        <div class="setlist-actions">
+          <button type="button" class="save-set-btn add-song-btn" onclick={() => { showAddSongPicker = true; }}>+ Add song</button>
+          {#if store.setlistLocked}
+            <div class="locked-badge">🔒 Locked in</div>
+            {#if store.setlistSaved}
+              <div class="saved-badge">✓ Saved</div>
+            {:else}
+              <button type="button" class="save-set-btn secondary" onclick={handleSaveSetlist}>Save to Greatest Hits</button>
+            {/if}
           {:else}
-            <button type="button" class="save-set-btn secondary" onclick={handleSaveSetlist}>Save to Greatest Hits</button>
+            <button type="button" class="save-set-btn" onclick={handleLock}>Lock it in 🔒</button>
           {/if}
-        {:else}
-          <button type="button" class="save-set-btn" onclick={handleLock}>Lock it in 🔒</button>
-        {/if}
-      </div>
-
-    </section>
+        </div>
+      </section>
+    {/key}
   {/if}
 
   {#if store.pendingRollConfirm}

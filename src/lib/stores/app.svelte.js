@@ -15,6 +15,41 @@ export function normalizeAuthToken(token) {
     return typeof token === "string" && token.length > 0 ? token : undefined;
 }
 
+export function syncSavedSongIntoSetlist(setlist, savedSong, appConfig, keyFlow = false) {
+    if (!setlist?.songs?.length || !savedSong?.id) return setlist;
+
+    let changed = false;
+    const syncedSongs = setlist.songs.map((song) => {
+        if (song.id !== savedSong.id) return song;
+
+        const nextSong = {
+            ...song,
+            name: savedSong.name,
+            cover: savedSong.cover || false,
+            instrumental: savedSong.instrumental || false,
+            key: savedSong.key || "",
+            notes: savedSong.notes || "",
+        };
+
+        if (
+            nextSong.name !== song.name ||
+            nextSong.cover !== song.cover ||
+            nextSong.instrumental !== song.instrumental ||
+            nextSong.key !== song.key ||
+            nextSong.notes !== song.notes
+        ) {
+            changed = true;
+        }
+
+        return nextSong;
+    });
+
+    if (!changed) return setlist;
+
+    const rescored = scoreFixedOrder(syncedSongs, appConfig || DEFAULT_APP_CONFIG, { keyFlow });
+    return { ...setlist, songs: rescored.songs, summary: rescored.summary };
+}
+
 export function createAppStore(repo) {
     // ---- per-user localStorage scoping ----
     let currentUserAddress = "";
@@ -25,6 +60,7 @@ export function createAppStore(repo) {
     let appConfig = $state(null);
     let bootstrapMeta = $state(null);
     let generatedSetlist = $state(null);
+    let setlistViewVersion = $state(0);
     let isGenerating = $state(false);
     let activeWorker = null;
     let generationId = 0;
@@ -230,6 +266,19 @@ export function createAppStore(repo) {
         localStorage.setItem(storageKey("ui-options"), JSON.stringify(generationOptions));
     }
 
+    function replaceGeneratedSetlist(nextSetlist) {
+        generatedSetlist = nextSetlist;
+        if (nextSetlist) setlistViewVersion += 1;
+    }
+
+    function updateCurrentSetlist(nextSetlist) {
+        generatedSetlist = nextSetlist;
+    }
+
+    function clearGeneratedSetlist() {
+        generatedSetlist = null;
+    }
+
     // Strip deprecated "energy" field and energy-related notes from saved setlist songs
     function stripEnergy(sets) {
         if (!Array.isArray(sets)) return sets;
@@ -287,7 +336,8 @@ export function createAppStore(repo) {
         clearUnscopedLocalStorage();
         const current = loadCurrentSetlist();
         const locked = current?._locked || false;
-        generatedSetlist = locked ? current : null;
+        if (locked) replaceGeneratedSetlist(current);
+        else clearGeneratedSetlist();
         setlistLocked = locked;
         setlistSaved = false;
         generationOptions = loadStoredGenerationOptions();
@@ -415,7 +465,7 @@ export function createAppStore(repo) {
         }
 
         // Clear transient state
-        generatedSetlist = null;
+        clearGeneratedSetlist();
         setlistLocked = false;
         setlistSaved = false;
         selectedSongId = "";
@@ -670,7 +720,7 @@ export function createAppStore(repo) {
                 ]), "danger");
                 return;
             }
-            generatedSetlist = result;
+            replaceGeneratedSetlist(result);
             if (opts._keepLock) {
                 setlistSaved = false;
             } else {
@@ -785,11 +835,11 @@ export function createAppStore(repo) {
     function loadSavedSetlist(id) {
         const saved = savedSetlists.find((s) => s.id === id);
         if (!saved) return;
-        generatedSetlist = {
+        replaceGeneratedSetlist({
             songs: clone(saved.songs),
             summary: clone(saved.summary),
             seed: saved.seed,
-        };
+        });
         setlistLocked = true;
         setlistSaved = true;
         persistCurrentSetlist();
@@ -802,7 +852,7 @@ export function createAppStore(repo) {
         const [moved] = songList.splice(fromIndex, 1);
         songList.splice(toIndex, 0, moved);
         const rescored = scoreFixedOrder(songList, appConfig, { keyFlow: generationOptions.keyFlow });
-        generatedSetlist = { ...generatedSetlist, songs: rescored.songs, summary: rescored.summary, _reordered: true };
+        updateCurrentSetlist({ ...generatedSetlist, songs: rescored.songs, summary: rescored.summary, _reordered: true });
         setlistSaved = false;
         persistCurrentSetlist();
     }
@@ -812,14 +862,14 @@ export function createAppStore(repo) {
         const songList = clone(generatedSetlist.songs);
         songList.splice(index, 1);
         if (!songList.length) {
-            generatedSetlist = null;
+            clearGeneratedSetlist();
             setlistLocked = false;
             setlistSaved = false;
             persistCurrentSetlist();
             return;
         }
         const rescored = scoreFixedOrder(songList, appConfig, { keyFlow: generationOptions.keyFlow });
-        generatedSetlist = { ...generatedSetlist, songs: rescored.songs, summary: rescored.summary };
+        updateCurrentSetlist({ ...generatedSetlist, songs: rescored.songs, summary: rescored.summary });
         setlistSaved = false;
         persistCurrentSetlist();
     }
@@ -847,7 +897,7 @@ export function createAppStore(repo) {
             contextNotes: [],
         });
         const rescored = scoreFixedOrder(songList, appConfig, { keyFlow: generationOptions.keyFlow });
-        generatedSetlist = { ...generatedSetlist, songs: rescored.songs, summary: rescored.summary };
+        updateCurrentSetlist({ ...generatedSetlist, songs: rescored.songs, summary: rescored.summary });
         setlistSaved = false;
         persistCurrentSetlist();
     }
@@ -1007,6 +1057,16 @@ export function createAppStore(repo) {
                 ...editorSong, updatedAt: nowIso()
             }));
             songs = songs.filter((s) => s.id !== saved.id).concat(saved).sort((a, b) => a.name.localeCompare(b.name));
+            const syncedSetlist = syncSavedSongIntoSetlist(
+                generatedSetlist,
+                saved,
+                appConfig,
+                generationOptions.keyFlow,
+            );
+            if (syncedSetlist !== generatedSetlist) {
+                updateCurrentSetlist(syncedSetlist);
+                persistCurrentSetlist();
+            }
 
             // Sync member names and instruments from the song into band members
             const dirtyMembers = new Map();
@@ -1104,7 +1164,7 @@ export function createAppStore(repo) {
             // Clear local state
             appConfig = null;
             songs = [];
-            generatedSetlist = null;
+            clearGeneratedSetlist();
             setlistLocked = false;
             setlistSaved = false;
             savedSetlists = [];
@@ -1702,7 +1762,7 @@ export function createAppStore(repo) {
             currentUserAddress = "";
             songs = [];
             appConfig = null;
-            generatedSetlist = null;
+            clearGeneratedSetlist();
             setlistLocked = false;
             setlistSaved = false;
             savedSetlists = [];
@@ -1757,6 +1817,7 @@ export function createAppStore(repo) {
         get appConfig() { return appConfig; },
         get bandMembers() { return bandMembers; },
         get generatedSetlist() { return generatedSetlist; },
+        get setlistViewVersion() { return setlistViewVersion; },
         get isGenerating() { return isGenerating; },
         get setlistLocked() { return setlistLocked; },
         get setlistSaved() { return setlistSaved; },
