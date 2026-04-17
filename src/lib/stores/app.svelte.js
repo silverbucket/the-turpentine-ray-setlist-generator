@@ -682,10 +682,10 @@ export function createAppStore(repo) {
                 addToast("Couldn't meet every demand, but it got close.", "warning");
             }
             if (result.summary?.openerFilterRelaxed) {
-                addToast("No valid opener in catalog — used a flagged song.", "warning");
+                addToast("No valid opener found in catalog.", "warning");
             }
             if (result.summary?.closerFilterRelaxed) {
-                addToast("No valid closer in catalog — used a flagged song.", "warning");
+                addToast("No valid closer found in catalog.", "warning");
             }
             const n = generatedSetlist.songs.length;
             addToast(randomFrom([
