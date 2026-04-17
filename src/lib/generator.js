@@ -736,31 +736,48 @@ class SetList {
         this._minimumPotentialTotals = minimumPotentialContext.totals;
         this._minimumGroupCapabilitiesBySongId = minimumPotentialContext.groupCapabilitiesBySongId;
         this._minimumsRelaxed = false;
+        this._openerFilterRelaxed = false;
+        this._closerFilterRelaxed = false;
         let states = [this._initialState()];
 
         for (let position = 1; position <= this._count; position += 1) {
             const nextStates = [];
             const fallbackStates = [];
 
-            for (let si = 0; si < states.length; si++) {
-                const state = states[si];
-                for (let ci = 0; ci < catalog.length; ci++) {
-                    const song = catalog[ci];
-                    if (state.usedIds[song.id]) {
-                        continue;
-                    }
+            const expand = (relaxPositionFilter) => {
+                for (let si = 0; si < states.length; si++) {
+                    const state = states[si];
+                    for (let ci = 0; ci < catalog.length; ci++) {
+                        const song = catalog[ci];
+                        if (state.usedIds[song.id]) {
+                            continue;
+                        }
 
-                    const result = this._buildNextState(state, song, position);
-                    if (!result) {
-                        continue;
-                    }
-                    if (result.feasibleState) {
-                        nextStates.push(result.feasibleState);
-                    }
-                    if (result.fallbackState) {
-                        fallbackStates.push(result.fallbackState);
+                        const result = this._buildNextState(state, song, position, relaxPositionFilter);
+                        if (!result) {
+                            continue;
+                        }
+                        if (result.feasibleState) {
+                            nextStates.push(result.feasibleState);
+                        }
+                        if (result.fallbackState) {
+                            fallbackStates.push(result.fallbackState);
+                        }
                     }
                 }
+            };
+
+            expand(false);
+
+            const isEdgeSlot = position === 1 || position === this._count;
+            if (isEdgeSlot && !nextStates.length && !fallbackStates.length) {
+                if (position === 1) {
+                    this._openerFilterRelaxed = true;
+                }
+                if (position === this._count) {
+                    this._closerFilterRelaxed = true;
+                }
+                expand(true);
             }
 
             const pool = nextStates.length ? nextStates : fallbackStates;
@@ -908,13 +925,15 @@ class SetList {
     }
 
     _reorderRun(runItems, startPosition) {
+        const lastPosition = startPosition + runItems.length - 1;
         const remaining = runItems.slice();
-        const ordered = [];
+        const ordered = new Array(runItems.length);
         const temperature = clampFloat(this._randomness.blockShuffleTemperature, 1.4, 0.01);
 
-        for (let offset = 0; offset < runItems.length; offset += 1) {
-            const _position = startPosition + offset;
-            const ranked = remaining
+        const pickForPosition = (position) => {
+            const eligible = remaining.filter((item) => this._positionAllowsSong(position, item));
+            const pool = eligible.length ? eligible : remaining;
+            const ranked = pool
                 .map((item) => {
                     const score = this._songBias(item.id);
                     return { item, score };
@@ -936,11 +955,36 @@ class SetList {
             }
 
             const chosen = ranked[chosenIndex].item;
-            ordered.push(chosen);
             remaining.splice(remaining.indexOf(chosen), 1);
+            return chosen;
+        };
+
+        // Reserve edge positions first so flagged songs don't get forced into them.
+        if (startPosition === 1) {
+            ordered[0] = pickForPosition(1);
+        }
+        if (lastPosition === this._count && lastPosition !== startPosition) {
+            ordered[lastPosition - startPosition] = pickForPosition(this._count);
+        }
+
+        for (let offset = 0; offset < runItems.length; offset += 1) {
+            if (ordered[offset] !== undefined) {
+                continue;
+            }
+            ordered[offset] = pickForPosition(startPosition + offset);
         }
 
         return ordered;
+    }
+
+    _positionAllowsSong(position, item) {
+        if (position === 1 && item.notGoodOpener && !this._openerFilterRelaxed) {
+            return false;
+        }
+        if (position === this._count && item.notGoodCloser && !this._closerFilterRelaxed) {
+            return false;
+        }
+        return true;
     }
 
     _performanceSignature(performance) {
@@ -1025,11 +1069,22 @@ class SetList {
                 changes: state.changeTotals,
                 anxiety,
                 minimumsRelaxed: Boolean(this._minimumsRelaxed),
+                openerFilterRelaxed: Boolean(this._openerFilterRelaxed),
+                closerFilterRelaxed: Boolean(this._closerFilterRelaxed),
             },
         };
     }
 
-    _buildNextState(state, song, position) {
+    _buildNextState(state, song, position, relaxPositionFilter = false) {
+        if (!relaxPositionFilter) {
+            if (position === 1 && song.notGoodOpener) {
+                return null;
+            }
+            if (position === this._count && song.notGoodCloser) {
+                return null;
+            }
+        }
+
         const nextCoverCount = state.coverCount + (song.cover ? 1 : 0);
         const nextInstrumentalCount = state.instrumentalCount + (song.instrumental ? 1 : 0);
 
