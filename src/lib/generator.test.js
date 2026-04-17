@@ -512,7 +512,7 @@ describe("generateSetlist — cover and instrumental limits", () => {
 // Position rules
 // ===================================================================
 describe("generateSetlist — position rules", () => {
-    it("avoids notGoodOpener in first position (across seeds)", () => {
+    it("never places notGoodOpener in first position (across seeds)", () => {
         const songs = [
             makeSong("Opener", { notGoodOpener: true }),
             ...simpleCatalog(14).map((s, i) => ({
@@ -526,12 +526,12 @@ describe("generateSetlist — position rules", () => {
         for (let seed = 1; seed <= 20; seed++) {
             const result = generateSetlist(songs, config, deterministicOptions({ count: 10, seed }));
             if (result.songs[0]?.name === "Opener") openerFirst++;
+            expect(result.summary.openerFilterRelaxed).toBe(false);
         }
-        // Should very rarely be first (position penalty makes it expensive)
-        expect(openerFirst).toBeLessThanOrEqual(2);
+        expect(openerFirst).toBe(0);
     });
 
-    it("avoids notGoodCloser in last position (across seeds)", () => {
+    it("never places notGoodCloser in last position (across seeds)", () => {
         const songs = [
             makeSong("Closer", { notGoodCloser: true }),
             ...simpleCatalog(14).map((s, i) => ({
@@ -546,8 +546,35 @@ describe("generateSetlist — position rules", () => {
             const result = generateSetlist(songs, config, deterministicOptions({ count: 10, seed }));
             const last = result.songs[result.songs.length - 1];
             if (last?.name === "Closer") closerLast++;
+            expect(result.summary.closerFilterRelaxed).toBe(false);
         }
-        expect(closerLast).toBeLessThanOrEqual(2);
+        expect(closerLast).toBe(0);
+    });
+
+    it("relaxes opener filter and flags summary when every song is notGoodOpener", () => {
+        const songs = simpleCatalog(10).map((s, i) => ({
+            ...s,
+            id: `flagged-${i}`,
+            name: `Flagged ${i + 1}`,
+            notGoodOpener: true,
+        }));
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 10, seed: 1 }));
+        expect(result.songs.length).toBe(10);
+        expect(result.summary.openerFilterRelaxed).toBe(true);
+        expect(result.summary.closerFilterRelaxed).toBe(false);
+    });
+
+    it("relaxes closer filter and flags summary when every song is notGoodCloser", () => {
+        const songs = simpleCatalog(10).map((s, i) => ({
+            ...s,
+            id: `flagged-${i}`,
+            name: `Flagged ${i + 1}`,
+            notGoodCloser: true,
+        }));
+        const result = generateSetlist(songs, makeConfig(), deterministicOptions({ count: 10, seed: 1 }));
+        expect(result.songs.length).toBe(10);
+        expect(result.summary.closerFilterRelaxed).toBe(true);
+        expect(result.summary.openerFilterRelaxed).toBe(false);
     });
 
     it("avoids covers in first two positions", () => {
