@@ -356,7 +356,7 @@
     }
 
     .song-row:active {
-        background: rgba(225, 91, 55, 0.06);
+        background: var(--accent-soft);
     }
 
     .song-top {
