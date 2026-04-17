@@ -133,6 +133,14 @@ export function hexToRgb(hex) {
     return `${parseHexChannel(hex, 1)}, ${parseHexChannel(hex, 3)}, ${parseHexChannel(hex, 5)}`;
 }
 
+export function hexToRgba(hex, alpha) {
+    if (typeof hex !== "string" || !/^#[0-9a-fA-F]{6}$/.test(hex)) {
+        return hexToRgba(DEFAULT_DIE_COLOR, alpha);
+    }
+    const a = Number.isFinite(alpha) ? Math.min(1, Math.max(0, alpha)) : 1;
+    return `rgba(${parseHexChannel(hex, 1)}, ${parseHexChannel(hex, 3)}, ${parseHexChannel(hex, 5)}, ${a})`;
+}
+
 export function darkenHex(hex, factor) {
     if (typeof hex !== "string" || !/^#[0-9a-fA-F]{6}$/.test(hex)) {
         return darkenHex(DEFAULT_DIE_COLOR, factor);

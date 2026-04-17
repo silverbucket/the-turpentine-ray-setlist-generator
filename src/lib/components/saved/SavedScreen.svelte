@@ -333,12 +333,12 @@
   }
 
   .saved-card:hover {
-    border-color: var(--accent, #e15b37);
-    box-shadow: 0 2px 8px rgba(225, 91, 55, 0.1);
+    border-color: var(--accent);
+    box-shadow: 0 2px 8px var(--accent-soft);
   }
 
   .saved-card:active {
-    background: rgba(225, 91, 55, 0.04);
+    background: var(--accent-soft);
   }
 
   .saved-top {
@@ -458,8 +458,8 @@
 
   .edit-input:focus {
     outline: none;
-    border-color: var(--accent, #e15b37);
-    box-shadow: 0 0 0 2px rgba(225, 91, 55, 0.12);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
   }
 
   .edit-input.date {

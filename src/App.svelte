@@ -10,7 +10,7 @@
     import { generateDieSvgString, updatePwaIcons } from "./lib/pwa-icon.js";
     import { createRemoteStorageRepository, isIosStandaloneAuthContext } from "./lib/remotestorage.js";
     import { createAppStore } from "./lib/stores/app.svelte.js";
-    import { DEFAULT_DIE_COLOR, hexToRgb } from "./lib/utils.js";
+    import { DEFAULT_DIE_COLOR, darkenHex, hexToRgb, hexToRgba } from "./lib/utils.js";
 
     const repo = createRemoteStorageRepository();
     const store = createAppStore(repo);
@@ -22,6 +22,7 @@
 
     let dieColor = $derived(store.appConfig?.ui?.dieColor || DEFAULT_DIE_COLOR);
     let dieColorRgb = $derived(hexToRgb(dieColor));
+    let customDieColor = $derived(store.appConfig?.ui?.dieColor || null);
 
     let faviconHref = $derived(
         `data:image/svg+xml,${encodeURIComponent(generateDieSvgString(dieColor))}`
@@ -29,6 +30,21 @@
 
     $effect(() => {
         void updatePwaIcons(dieColor).catch((e) => console.error("PWA icon update failed", e));
+    });
+
+    $effect(() => {
+        const root = document.documentElement;
+        if (customDieColor) {
+            root.style.setProperty("--accent", customDieColor);
+            root.style.setProperty("--accent-strong", darkenHex(customDieColor, 0.85));
+            root.style.setProperty("--accent-soft", hexToRgba(customDieColor, 0.12));
+            root.style.setProperty("--accent-line", hexToRgba(customDieColor, 0.24));
+        } else {
+            root.style.removeProperty("--accent");
+            root.style.removeProperty("--accent-strong");
+            root.style.removeProperty("--accent-soft");
+            root.style.removeProperty("--accent-line");
+        }
     });
 
     // iOS standalone PWA: after the sync-shell → app-shell DOM swap,
