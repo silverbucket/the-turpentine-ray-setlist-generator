@@ -289,10 +289,18 @@ export function createRemoteStorageRepository() {
         async swap(userAddress, token) {
             if (remoteStorage.connected) {
                 await new Promise((resolve) => {
-                    const handler = () => {
+                    let settled = false;
+                    const finish = () => {
+                        if (settled) return;
+                        settled = true;
+                        clearTimeout(timer);
                         remoteStorage.removeEventListener("disconnected", handler);
                         resolve();
                     };
+                    const handler = () => finish();
+                    // Safety net: if rs.js never fires `disconnected` (already
+                    // mid-disconnect, library hiccup), don't strand the user.
+                    const timer = setTimeout(finish, 3000);
                     remoteStorage.on("disconnected", handler);
                     remoteStorage.caching.reset();
                     remoteStorage.disconnect();

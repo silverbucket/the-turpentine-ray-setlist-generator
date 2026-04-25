@@ -74,6 +74,9 @@ export function createAppStore(repo) {
     let generationId = 0;
     let setlistLocked = $state(false);
     let setlistSaved = $state(false);
+    // Id of the saved setlist currently loaded into generatedSetlist, if any.
+    // Used to update-in-place instead of duplicating when the user re-saves.
+    let loadedSavedId = $state("");
     let pendingRollConfirm = $state(false);
     let savedSetlists = $state([]);
     let bandMembers = $state({});
@@ -148,20 +151,36 @@ export function createAppStore(repo) {
         if (pruned) songKeyFilters = pruned;
     });
 
+    // Keep the per-account snapshot fresh: any direct edit (saveSong,
+    // persistMemberEdit, addSetlistSong, etc.) mutates these state slots,
+    // so a debounced scheduleSnapshot() here covers all of them. Without
+    // this, the snapshot only refreshed at the end of reloadAll, so a
+    // fast account swap right after editing showed last-synced data.
+    $effect(() => {
+        // Touch the state we want to snapshot.
+        void songs;
+        void appConfig;
+        void savedSetlists;
+        void bandMembers;
+        if (currentUserAddress) scheduleSnapshot();
+    });
+
     // ---- helpers ----
 
     function defaultGenerationOptions(config = appConfig) {
         const source = config || DEFAULT_APP_CONFIG;
+        // Use ?? for numeric defaults: a user-set 0 (count, temperature, etc.)
+        // would otherwise silently fall back to the default.
         return {
-            count: source.general?.count || 15,
-            beamWidth: source.general?.beamWidth || 20,
+            count: source.general?.count ?? 15,
+            beamWidth: source.general?.beamWidth ?? 20,
             maxCovers: source.general?.limits?.covers ?? -1,
             maxInstrumentals: source.general?.limits?.instrumentals ?? -1,
             keyFlow: false,
             seed: "",
             randomness: {
-                temperature: source.general?.randomness?.temperature || 0.85,
-                finalChoicePool: source.general?.randomness?.finalChoicePool || 12
+                temperature: source.general?.randomness?.temperature ?? 0.85,
+                finalChoicePool: source.general?.randomness?.finalChoicePool ?? 12
             },
             show: {
                 members: clone(source.show?.members || {})
@@ -285,6 +304,7 @@ export function createAppStore(repo) {
 
     function clearGeneratedSetlist() {
         generatedSetlist = null;
+        loadedSavedId = "";
     }
 
     // Strip deprecated "energy" field and energy-related notes from saved setlist songs
@@ -422,7 +442,7 @@ export function createAppStore(repo) {
     }
 
     // ---- connection ----
-    async function connectStorage(token) {
+    function connectStorage(token) {
         if (!connectAddress.trim()) {
             addToast("Put in a remoteStorage address first.", "danger");
             return;
@@ -517,10 +537,17 @@ export function createAppStore(repo) {
         }
     }
 
+    // Per-account localStorage bases owned by the app. Keep this list in sync
+    // with anything that reads/writes via accountSlot(address).key(...).
+    const PER_ACCOUNT_STORAGE_BASES = ["snapshot", "ui-options", "current-set", "saved-sets"];
+
     function forgetAccount(address) {
         removeKnownAccountEntry(address);
         if (typeof localStorage !== "undefined") {
-            localStorage.removeItem(accountSlot(address).key("snapshot"));
+            const slot = accountSlot(address);
+            for (const base of PER_ACCOUNT_STORAGE_BASES) {
+                localStorage.removeItem(slot.key(base));
+            }
         }
         knownAccounts = getKnownAccounts();
     }
@@ -560,10 +587,10 @@ export function createAppStore(repo) {
                 Object.entries(data.members || {}).map(([name, d]) => [name, normalizeMemberRecord(d)])
             );
             showFirstRunPrompt = false;
-            generationOptions = deepMerge(defaultGenerationOptions(appConfig), generationOptions || {});
-            // Don't persistGenerationOptions() here — currentUserAddress still
-            // points to the previous account. The caller sets it after this
-            // returns, and loadUserLocalData() handles persisting correctly.
+            // generationOptions is intentionally not touched here:
+            // currentUserAddress still points at the previous account. The
+            // caller sets it after this returns, then loadUserLocalData()
+            // loads the target account's stored options.
             return true;
         } catch { return false; }
     }
@@ -728,8 +755,15 @@ export function createAppStore(repo) {
         }
 
         terminateWorker();
+        // A new generation produces fresh content; any prior "loaded from
+        // saved" identity no longer applies, so saving creates a new entry.
+        loadedSavedId = "";
         isGenerating = true;
         const thisGenId = ++generationId;
+        // Capture the session so a result that lands after an account swap
+        // (even into another connected account) is discarded — checking
+        // currentUserAddress alone isn't enough.
+        const thisSession = activeSession;
         const opts = clone(generationOptions);
         Object.assign(opts, overrideOptions);
 
@@ -745,8 +779,9 @@ export function createAppStore(repo) {
             if (type !== "done") return;
             worker.terminate();
             if (worker === activeWorker) activeWorker = null;
-            // Ignore stale results from a previous generation or disconnected session
-            if (thisGenId !== generationId || !currentUserAddress) {
+            // Ignore stale results from a previous generation, an account
+            // swap, or a disconnected session.
+            if (thisGenId !== generationId || thisSession !== activeSession || !currentUserAddress) {
                 isGenerating = false;
                 return;
             }
@@ -813,6 +848,27 @@ export function createAppStore(repo) {
         if (!generatedSetlist) return;
         const currentSaved = savedSetlists || [];
         const songNames = generatedSetlist.songs.map(s => s.name || s.title || "?");
+
+        // If this setlist was loaded from a saved entry, update that entry in
+        // place instead of creating a duplicate with a new id and name.
+        if (loadedSavedId) {
+            const existing = currentSaved.find((s) => s.id === loadedSavedId);
+            if (existing) {
+                await updateSavedSetlist(loadedSavedId, {
+                    savedAt: nowIso(),
+                    summary: clone(generatedSetlist.summary),
+                    songs: clone(generatedSetlist.songs),
+                    songNames,
+                    seed: generatedSetlist.seed,
+                    songCount: generatedSetlist.songs.length,
+                });
+                setlistSaved = true;
+                return;
+            }
+            // Saved entry no longer exists (deleted elsewhere) — fall through.
+            loadedSavedId = "";
+        }
+
         const funNames = [
             "The Unhinged Encore", "Chaos Theory",
             "No Refunds", "The One That Slaps", "Certified Banger",
@@ -845,6 +901,7 @@ export function createAppStore(repo) {
             await withSync("Saving setlist", () => repo.putSetlist(entry));
             savedSetlists = [entry, ...currentSaved].slice(0, MAX_SAVED_SETS);
             setlistSaved = true;
+            loadedSavedId = entry.id;
         } catch (error) {
             addToast(error?.message || "Could not save setlist.", "danger");
         }
@@ -854,6 +911,7 @@ export function createAppStore(repo) {
         try {
             await withSync("Removing setlist", () => repo.deleteSetlist(id));
             savedSetlists = savedSetlists.filter((s) => s.id !== id);
+            if (loadedSavedId === id) loadedSavedId = "";
         } catch (error) {
             addToast(error?.message || "Could not remove setlist.", "danger");
         }
@@ -881,6 +939,7 @@ export function createAppStore(repo) {
         });
         setlistLocked = true;
         setlistSaved = true;
+        loadedSavedId = id;
         persistCurrentSetlist();
         addToast(`Loaded ${saved.songs?.length || 0}-song set.`);
     }
@@ -928,7 +987,8 @@ export function createAppStore(repo) {
             key: song.key || "",
             notes: song.notes || "",
             performance,
-            position: songList.length + 1,
+            // position is intentionally omitted; scoreFixedOrder re-stamps it
+            // after rescoring. Setting it here was off-by-one.
             incrementalScore: 0,
             cumulativeScore: 0,
             transitionNotes: [],
@@ -1086,7 +1146,7 @@ export function createAppStore(repo) {
     }
 
     async function saveSong() {
-        if (!editorSong?.name.trim()) {
+        if (!editorSong || !String(editorSong.name || "").trim()) {
             addToast("Songs need names.", "danger");
             return;
         }

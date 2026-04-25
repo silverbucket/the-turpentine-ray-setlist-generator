@@ -9,6 +9,10 @@ export function deepMerge(left = {}, right = {}) {
         const leftValue = base[key];
         const rightValue = right[key];
 
+        // Skip undefined right-hand values so they don't clobber the left
+        // (otherwise a partial override silently erases defaults).
+        if (rightValue === undefined) return;
+
         if (
             leftValue &&
             rightValue &&
