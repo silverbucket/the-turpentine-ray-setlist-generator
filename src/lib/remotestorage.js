@@ -278,14 +278,26 @@ export function createRemoteStorageRepository() {
         },
 
         /**
-         * Switch to a different account without destroying IndexedDB.
-         * Works like a page refresh — just reconfigures credentials and reconnects.
+         * Switch to a different account: disconnect cleanly, reset the local
+         * cache so the previous account's data can't leak, then connect.
+         * Resolves once `connect()` has been issued — callers should still
+         * wait for the `connected` event for sync.
+         *
+         * Avoids mutating rs.js internals; relies on the documented
+         * disconnect → connect lifecycle.
          */
-        switchTo(userAddress, token) {
-            // Clear current connection without full disconnect cleanup
-            remoteStorage.remote.configure({ token: null });
-            remoteStorage.remote.connected = false;
-            // Re-enable caching and connect to new account
+        async swap(userAddress, token) {
+            if (remoteStorage.connected) {
+                await new Promise((resolve) => {
+                    const handler = () => {
+                        remoteStorage.removeEventListener("disconnected", handler);
+                        resolve();
+                    };
+                    remoteStorage.on("disconnected", handler);
+                    remoteStorage.caching.reset();
+                    remoteStorage.disconnect();
+                });
+            }
             remoteStorage.caching.enable(`/${APP_SCOPE}/`);
             remoteStorage.connect(userAddress, normalizeBearerToken(token));
         },

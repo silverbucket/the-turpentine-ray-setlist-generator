@@ -59,7 +59,7 @@
             <div class="dropdown-current">
               <span class="active-dot"></span>
               <div class="current-info">
-                <span class="current-band">{currentAccount.bandName || "Unnamed"}</span>
+                <span class="current-band">{currentAccount.metadata?.bandName || "Unnamed"}</span>
                 <span class="current-addr">{currentAccount.address}</span>
               </div>
             </div>
@@ -70,7 +70,7 @@
             <span class="dropdown-label">Switch to</span>
             {#each otherAccounts as account (account.address)}
               <button type="button" class="dropdown-item dropdown-item--account" onclick={() => handleSwitchTo(account.address)}>
-                <span class="account-band">{account.bandName || "Unnamed"}</span>
+                <span class="account-band">{account.metadata?.bandName || "Unnamed"}</span>
                 <span class="account-addr">{account.address}</span>
               </button>
             {/each}
