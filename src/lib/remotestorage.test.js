@@ -490,30 +490,87 @@ describe("createRemoteStorageRepository", () => {
         expect(remoteStorageMockState.instance.connect).toHaveBeenCalledWith("user@example.com", undefined);
     });
 
-    it("switches accounts in standalone mode without pre-opening a popup", () => {
-        globalThis.window = {
-            matchMedia: vi.fn(() => ({ matches: true })),
-            navigator: {
-                standalone: true,
-                userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
-                platform: "iPhone",
-                maxTouchPoints: 5,
-            },
-            location: { origin: "https://app.example.com", pathname: "/", hash: "" },
-            open: vi.fn(() => null),
-            addEventListener: vi.fn(),
-            removeEventListener: vi.fn(),
-            setInterval: vi.fn(),
-            clearInterval: vi.fn(),
-            setTimeout: vi.fn(),
-            clearTimeout: vi.fn(),
-        };
+    describe("swap", () => {
+        it("connects directly when no prior connection exists", async () => {
+            const repo = createRemoteStorageRepository();
+            const rs = remoteStorageMockState.instance;
+            rs.connected = false;
 
-        const repo = createRemoteStorageRepository();
-        repo.switchTo("other@example.com");
+            await repo.swap("other@example.com", "tok-2");
 
-        expect(globalThis.window.open).not.toHaveBeenCalled();
-        expect(remoteStorageMockState.instance.remote.configure).toHaveBeenCalledWith({ token: null });
-        expect(remoteStorageMockState.instance.connect).toHaveBeenCalledWith("other@example.com", undefined);
+            expect(rs.disconnect).not.toHaveBeenCalled();
+            expect(rs.caching.reset).not.toHaveBeenCalled();
+            expect(rs.caching.enable).toHaveBeenCalledWith("/setlist-roller/");
+            expect(rs.connect).toHaveBeenCalledWith("other@example.com", "tok-2");
+        });
+
+        it("disconnects, resets the cache, then connects when a prior connection exists", async () => {
+            const repo = createRemoteStorageRepository();
+            const rs = remoteStorageMockState.instance;
+            rs.connected = true;
+
+            // Capture the order of operations so we can assert disconnect →
+            // resetCache → connect happens in sequence (no library-internal
+            // mutations slipped in between).
+            const order = [];
+            rs.caching.reset.mockImplementation(() => order.push("reset"));
+            rs.disconnect.mockImplementation(() => order.push("disconnect"));
+            rs.connect.mockImplementation(() => order.push("connect"));
+
+            // Capture the `disconnected` listener so we can fire it.
+            let disconnectedHandler;
+            rs.on.mockImplementation((event, handler) => {
+                if (event === "disconnected") disconnectedHandler = handler;
+            });
+
+            const swapPromise = repo.swap("other@example.com", "tok-2");
+
+            // swap() registers the listener and triggers disconnect(), but
+            // doesn't proceed to connect() until `disconnected` fires.
+            expect(rs.on).toHaveBeenCalledWith("disconnected", expect.any(Function));
+            expect(disconnectedHandler).toBeTypeOf("function");
+            expect(rs.connect).not.toHaveBeenCalled();
+
+            disconnectedHandler();
+            await swapPromise;
+
+            expect(rs.removeEventListener).toHaveBeenCalledWith("disconnected", disconnectedHandler);
+            expect(order).toEqual(["reset", "disconnect", "connect"]);
+            expect(rs.caching.enable).toHaveBeenLastCalledWith("/setlist-roller/");
+            expect(rs.connect).toHaveBeenCalledWith("other@example.com", "tok-2");
+        });
+
+        it("does not mutate the rs.js `remote.connected` flag", async () => {
+            const repo = createRemoteStorageRepository();
+            const rs = remoteStorageMockState.instance;
+            rs.connected = true;
+
+            // Make `remote.connected` a getter so any assignment would throw.
+            const guard = vi.fn();
+            Object.defineProperty(rs.remote, "connected", {
+                configurable: true,
+                get: () => true,
+                set: guard,
+            });
+
+            let disconnectedHandler;
+            rs.on.mockImplementation((event, handler) => {
+                if (event === "disconnected") disconnectedHandler = handler;
+            });
+
+            const swapPromise = repo.swap("other@example.com", "tok-2");
+            disconnectedHandler();
+            await swapPromise;
+
+            expect(guard).not.toHaveBeenCalled();
+        });
+
+        it("normalizes non-string tokens to undefined", async () => {
+            const repo = createRemoteStorageRepository();
+            const rs = remoteStorageMockState.instance;
+            rs.connected = false;
+            await repo.swap("other@example.com", { type: "click" });
+            expect(rs.connect).toHaveBeenCalledWith("other@example.com", undefined);
+        });
     });
 });

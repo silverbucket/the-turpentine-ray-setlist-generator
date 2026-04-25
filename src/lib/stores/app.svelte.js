@@ -1,4 +1,4 @@
-import { getAccountToken, getKnownAccounts, removeKnownAccountEntry, saveKnownAccount, scopedKey } from "../accounts.js";
+import { accountSlot, getAccountToken, getKnownAccounts, removeKnownAccountEntry, saveKnownAccount } from "../accounts.js";
 import { CONFIG_SECTIONS } from "../config-meta.js";
 import { blankSong, DEFAULT_APP_CONFIG, normalizeAppConfig, normalizeMemberRecord, normalizeSongRecord } from "../defaults.js";
 import { buildDefaultPerformance, scoreFixedOrder } from "../generator.js";
@@ -17,7 +17,15 @@ export function normalizeAuthToken(token) {
 export function createAppStore(repo) {
     // ---- per-user localStorage scoping ----
     let currentUserAddress = "";
-    function storageKey(base) { return scopedKey(base, currentUserAddress); }
+    function storageKey(base) { return accountSlot(currentUserAddress).key(base); }
+
+    // Monotonic session id — bumped on every connect/swap. Async work that
+    // started under one session is discarded if the session has moved on.
+    let activeSession = 0;
+
+    // True while orchestrating an account swap; tells the global disconnected
+    // handler to skip its full state-wipe (we want the snapshot to stay).
+    let isSwitching = false;
 
     // ---- core state ----
     let songs = $state([]);
@@ -370,23 +378,36 @@ export function createAppStore(repo) {
     function disconnectStorage() {
         // Save current token before disconnecting so we can switch back later
         if (currentUserAddress) {
-            saveKnownAccount(currentUserAddress, appConfig?.bandName || "", repo.getToken());
+            saveKnownAccount(currentUserAddress, { bandName: appConfig?.bandName || "" }, repo.getToken());
         }
         repo.disconnect();
     }
 
-    function connectToAccount(address) {
+    async function connectToAccount(address) {
+        // Refuse if a connect/swap is already in flight — clicking switch
+        // mid-discovery used to take the wrong branch and double-connect.
+        if (connectionStatus === "connecting" || isSwitching) {
+            addToast("Already connecting — hold on.", "warning");
+            return;
+        }
+        if (!address) return;
+
         const savedToken = normalizeAuthToken(getAccountToken(address));
 
-        // 1. Save current account's data before touching state
+        // 1. Persist the current account before touching state.
         if (repo.isConnected()) {
             saveSnapshot();
             if (currentUserAddress) {
-                saveKnownAccount(currentUserAddress, appConfig?.bandName || "", repo.getToken());
+                saveKnownAccount(currentUserAddress, { bandName: appConfig?.bandName || "" }, repo.getToken());
             }
         }
 
-        // 2. Restore the target account's cached data (if any)
+        // 2. Bump the session — any in-flight async (reloadAll, worker
+        //    callbacks) from the previous account is now stale.
+        activeSession += 1;
+
+        // 3. Restore the target account's snapshot for instant UI; otherwise
+        //    blank the visible state until the connected/sync handlers fill it.
         const hasSnapshot = restoreSnapshot(address);
         if (hasSnapshot) {
             currentUserAddress = address;
@@ -394,12 +415,12 @@ export function createAppStore(repo) {
             loadUserLocalData();
             initialSyncComplete = true;
         } else {
-            // No snapshot — reset state; sync indicator shown by connected handler
             songs = [];
             appConfig = null;
             savedSetlists = [];
             bandMembers = {};
             initialSyncComplete = false;
+            currentUserAddress = "";
             connectAddress = address;
         }
 
@@ -410,22 +431,35 @@ export function createAppStore(repo) {
         selectedSongId = "";
         editorSong = null;
 
-        // 3. Switch rs.js to new account without destroying IndexedDB
         clearSyncLog();
         connectionStatus = "connecting";
         syncStatusLabel = "Switching accounts";
         pushSyncLog(`Switching to ${address}`);
-        if (repo.isConnected()) {
-            repo.switchTo(address, savedToken);
-        } else {
-            connectStorage(savedToken);
+
+        // 4. Swap the rs.js connection. `swap()` disconnects cleanly (which
+        //    fires `disconnected`; the global handler skips its wipe because
+        //    isSwitching is true) and resets the cache before reconnecting.
+        isSwitching = true;
+        try {
+            if (repo.isConnected()) {
+                await repo.swap(address, savedToken);
+            } else {
+                // Not connected — straight connect, no swap dance needed.
+                connectAddress = address;
+                connectStorage(savedToken);
+            }
+        } catch (error) {
+            addToast(error?.message || "Could not switch accounts.", "danger");
+            connectionStatus = "disconnected";
+        } finally {
+            isSwitching = false;
         }
     }
 
     function forgetAccount(address) {
         removeKnownAccountEntry(address);
         if (typeof localStorage !== "undefined") {
-            localStorage.removeItem(scopedKey("snapshot", address));
+            localStorage.removeItem(accountSlot(address).key("snapshot"));
         }
         knownAccounts = getKnownAccounts();
     }
@@ -474,7 +508,7 @@ export function createAppStore(repo) {
     }
 
     // ---- data loading ----
-    async function reloadAll({ quiet = false } = {}) {
+    async function reloadAll({ quiet = false, session = activeSession } = {}) {
         try {
             busyMessage = quiet ? "" : "Loading your songs...";
             loadError = "";
@@ -484,6 +518,11 @@ export function createAppStore(repo) {
                     pushSyncLog(message);
                 },
             });
+            // Guard against stale results landing after an account swap.
+            if (session !== activeSession) {
+                pushSyncLog("Discarded stale load (account swapped)");
+                return;
+            }
             songs = data.songs.map(normalizeSongRecord);
             bootstrapMeta = data.bootstrap;
             appConfig = data.config ? normalizeAppConfig(data.config) : null;
@@ -1139,7 +1178,7 @@ export function createAppStore(repo) {
             generationOptions = deepMerge(defaultGenerationOptions(appConfig), generationOptions);
             persistGenerationOptions();
             if (currentUserAddress && appConfig?.bandName) {
-                saveKnownAccount(currentUserAddress, appConfig.bandName, repo.getToken());
+                saveKnownAccount(currentUserAddress, { bandName: appConfig.bandName }, repo.getToken());
                 knownAccounts = getKnownAccounts();
             }
             addToast("Settings saved.");
@@ -1641,6 +1680,9 @@ export function createAppStore(repo) {
 
         const detachConnected = repo.on("connected", async () => {
             clearTimeout(safetyTimer);
+            // Each connect starts a fresh session so prior async work is
+            // discarded even on a plain (non-swap) reconnect.
+            activeSession += 1;
             connectionStatus = "connected";
             connectAddress = repo.getUserAddress() || connectAddress;
             currentUserAddress = connectAddress;
@@ -1672,11 +1714,18 @@ export function createAppStore(repo) {
                     endSync();
                 }
             }
-            saveKnownAccount(currentUserAddress, appConfig?.bandName || "", repo.getToken());
+            saveKnownAccount(currentUserAddress, { bandName: appConfig?.bandName || "" }, repo.getToken());
             knownAccounts = getKnownAccounts();
         });
 
         const detachDisconnected = repo.on("disconnected", () => {
+            // Mid-swap, the disconnected event is just an intermediate step.
+            // Don't wipe state — the snapshot we restored stays visible until
+            // the next `connected` event fills in real data.
+            if (isSwitching) {
+                pushSyncLog("Disconnected (switching accounts)");
+                return;
+            }
             terminateWorker();
             isGenerating = false;
             connectionStatus = "disconnected";
@@ -1701,17 +1750,24 @@ export function createAppStore(repo) {
             loadError = error?.message || "remoteStorage error.";
             addToast(loadError, "danger");
             pushSyncLog(loadError);
-            // Fully disconnect so the RS instance resets its auth state,
-            // allowing the user to reconnect from the login screen.
-            repo.disconnect();
+            // Only nuke the session for auth/discovery failures. SyncError and
+            // friends are typically transient (flaky network, 5xx) — let rs.js
+            // retry instead of dropping the user back to the login screen.
+            const fatal = error?.name === "Unauthorized" || error?.name === "DiscoveryError";
+            if (fatal) {
+                repo.disconnect();
+            }
         });
 
         const detachChange = repo.onChange(async (event) => {
-            if (connectionStatus === "connected" && event?.origin !== "window") {
-                beginSync(event?.origin === "remote" ? "Pulling remote changes" : "Syncing");
-                try { await reloadAll({ quiet: true }); }
-                finally { endSync(); }
-            }
+            if (connectionStatus !== "connected" || event?.origin === "window") return;
+            // Pin the session at the moment the event fired. If the user
+            // swaps accounts mid-reload, the awaited reloadAll() returns
+            // into a different session and we drop its results.
+            const session = activeSession;
+            beginSync(event?.origin === "remote" ? "Pulling remote changes" : "Syncing");
+            try { await reloadAll({ quiet: true, session }); }
+            finally { endSync(); }
         });
 
         return () => {
