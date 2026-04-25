@@ -8,7 +8,6 @@ import { migrator } from "../migrations.js";
 import { clone, deepMerge, formatDelimitedList, getByPath, nowIso, parseDelimitedList, setByPath, titleForBand, tryParseJson, uid } from "../utils.js";
 
 const STORAGE_PREFIX = "setlist-roller";
-const MAX_SAVED_SETS = 5;
 
 function randomFrom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 export function normalizeAuthToken(token) {
@@ -838,12 +837,8 @@ export function createAppStore(repo) {
             songCount: generatedSetlist.songs.length
         };
         try {
-            // Enforce limit: remove oldest if at max
-            if (currentSaved.length >= MAX_SAVED_SETS) {
-                await repo.deleteSetlist(currentSaved[currentSaved.length - 1].id);
-            }
             await withSync("Saving setlist", () => repo.putSetlist(entry));
-            savedSetlists = [entry, ...currentSaved].slice(0, MAX_SAVED_SETS);
+            savedSetlists = [entry, ...currentSaved];
             setlistSaved = true;
         } catch (error) {
             addToast(error?.message || "Could not save setlist.", "danger");
@@ -1616,7 +1611,7 @@ export function createAppStore(repo) {
                 }
                 // Import setlists
                 if (imported.savedSetlists && imported.savedSetlists.length > 0) {
-                    for (const entry of imported.savedSetlists.slice(0, MAX_SAVED_SETS)) {
+                    for (const entry of imported.savedSetlists) {
                         await repo.putSetlist(migrator.migrateDocument("setlists", entry));
                     }
                 }
@@ -1685,9 +1680,7 @@ export function createAppStore(repo) {
                 if (localSets.length > 0) {
                     // Normalize via rs-migrate before uploading
                     const remoteIds = new Set(savedSetlists.map((s) => s.id));
-                    const toMigrate = localSets
-                        .filter((s) => !remoteIds.has(s.id))
-                        .slice(0, MAX_SAVED_SETS - savedSetlists.length);
+                    const toMigrate = localSets.filter((s) => !remoteIds.has(s.id));
                     for (const entry of toMigrate) {
                         const normalized = migrator.migrateDocument("setlists", entry);
                         await repo.putSetlist(normalized);
