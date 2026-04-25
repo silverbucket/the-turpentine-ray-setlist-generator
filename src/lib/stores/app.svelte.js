@@ -481,14 +481,14 @@ export function createAppStore(repo) {
                 setlists: clone(savedSetlists),
                 members: clone(bandMembers),
             };
-            localStorage.setItem(scopedKey("snapshot", currentUserAddress), JSON.stringify(data));
+            localStorage.setItem(accountSlot(currentUserAddress).key("snapshot"), JSON.stringify(data));
         } catch { /* localStorage full — not critical */ }
     }
 
     function restoreSnapshot(address) {
         if (typeof localStorage === "undefined") return false;
         try {
-            const raw = localStorage.getItem(scopedKey("snapshot", address));
+            const raw = localStorage.getItem(accountSlot(address).key("snapshot"));
             if (!raw) return false;
             const data = JSON.parse(raw);
             if (!data.config) return false;
