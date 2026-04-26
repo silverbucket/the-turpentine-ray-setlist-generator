@@ -447,13 +447,17 @@ export function createRemoteStorageRepository() {
 
             onStep?.("Loading saved setlists");
             const setlistsPromise = this.listSetlists().then((result) => {
-                onStep?.(`Loaded ${result.setlists.length} saved setlists${result.pending ? ` (${result.pending} pending)` : ""}`);
+                onStep?.(
+                    `Loaded ${result.setlists.length} saved setlists${result.pending ? ` (${result.pending} pending)` : ""}`,
+                );
                 return result;
             });
 
             onStep?.("Loading band members");
             const membersPromise = this.listMembers().then((result) => {
-                onStep?.(`Loaded ${Object.keys(result.members || {}).length} band members${result.pending ? ` (${result.pending} pending)` : ""}`);
+                onStep?.(
+                    `Loaded ${Object.keys(result.members || {}).length} band members${result.pending ? ` (${result.pending} pending)` : ""}`,
+                );
                 return result;
             });
 
@@ -472,9 +476,7 @@ export function createRemoteStorageRepository() {
             // cache. As long as this is > 0, more onChange events will fire
             // and the UI is not yet in a settled state.
             const pendingBodies =
-                (songsResult.pending || 0) +
-                (setlistsResult.pending || 0) +
-                (membersResult.pending || 0);
+                (songsResult.pending || 0) + (setlistsResult.pending || 0) + (membersResult.pending || 0);
 
             return {
                 songs: songsResult.songs,
@@ -497,7 +499,12 @@ export function createRemoteStorageRepository() {
                     const keys = v && typeof v === "object" ? Object.keys(v).length : 0;
                     return `${k}=${t}${hasId ? "+id" : ""}(${keys}k)`;
                 });
-                console.log("[sync] listSongs raw items:", summary.length, summary.slice(0, 5).join(", "), summary.length > 5 ? "..." : "");
+                console.log(
+                    "[sync] listSongs raw items:",
+                    summary.length,
+                    summary.slice(0, 5).join(", "),
+                    summary.length > 5 ? "..." : "",
+                );
             }
             const all = Object.values(items || {});
             const records = [];
