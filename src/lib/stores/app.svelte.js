@@ -61,7 +61,27 @@ export function createAppStore(repo) {
 
     // True while orchestrating an account swap; tells the global disconnected
     // handler to skip its full state-wipe (we want the snapshot to stay).
+    // Held from `connectToAccount` entry until the new account's `connected`
+    // event fires (or a fatal error / watchdog releases it). Holding past
+    // `repo.swap()` resolution is critical: the swap promise can resolve via
+    // its 3 s timeout before rs.js actually emits the old account's
+    // `disconnected` event, and that late event would otherwise take the
+    // wipe path against the new account.
     let isSwitching = false;
+    // Backstop in case neither `connected` nor a fatal error fires after a
+    // swap (e.g. token rejected silently, OAuth tab closed). Without this,
+    // a single failed swap would lock out future swap attempts via the
+    // `isSwitching` re-entry guard.
+    let switchingWatchdog = null;
+    function releaseSwitching(reason) {
+        if (!isSwitching && !switchingWatchdog) return;
+        isSwitching = false;
+        if (switchingWatchdog) {
+            clearTimeout(switchingWatchdog);
+            switchingWatchdog = null;
+        }
+        if (reason) pushSyncLog(`Swap guard released (${reason})`);
+    }
 
     // ---- core state ----
     let songs = $state([]);
@@ -713,7 +733,21 @@ export function createAppStore(repo) {
         // 4. Swap the rs.js connection. `swap()` disconnects cleanly (which
         //    fires `disconnected`; the global handler skips its wipe because
         //    isSwitching is true) and resets the cache before reconnecting.
+        //    `isSwitching` is intentionally NOT cleared in `finally`: rs.js's
+        //    `disconnected` event for the OLD account can fire after
+        //    `repo.swap()` resolves (the swap promise resolves via its 3 s
+        //    safety timeout before the actual event lands). The connected
+        //    handler clears it on a successful swap; the watchdog clears it
+        //    if neither connected nor a thrown error ever lands.
         isSwitching = true;
+        if (switchingWatchdog) clearTimeout(switchingWatchdog);
+        switchingWatchdog = setTimeout(() => {
+            switchingWatchdog = null;
+            if (isSwitching) {
+                isSwitching = false;
+                pushSyncLog("Swap watchdog: released isSwitching after 15s");
+            }
+        }, 15000);
         try {
             if (repo.isConnected()) {
                 await repo.swap(address, savedToken);
@@ -725,8 +759,7 @@ export function createAppStore(repo) {
         } catch (error) {
             addToast(error?.message || "Could not switch accounts.", "danger");
             connectionStatus = "disconnected";
-        } finally {
-            isSwitching = false;
+            releaseSwitching("swap threw");
         }
     }
 
@@ -2073,6 +2106,12 @@ export function createAppStore(repo) {
 
         const detachConnected = repo.on("connected", async () => {
             clearTimeout(safetyTimer);
+            // Swap landed (or first connect completed). Release the swap
+            // guard now: any further `disconnected` event must be a real
+            // user-initiated disconnect, not the old account's stale
+            // cleanup. Idempotent — does nothing on cold connects where
+            // the guard was never raised.
+            releaseSwitching("connected");
             // Each connect starts a fresh session so prior async work is
             // discarded even on a plain (non-swap) reconnect.
             activeSession += 1;
@@ -2139,6 +2178,13 @@ export function createAppStore(repo) {
             syncRoundCompleted = false;
             initialSyncSettled = false;
             bumpSyncActivity("disconnected");
+            // Reset the pill's high-level state too. Without this, a
+            // disconnect mid-bootstrap (or mid-swap that fell through the
+            // wipe path) leaves syncState pinned at "syncing" — RollScreen
+            // then keeps rendering the sync skeleton forever instead of the
+            // onboarding/login UI.
+            setSyncState("idle");
+            loadError = "";
             clearUserLocalStorage();
             clearUnscopedLocalStorage();
             currentUserAddress = "";
@@ -2160,11 +2206,24 @@ export function createAppStore(repo) {
             loadError = error?.message || "remoteStorage error.";
             addToast(loadError, "danger");
             pushSyncLog(loadError);
+            // Surface the error in the pill/skeleton state. Without this,
+            // setting `loadError` alone keeps maybeMarkSynced blocked while
+            // syncState stays "syncing" — the dot pulses blue forever and
+            // the user never sees the errored state. The next reloadAll
+            // (triggered by user action or fresh remote onChange) will
+            // unconditionally re-set syncState back to "syncing" via the
+            // bumpSyncActivity / setSyncState calls in reloadAll start, so
+            // we don't need a separate recovery path here.
+            setSyncState("error");
             // Only nuke the session for auth/discovery failures. SyncError and
             // friends are typically transient (flaky network, 5xx) — let rs.js
             // retry instead of dropping the user back to the login screen.
             const fatal = error?.name === "Unauthorized" || error?.name === "DiscoveryError";
             if (fatal) {
+                // If we're mid-swap, release the guard so the upcoming
+                // `disconnected` event runs the wipe instead of being
+                // swallowed by the swap-in-progress check.
+                releaseSwitching("fatal error during swap");
                 repo.disconnect();
             }
         });
@@ -2195,6 +2254,7 @@ export function createAppStore(repo) {
             if (syncIndicatorTimer) clearTimeout(syncIndicatorTimer);
             if (syncStateTimer) clearTimeout(syncStateTimer);
             if (syncFlipTimer) clearTimeout(syncFlipTimer);
+            if (switchingWatchdog) clearTimeout(switchingWatchdog);
             detachConnecting();
             detachAuthing();
             detachStandaloneRedirect();

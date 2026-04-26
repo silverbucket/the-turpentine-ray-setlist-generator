@@ -490,22 +490,6 @@ export function createRemoteStorageRepository() {
 
         async listSongs() {
             const items = await client.getAll("songs/", false);
-            // [DEBUG SYNC] Inspect raw rs.js cache shape so we can see what
-            // "stub" actually looks like in this version of rs.js.
-            if (typeof window !== "undefined" && window.DEBUG_SYNC) {
-                const summary = Object.entries(items || {}).map(([k, v]) => {
-                    const t = v === null ? "null" : Array.isArray(v) ? "array" : typeof v;
-                    const hasId = v && typeof v === "object" && "id" in v;
-                    const keys = v && typeof v === "object" ? Object.keys(v).length : 0;
-                    return `${k}=${t}${hasId ? "+id" : ""}(${keys}k)`;
-                });
-                console.log(
-                    "[sync] listSongs raw items:",
-                    summary.length,
-                    summary.slice(0, 5).join(", "),
-                    summary.length > 5 ? "..." : "",
-                );
-            }
             const all = Object.values(items || {});
             const records = [];
             let pending = 0;
@@ -515,9 +499,6 @@ export function createRemoteStorageRepository() {
                 } else {
                     pending += 1;
                 }
-            }
-            if (typeof window !== "undefined" && window.DEBUG_SYNC) {
-                console.log(`[sync] listSongs result: ${records.length} loaded, ${pending} pending`);
             }
             return {
                 songs: sortSongs(records.map((song) => normalizeSongRecord(song))),

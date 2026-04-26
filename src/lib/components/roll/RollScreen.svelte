@@ -57,14 +57,6 @@
   let hasSongs = $derived((store.songs || []).length > 0);
   let readyToRoll = $derived(hasSongs);
 
-  // [DEBUG SYNC] log every time the songs-derived state changes so we can
-  // line up "songs visible in UI" timestamps with the rest of the trace.
-  $effect(() => {
-    if (typeof window !== "undefined" && window.DEBUG_SYNC) {
-      console.log(`[sync] RollScreen: songs.length=${(store.songs || []).length} syncState=${store.syncState} hasSongs=${hasSongs}`);
-    }
-  });
-
   const ROLL_NUDGES = [
     "The setlist isn't going to roll itself.",
     "That die up there? It's getting lonely.",
