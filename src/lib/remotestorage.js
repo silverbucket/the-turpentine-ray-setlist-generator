@@ -215,15 +215,6 @@ export function createRemoteStorageRepository() {
             window: false,
         },
         logging: false,
-        // rs.js drains its task queue per cycle and waits `syncInterval` ms
-        // between cycles. Initial bootstrap typically spans 3 cycles (root
-        // listing → folder listings → bodies), so the default 10 000 ms
-        // makes a fresh account feel "loaded" only after ~30 s. Start at the
-        // library's minimum (2 000 ms) for snappy bootstrap; the app bumps
-        // this back up to a calmer 10 000 ms once the first sync settles —
-        // see `BOOTSTRAP_SYNC_INTERVAL_MS` / `STEADY_SYNC_INTERVAL_MS` in
-        // app.svelte.js.
-        syncInterval: 2000,
     });
 
     const localEventHandlers = new Map();
