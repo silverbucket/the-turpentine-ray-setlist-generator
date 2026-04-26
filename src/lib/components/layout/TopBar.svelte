@@ -42,8 +42,28 @@
 
 <header class="top-bar">
   <div class="title-group">
-    <span class="conn-dot" class:connected={store.connectionStatus === 'connected'} class:syncing={store.syncActivelyRunning}></span>
+    <span
+      class="conn-dot"
+      class:connected={store.connectionStatus === 'connected'}
+      class:syncing={store.syncActivelyRunning || store.syncState === 'syncing'}
+      class:errored={store.syncState === 'error'}
+    ></span>
     <span class="band-name">{store.appTitle}</span>
+    {#if store.syncState === 'syncing'}
+      <span class="sync-pill" role="status" aria-live="polite" title={store.syncStatusLabel}>
+        <span class="sync-pill-spinner" aria-hidden="true"></span>
+        <span class="sync-pill-label">Syncing…</span>
+      </span>
+    {:else if store.syncState === 'synced'}
+      <span class="sync-pill sync-pill--ok" role="status" aria-live="polite">
+        <span class="sync-pill-check" aria-hidden="true">✓</span>
+        <span class="sync-pill-label">Up to date</span>
+      </span>
+    {:else if store.syncState === 'error'}
+      <span class="sync-pill sync-pill--err" role="status" aria-live="polite" title={store.syncStatusLabel}>
+        <span class="sync-pill-label">Sync failed</span>
+      </span>
+    {/if}
   </div>
 
   <div class="right">
@@ -136,9 +156,81 @@
     animation: dot-pulse 1s ease-in-out infinite;
   }
 
+  .conn-dot.errored {
+    background: var(--danger, #d44);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--danger, #d44) 40%, transparent);
+  }
+
   @keyframes dot-pulse {
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.5; transform: scale(1.4); }
+  }
+
+  .sync-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    flex-shrink: 0;
+    animation: pill-fade-in 200ms ease-out both;
+  }
+
+  .sync-pill--ok {
+    background: color-mix(in srgb, var(--success) 14%, transparent);
+    color: var(--success);
+  }
+
+  .sync-pill--err {
+    background: color-mix(in srgb, var(--danger, #d44) 14%, transparent);
+    color: var(--danger, #d44);
+  }
+
+  .sync-pill-spinner {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    border-top-color: transparent;
+    animation: pill-spin 700ms linear infinite;
+  }
+
+  .sync-pill-check {
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .sync-pill-label {
+    letter-spacing: 0.02em;
+  }
+
+  /* Hide the verbose label on very narrow screens — the dot + spinner still
+     communicate state. */
+  @media (max-width: 360px) {
+    .sync-pill-label { display: none; }
+    .sync-pill { padding: 4px; }
+  }
+
+  @keyframes pill-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes pill-fade-in {
+    from { opacity: 0; transform: translateY(-2px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sync-pill-spinner { animation-duration: 1.4s; }
+    .sync-pill { animation: none; }
+    .conn-dot.syncing { animation: none; }
   }
 
   .band-name {

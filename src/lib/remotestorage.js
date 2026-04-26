@@ -215,6 +215,15 @@ export function createRemoteStorageRepository() {
             window: false,
         },
         logging: false,
+        // rs.js drains its task queue per cycle and waits `syncInterval` ms
+        // between cycles. Initial bootstrap typically spans 3 cycles (root
+        // listing → folder listings → bodies), so the default 10 000 ms
+        // makes a fresh account feel "loaded" only after ~30 s. Start at the
+        // library's minimum (2 000 ms) for snappy bootstrap; the app bumps
+        // this back up to a calmer 10 000 ms once the first sync settles —
+        // see `BOOTSTRAP_SYNC_INTERVAL_MS` / `STEADY_SYNC_INTERVAL_MS` in
+        // app.svelte.js.
+        syncInterval: 2000,
     });
 
     const localEventHandlers = new Map();
@@ -260,13 +269,39 @@ export function createRemoteStorageRepository() {
         defaultAuthorize(options);
     };
 
+    /**
+     * After a disconnect, rs.js's `Sync._rs_cleanup` nulls
+     * `remoteStorage.sync` but does NOT clear `caching.activateHandler` —
+     * which still references the dead Sync's lambda. If we then call
+     * `caching.enable(path)`, `set()` finds the (stale) handler set and
+     * calls it directly, so the path is NOT pushed to `pendingActivations`.
+     * When the new Sync is constructed (on the next `ready` event), its
+     * `caching.onActivate(newCb)` overwrites the handler but finds
+     * `pendingActivations` empty — so the new Sync never receives the
+     * path activation, never queues a root task, and `forAllNodes`-based
+     * fallbacks (`collectDiffTasks`, `collectRefreshTasks`) find nothing
+     * because `IndexedDB._rs_cleanup` already deleted the local DB.
+     *
+     * Net effect: after an account swap, rs.js completes sync rounds
+     * without ever fetching the scope folder — songs never appear until
+     * the page is reloaded (which constructs a fresh Sync from a clean
+     * caching state). Clearing the handler restores the documented
+     * `enable → pendingActivations → new Sync's onActivate` flow.
+     */
+    function resetActivateHandler() {
+        remoteStorage.caching.activateHandler = undefined;
+        remoteStorage.caching.pendingActivations = [];
+    }
+
     return {
         remoteStorage,
         client,
 
         connect(userAddress, token) {
             const normalizedToken = normalizeBearerToken(token);
-            // Re-enable caching in case it was reset by a previous disconnect
+            // Re-enable caching in case it was reset by a previous disconnect.
+            // Clear the stale activate handler first — see resetActivateHandler.
+            resetActivateHandler();
             remoteStorage.caching.enable(`/${APP_SCOPE}/`);
             remoteStorage.connect(userAddress, normalizedToken);
         },
@@ -283,8 +318,10 @@ export function createRemoteStorageRepository() {
          * Resolves once `connect()` has been issued — callers should still
          * wait for the `connected` event for sync.
          *
-         * Avoids mutating rs.js internals; relies on the documented
-         * disconnect → connect lifecycle.
+         * Avoids mutating rs.js internals beyond the documented
+         * disconnect → connect lifecycle, with one exception:
+         * `caching.activateHandler` is cleared before re-enabling — see
+         * resetActivateHandler for the rationale.
          */
         async swap(userAddress, token) {
             if (remoteStorage.connected) {
@@ -306,6 +343,10 @@ export function createRemoteStorageRepository() {
                     remoteStorage.disconnect();
                 });
             }
+            // The OLD Sync's activate handler must be cleared before
+            // enable() — otherwise the path activation goes to the dead
+            // handler and the new Sync never queues any tasks.
+            resetActivateHandler();
             remoteStorage.caching.enable(`/${APP_SCOPE}/`);
             remoteStorage.connect(userAddress, normalizeBearerToken(token));
         },
@@ -315,6 +356,17 @@ export function createRemoteStorageRepository() {
                 return;
             }
             await remoteStorage.startSync();
+        },
+
+        /**
+         * Read/adjust rs.js's foreground sync polling interval. The library
+         * enforces 2000–3 600 000 ms; setSyncInterval throws outside that.
+         */
+        getSyncInterval() {
+            return remoteStorage.getSyncInterval();
+        },
+        setSyncInterval(ms) {
+            remoteStorage.setSyncInterval(ms);
         },
 
         /**
@@ -376,9 +428,9 @@ export function createRemoteStorageRepository() {
 
         async loadAll({ onStep } = {}) {
             onStep?.("Loading songs");
-            const songsPromise = this.listSongs().then((songs) => {
-                onStep?.(`Loaded ${songs.length} songs`);
-                return songs;
+            const songsPromise = this.listSongs().then((result) => {
+                onStep?.(`Loaded ${result.songs.length} songs${result.pending ? ` (${result.pending} pending)` : ""}`);
+                return result;
             });
 
             onStep?.("Loading settings");
@@ -394,18 +446,18 @@ export function createRemoteStorageRepository() {
             });
 
             onStep?.("Loading saved setlists");
-            const setlistsPromise = this.listSetlists().then((setlists) => {
-                onStep?.(`Loaded ${setlists.length} saved setlists`);
-                return setlists;
+            const setlistsPromise = this.listSetlists().then((result) => {
+                onStep?.(`Loaded ${result.setlists.length} saved setlists${result.pending ? ` (${result.pending} pending)` : ""}`);
+                return result;
             });
 
             onStep?.("Loading band members");
-            const membersPromise = this.listMembers().then((members) => {
-                onStep?.(`Loaded ${Object.keys(members || {}).length} band members`);
-                return members;
+            const membersPromise = this.listMembers().then((result) => {
+                onStep?.(`Loaded ${Object.keys(result.members || {}).length} band members${result.pending ? ` (${result.pending} pending)` : ""}`);
+                return result;
             });
 
-            const [songs, config, bootstrap, setlists, members] = await Promise.all([
+            const [songsResult, config, bootstrap, setlistsResult, membersResult] = await Promise.all([
                 songsPromise,
                 configPromise,
                 bootstrapPromise,
@@ -413,12 +465,57 @@ export function createRemoteStorageRepository() {
                 membersPromise,
             ]);
 
-            return { songs, config, bootstrap, setlists, members };
+            // pendingBodies: total documents whose bodies haven't yet arrived
+            // from the remote. rs.js's getAll(path, false) returns stub
+            // entries (`true` / `{}` / object without id) for items it knows
+            // exist (folder ETag) but whose bodies are not yet in the local
+            // cache. As long as this is > 0, more onChange events will fire
+            // and the UI is not yet in a settled state.
+            const pendingBodies =
+                (songsResult.pending || 0) +
+                (setlistsResult.pending || 0) +
+                (membersResult.pending || 0);
+
+            return {
+                songs: songsResult.songs,
+                config,
+                bootstrap,
+                setlists: setlistsResult.setlists,
+                members: membersResult.members,
+                pendingBodies,
+            };
         },
 
         async listSongs() {
             const items = await client.getAll("songs/", false);
-            return sortSongs(Object.values(items || {}).map((song) => normalizeSongRecord(song)));
+            // [DEBUG SYNC] Inspect raw rs.js cache shape so we can see what
+            // "stub" actually looks like in this version of rs.js.
+            if (typeof window !== "undefined" && window.DEBUG_SYNC) {
+                const summary = Object.entries(items || {}).map(([k, v]) => {
+                    const t = v === null ? "null" : Array.isArray(v) ? "array" : typeof v;
+                    const hasId = v && typeof v === "object" && "id" in v;
+                    const keys = v && typeof v === "object" ? Object.keys(v).length : 0;
+                    return `${k}=${t}${hasId ? "+id" : ""}(${keys}k)`;
+                });
+                console.log("[sync] listSongs raw items:", summary.length, summary.slice(0, 5).join(", "), summary.length > 5 ? "..." : "");
+            }
+            const all = Object.values(items || {});
+            const records = [];
+            let pending = 0;
+            for (const item of all) {
+                if (item && typeof item === "object" && item.id) {
+                    records.push(item);
+                } else {
+                    pending += 1;
+                }
+            }
+            if (typeof window !== "undefined" && window.DEBUG_SYNC) {
+                console.log(`[sync] listSongs result: ${records.length} loaded, ${pending} pending`);
+            }
+            return {
+                songs: sortSongs(records.map((song) => normalizeSongRecord(song))),
+                pending,
+            };
         },
 
         async putSong(song) {
@@ -484,7 +581,20 @@ export function createRemoteStorageRepository() {
         // ---- setlists ----
         async listSetlists() {
             const items = await client.getAll("setlists/", false);
-            return Object.values(items || {}).sort((a, b) => (b.savedAt || "").localeCompare(a.savedAt || ""));
+            // Same stub-tolerant treatment as listSongs. Setlists must have a
+            // `savedAt` to sort; missing/non-object entries are pending bodies.
+            const all = Object.values(items || {});
+            const records = [];
+            let pending = 0;
+            for (const item of all) {
+                if (item && typeof item === "object" && item.savedAt) {
+                    records.push(item);
+                } else {
+                    pending += 1;
+                }
+            }
+            records.sort((a, b) => (b.savedAt || "").localeCompare(a.savedAt || ""));
+            return { setlists: records, pending };
         },
 
         async putSetlist(setlist) {
@@ -500,11 +610,18 @@ export function createRemoteStorageRepository() {
         // ---- members ----
         async listMembers() {
             const items = await client.getAll("members/", false);
+            // A real member doc has `name`; stubs / empty placeholders count
+            // as pending bodies and surface in the sync indicator.
             const result = {};
+            let pending = 0;
             for (const [key, value] of Object.entries(items || {})) {
-                result[value.name || key] = value;
+                if (value && typeof value === "object" && value.name) {
+                    result[value.name || key] = value;
+                } else {
+                    pending += 1;
+                }
             }
-            return result;
+            return { members: result, pending };
         },
 
         async putMember(name, data) {

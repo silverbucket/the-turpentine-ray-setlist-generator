@@ -16,7 +16,7 @@
   let setlistSongIds = $derived(
     new Set((store.generatedSetlist?.songs || []).map((s) => s.id))
   );
-  let filteredPickerSongs = $derived(() => {
+  let filteredPickerSongs = $derived.by(() => {
     const eligible = store.songs?.filter((s) => !s.unpracticed) || [];
     if (!addSongSearch) return eligible;
     const q = addSongSearch.toLowerCase();
@@ -56,6 +56,14 @@
   // New band detection — only songs are required to roll
   let hasSongs = $derived((store.songs || []).length > 0);
   let readyToRoll = $derived(hasSongs);
+
+  // [DEBUG SYNC] log every time the songs-derived state changes so we can
+  // line up "songs visible in UI" timestamps with the rest of the trace.
+  $effect(() => {
+    if (typeof window !== "undefined" && window.DEBUG_SYNC) {
+      console.log(`[sync] RollScreen: songs.length=${(store.songs || []).length} syncState=${store.syncState} hasSongs=${hasSongs}`);
+    }
+  });
 
   const ROLL_NUDGES = [
     "The setlist isn't going to roll itself.",
@@ -374,8 +382,21 @@
   </details>
   </div>
 
+  <!-- Sync-in-progress placeholder: avoid showing the empty/onboarding state
+       while we're still pulling the user's data after a swap or first connect.
+       Without this, a newly-switched account looks identical to a fresh one. -->
+  {#if !readyToRoll && store.syncState === 'syncing'}
+    <div class="sync-skeleton" role="status" aria-live="polite" aria-label="Syncing your songs">
+      <div class="skeleton-headline"></div>
+      <div class="skeleton-card"></div>
+      <div class="skeleton-card"></div>
+      <div class="skeleton-card"></div>
+      <p class="sync-skeleton-note">Pulling your songs from remoteStorage…</p>
+    </div>
+  {/if}
+
   <!-- Getting Started -->
-  {#if !readyToRoll}
+  {#if !readyToRoll && store.syncState !== 'syncing'}
     <div class="onboarding-card">
       <div class="onboarding-illustration">🎸🥁🎤</div>
       <h2 class="onboarding-title">Almost showtime!</h2>
@@ -480,7 +501,7 @@
           bind:value={addSongSearch}
         />
         <div class="add-song-list">
-          {#each filteredPickerSongs() as song}
+          {#each filteredPickerSongs as song}
             {@const inSetlist = setlistSongIds.has(song.id)}
             <button type="button"
               class="add-song-item"
@@ -1446,6 +1467,55 @@
 
   .help-toggle:hover {
     color: var(--accent-strong);
+  }
+
+  /* ---- Sync-in-progress skeleton ---- */
+  .sync-skeleton {
+    display: grid;
+    gap: 12px;
+    padding: 24px 16px;
+    max-width: 560px;
+    margin: 16px auto 0;
+  }
+
+  .skeleton-headline,
+  .skeleton-card {
+    background: linear-gradient(
+      90deg,
+      var(--line) 0%,
+      color-mix(in srgb, var(--line) 60%, var(--paper-strong)) 50%,
+      var(--line) 100%
+    );
+    background-size: 200% 100%;
+    border-radius: var(--radius-md);
+    animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  }
+
+  .skeleton-headline {
+    height: 18px;
+    width: 60%;
+    margin-bottom: 4px;
+  }
+
+  .skeleton-card {
+    height: 72px;
+  }
+
+  .sync-skeleton-note {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+  }
+
+  @keyframes skeleton-shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-headline,
+    .skeleton-card { animation: none; }
   }
 
   /* ---- Idle nudge (ready but nothing rolled) ---- */

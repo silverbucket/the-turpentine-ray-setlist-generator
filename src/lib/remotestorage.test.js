@@ -31,6 +31,12 @@ beforeEach(() => {
         caching: {
             enable: vi.fn(),
             reset: vi.fn(),
+            // Mirror the rs.js Caching public API used by repo's swap/connect
+            // flow. Tests assert these get cleared so that `enable()` routes
+            // its path through `pendingActivations` for the new Sync to pick
+            // up — see resetActivateHandler in remotestorage.js.
+            activateHandler: undefined,
+            pendingActivations: [],
         },
         scope: vi.fn(() => ({
             declareType: vi.fn(),
@@ -571,6 +577,64 @@ describe("createRemoteStorageRepository", () => {
             rs.connected = false;
             await repo.swap("other@example.com", { type: "click" });
             expect(rs.connect).toHaveBeenCalledWith("other@example.com", undefined);
+        });
+
+        it("clears the stale caching.activateHandler before re-enabling", async () => {
+            // Regression: rs.js's Sync._rs_cleanup leaves
+            // caching.activateHandler pointing at the dead Sync's lambda. If
+            // we don't clear it, enable() routes the path to that defunct
+            // handler instead of pendingActivations, and the new Sync never
+            // queues any sync tasks — the next account's data never loads
+            // until the page is reloaded.
+            const repo = createRemoteStorageRepository();
+            const rs = remoteStorageMockState.instance;
+            rs.connected = true;
+
+            const staleHandler = vi.fn();
+            rs.caching.activateHandler = staleHandler;
+            rs.caching.pendingActivations = ["/setlist-roller/"];
+
+            // Capture the state of caching at the moment enable() is called —
+            // it must already be cleared by then.
+            let handlerAtEnable;
+            let pendingAtEnable;
+            rs.caching.enable.mockImplementation(() => {
+                handlerAtEnable = rs.caching.activateHandler;
+                pendingAtEnable = rs.caching.pendingActivations;
+            });
+
+            let disconnectedHandler;
+            rs.on.mockImplementation((event, handler) => {
+                if (event === "disconnected") disconnectedHandler = handler;
+            });
+
+            const swapPromise = repo.swap("other@example.com", "tok-2");
+            disconnectedHandler();
+            await swapPromise;
+
+            expect(handlerAtEnable).toBeUndefined();
+            expect(pendingAtEnable).toEqual([]);
+            expect(staleHandler).not.toHaveBeenCalled();
+        });
+
+        it("clears caching.activateHandler on direct connect too", () => {
+            // Same regression as the swap path: a connect after disconnect
+            // (without an explicit swap) hits the same stale-handler hazard.
+            const repo = createRemoteStorageRepository();
+            const rs = remoteStorageMockState.instance;
+            const staleHandler = vi.fn();
+            rs.caching.activateHandler = staleHandler;
+            rs.caching.pendingActivations = ["/setlist-roller/"];
+
+            let handlerAtEnable;
+            rs.caching.enable.mockImplementation(() => {
+                handlerAtEnable = rs.caching.activateHandler;
+            });
+
+            repo.connect("user@example.com", "tok");
+
+            expect(handlerAtEnable).toBeUndefined();
+            expect(staleHandler).not.toHaveBeenCalled();
         });
     });
 });
