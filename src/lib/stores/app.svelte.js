@@ -73,6 +73,35 @@ export function createAppStore(repo) {
     // a single failed swap would lock out future swap attempts via the
     // `isSwitching` re-entry guard.
     let switchingWatchdog = null;
+    // Post-swap "straggler" guard. Even after `connected` fires for the new
+    // account and we release `isSwitching`, rs.js can still emit the OLD
+    // account's `disconnected` event a moment later — it was queued behind
+    // repo.swap()'s 3 s safety timeout, which sometimes lets the swap
+    // promise resolve before the underlying disconnect actually finishes.
+    // Without this flag, the late event takes the wipe path against the
+    // newly-connected account. We arm it at swap entry, leave it set across
+    // the `connected` boundary, and let either the late disconnect itself
+    // or a 5 s timeout consume it (5 s is generous vs swap()'s 3 s, but
+    // small enough that a real user-initiated disconnect right after a
+    // swap isn't accidentally swallowed).
+    let pendingSwapDisconnect = false;
+    let pendingSwapDisconnectTimer = null;
+    function expectSwapDisconnect() {
+        pendingSwapDisconnect = true;
+        if (pendingSwapDisconnectTimer) clearTimeout(pendingSwapDisconnectTimer);
+        pendingSwapDisconnectTimer = setTimeout(() => {
+            pendingSwapDisconnectTimer = null;
+            pendingSwapDisconnect = false;
+        }, 5000);
+    }
+    function consumePendingSwapDisconnect() {
+        if (!pendingSwapDisconnect && !pendingSwapDisconnectTimer) return;
+        pendingSwapDisconnect = false;
+        if (pendingSwapDisconnectTimer) {
+            clearTimeout(pendingSwapDisconnectTimer);
+            pendingSwapDisconnectTimer = null;
+        }
+    }
     function releaseSwitching(reason) {
         if (!isSwitching && !switchingWatchdog) return;
         isSwitching = false;
@@ -743,13 +772,33 @@ export function createAppStore(repo) {
         if (switchingWatchdog) clearTimeout(switchingWatchdog);
         switchingWatchdog = setTimeout(() => {
             switchingWatchdog = null;
-            if (isSwitching) {
-                isSwitching = false;
-                pushSyncLog("Swap watchdog: released isSwitching after 15s");
-            }
+            if (!isSwitching) return;
+            // Full reset — the re-entry guard at the top of connectToAccount
+            // checks BOTH isSwitching AND connectionStatus === "connecting",
+            // so just clearing isSwitching would leave the user locked out
+            // of retrying. Drop everything back to a clean disconnected
+            // state and surface the failure so they know what happened.
+            isSwitching = false;
+            consumePendingSwapDisconnect();
+            connectionStatus = "disconnected";
+            setSyncState("error");
+            loadError = "Account swap timed out. Try again.";
+            addToast(loadError, "danger");
+            pushSyncLog("Swap watchdog: released after 15s — neither connected nor error fired");
         }, 15000);
         try {
             if (repo.isConnected()) {
+                // rs.js will fire `disconnected` (for the old account) and
+                // then `connected` (for the new). Usually the disconnect
+                // lands first while isSwitching is true. But repo.swap()
+                // resolves via a 3 s safety timeout that doesn't wait for
+                // the underlying disconnect to actually fire, so the OLD
+                // account's `disconnected` can arrive AFTER the new
+                // account's `connected` — by which point isSwitching has
+                // already been released. Arm the straggler guard so that
+                // out-of-order late disconnect is swallowed instead of
+                // taking the wipe path against the new account.
+                expectSwapDisconnect();
                 await repo.swap(address, savedToken);
             } else {
                 // Not connected — straight connect, no swap dance needed.
@@ -759,6 +808,7 @@ export function createAppStore(repo) {
         } catch (error) {
             addToast(error?.message || "Could not switch accounts.", "danger");
             connectionStatus = "disconnected";
+            consumePendingSwapDisconnect();
             releaseSwitching("swap threw");
         }
     }
@@ -2167,7 +2217,24 @@ export function createAppStore(repo) {
             // Don't wipe state — the snapshot we restored stays visible until
             // the next `connected` event fills in real data.
             if (isSwitching) {
+                // Consume the straggler flag too: the in-window disconnect
+                // satisfies the expectation set by expectSwapDisconnect(),
+                // and we don't want a stale flag living past this point.
+                consumePendingSwapDisconnect();
                 pushSyncLog("Disconnected (switching accounts)");
+                return;
+            }
+            // Post-swap straggler: rs.js's old-account `disconnected` event
+            // can arrive AFTER the new account's `connected` because
+            // repo.swap() resolves via a 3 s safety timeout that doesn't
+            // wait for the underlying disconnect to actually finish. By the
+            // time this lands, isSwitching has already been released by the
+            // connected handler — but we still need to skip the wipe, since
+            // it's the OLD account telling us about itself. The straggler
+            // flag was armed at swap entry exactly for this case.
+            if (pendingSwapDisconnect) {
+                consumePendingSwapDisconnect();
+                pushSyncLog("Disconnected (post-swap straggler from old account — ignored)");
                 return;
             }
             terminateWorker();
@@ -2222,8 +2289,13 @@ export function createAppStore(repo) {
             if (fatal) {
                 // If we're mid-swap, release the guard so the upcoming
                 // `disconnected` event runs the wipe instead of being
-                // swallowed by the swap-in-progress check.
+                // swallowed by the swap-in-progress check. Also consume
+                // the straggler flag — otherwise repo.disconnect() below
+                // would land a `disconnected` event that gets eaten by
+                // the post-swap branch instead of running the wipe we
+                // want for a fatal auth failure.
                 releaseSwitching("fatal error during swap");
+                consumePendingSwapDisconnect();
                 repo.disconnect();
             }
         });
@@ -2255,6 +2327,7 @@ export function createAppStore(repo) {
             if (syncStateTimer) clearTimeout(syncStateTimer);
             if (syncFlipTimer) clearTimeout(syncFlipTimer);
             if (switchingWatchdog) clearTimeout(switchingWatchdog);
+            if (pendingSwapDisconnectTimer) clearTimeout(pendingSwapDisconnectTimer);
             detachConnecting();
             detachAuthing();
             detachStandaloneRedirect();
