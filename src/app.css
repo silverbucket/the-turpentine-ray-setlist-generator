@@ -26,6 +26,10 @@
     --line-strong: rgba(27, 49, 80, 0.2);
     --success: #1f8f61;
     --danger: #992f20;
+    /* Fixed blue for the sync indicator — must NOT track `--accent`, since
+       a band-themed accent could collide with `--success` (green) and make
+       "syncing" indistinguishable from "up to date". */
+    --sync: #3a6df0;
 
     /* Semantic */
     --surface: rgba(255, 255, 255, 0.92);
@@ -87,6 +91,7 @@
     --line-strong: rgba(200, 215, 240, 0.18);
     --success: #34b87a;
     --danger: #e05545;
+    --sync: #7da0ff;
 
     --surface: rgba(38, 43, 54, 0.92);
     --overlay: rgba(0, 0, 0, 0.5);
