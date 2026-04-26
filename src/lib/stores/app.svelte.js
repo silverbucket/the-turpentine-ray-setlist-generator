@@ -60,7 +60,56 @@ export function createAppStore(repo) {
 
     // True while orchestrating an account swap; tells the global disconnected
     // handler to skip its full state-wipe (we want the snapshot to stay).
+    // Held from `connectToAccount` entry until the new account's `connected`
+    // event fires (or a fatal error / watchdog releases it). Holding past
+    // `repo.swap()` resolution is critical: the swap promise can resolve via
+    // its 3 s timeout before rs.js actually emits the old account's
+    // `disconnected` event, and that late event would otherwise take the
+    // wipe path against the new account.
     let isSwitching = false;
+    // Backstop in case neither `connected` nor a fatal error fires after a
+    // swap (e.g. token rejected silently, OAuth tab closed). Without this,
+    // a single failed swap would lock out future swap attempts via the
+    // `isSwitching` re-entry guard.
+    let switchingWatchdog = null;
+    // Post-swap "straggler" guard. Even after `connected` fires for the new
+    // account and we release `isSwitching`, rs.js can still emit the OLD
+    // account's `disconnected` event a moment later — it was queued behind
+    // repo.swap()'s 3 s safety timeout, which sometimes lets the swap
+    // promise resolve before the underlying disconnect actually finishes.
+    // Without this flag, the late event takes the wipe path against the
+    // newly-connected account. We arm it at swap entry, leave it set across
+    // the `connected` boundary, and let either the late disconnect itself
+    // or a 5 s timeout consume it (5 s is generous vs swap()'s 3 s, but
+    // small enough that a real user-initiated disconnect right after a
+    // swap isn't accidentally swallowed).
+    let pendingSwapDisconnect = false;
+    let pendingSwapDisconnectTimer = null;
+    function expectSwapDisconnect() {
+        pendingSwapDisconnect = true;
+        if (pendingSwapDisconnectTimer) clearTimeout(pendingSwapDisconnectTimer);
+        pendingSwapDisconnectTimer = setTimeout(() => {
+            pendingSwapDisconnectTimer = null;
+            pendingSwapDisconnect = false;
+        }, 5000);
+    }
+    function consumePendingSwapDisconnect() {
+        if (!pendingSwapDisconnect && !pendingSwapDisconnectTimer) return;
+        pendingSwapDisconnect = false;
+        if (pendingSwapDisconnectTimer) {
+            clearTimeout(pendingSwapDisconnectTimer);
+            pendingSwapDisconnectTimer = null;
+        }
+    }
+    function releaseSwitching(reason) {
+        if (!isSwitching && !switchingWatchdog) return;
+        isSwitching = false;
+        if (switchingWatchdog) {
+            clearTimeout(switchingWatchdog);
+            switchingWatchdog = null;
+        }
+        if (reason) pushSyncLog(`Swap guard released (${reason})`);
+    }
 
     // ---- core state ----
     let songs = $state([]);
@@ -73,6 +122,9 @@ export function createAppStore(repo) {
     let generationId = 0;
     let setlistLocked = $state(false);
     let setlistSaved = $state(false);
+    // Id of the saved setlist currently loaded into generatedSetlist, if any.
+    // Used to update-in-place instead of duplicating when the user re-saves.
+    let loadedSavedId = $state("");
     let pendingRollConfirm = $state(false);
     let savedSetlists = $state([]);
     let bandMembers = $state({});
@@ -97,6 +149,57 @@ export function createAppStore(repo) {
     let syncActiveCount = 0;
     let syncIndicatorTimer = null;
     let syncLogEntries = $state([]);
+    // High-level reload state for the in-app pill / skeletons. Distinct from
+    // syncActiveCount (which tracks per-write bursts) and from
+    // initialSyncComplete (which gates the full-screen sync-shell). This drives
+    // the post-swap experience where the user sees instant snapshot UI but a
+    // background reload is still in flight.
+    let syncState = $state("idle"); // "idle" | "syncing" | "synced" | "error"
+    let syncStateTimer = null;
+    // Count of in-flight reloadAll calls. We can't mark "synced" while any
+    // reload is mid-flight.
+    let reloadInFlight = 0;
+    // Monotonic counter incremented on every reloadAll START. After a reload
+    // completes, it only applies its results if its captured generation is
+    // still the latest — older concurrent reloads (which captured an emptier
+    // cache snapshot) get discarded so their stale results don't clobber a
+    // newer reload's fresh data. Without this, a fast burst of onChange
+    // events during bootstrap can race in completion order and the UI lands
+    // on whichever reload happens to finish last, regardless of how recent
+    // the cache state it captured was.
+    let reloadGen = 0;
+    // Number of documents whose bodies rs.js has not yet pulled from remote.
+    // Read deterministically from the cache after each reloadAll: as long as
+    // any folder has stub entries (children present in the listing but with
+    // no body), the catalog is not actually hydrated — even if rs.js has
+    // already fired sync-done. The pill stays in "syncing" until this hits 0
+    // AND we've seen at least one sync round complete (so we don't false-
+    // resolve before rs.js has pulled the folder listings themselves).
+    let pendingBodies = $state(0);
+    // Set true the first time rs.js fires sync-done {completed: true} since
+    // the last (re)connect. Without this, an empty cache (no listing yet)
+    // would read pendingBodies=0 and resolve immediately.
+    let syncRoundCompleted = false;
+    // rs.js does its work in multiple back-to-back "rounds" — sync-done
+    // {completed:true} fires after each round's queue drains, not when the
+    // whole tree is in. After each round, rs.js waits `syncInterval` ms
+    // (configured in src/lib/remotestorage.js) before starting the next
+    // round; round 1 typically pulls only the root + a few small docs,
+    // round 2 pulls the folder listings, round 3 pulls the bodies. The
+    // only deterministic "all rounds drained" signal is "rs.js's next
+    // polling tick had no new work" — i.e. quiescence for at least one
+    // full sync interval. The settle is therefore matched to rs.js's
+    // bootstrap polling cadence, plus a small buffer for tasks to drain.
+    // Once the pill first flips to "synced", we relax rs.js's polling to
+    // STEADY_SYNC_INTERVAL_MS so the app doesn't hammer the server long-
+    // term — see `relaxSyncInterval()`.
+    const BOOTSTRAP_SYNC_INTERVAL_MS = 2000; // matches rs.js syncInterval set at construction
+    const STEADY_SYNC_INTERVAL_MS = 10000;   // rs.js library default
+    const SYNC_SETTLE_MS = BOOTSTRAP_SYNC_INTERVAL_MS + 500;
+    let syncFlipTimer = null;
+    // Tracks whether we've ever flipped to "synced" since the last
+    // (re)connect. Used to drive the one-time syncInterval relaxation.
+    let initialSyncSettled = false;
 
     // ---- generation options (loaded properly on connect via loadUserLocalData) ----
     let generationOptions = $state(defaultGenerationOptions(DEFAULT_APP_CONFIG));
@@ -147,20 +250,36 @@ export function createAppStore(repo) {
         if (pruned) songKeyFilters = pruned;
     });
 
+    // Keep the per-account snapshot fresh: any direct edit (saveSong,
+    // persistMemberEdit, addSetlistSong, etc.) mutates these state slots,
+    // so a debounced scheduleSnapshot() here covers all of them. Without
+    // this, the snapshot only refreshed at the end of reloadAll, so a
+    // fast account swap right after editing showed last-synced data.
+    $effect(() => {
+        // Touch the state we want to snapshot.
+        void songs;
+        void appConfig;
+        void savedSetlists;
+        void bandMembers;
+        if (currentUserAddress) scheduleSnapshot();
+    });
+
     // ---- helpers ----
 
     function defaultGenerationOptions(config = appConfig) {
         const source = config || DEFAULT_APP_CONFIG;
+        // Use ?? for numeric defaults: a user-set 0 (count, temperature, etc.)
+        // would otherwise silently fall back to the default.
         return {
-            count: source.general?.count || 15,
-            beamWidth: source.general?.beamWidth || 20,
+            count: source.general?.count ?? 15,
+            beamWidth: source.general?.beamWidth ?? 20,
             maxCovers: source.general?.limits?.covers ?? -1,
             maxInstrumentals: source.general?.limits?.instrumentals ?? -1,
             keyFlow: false,
             seed: "",
             randomness: {
-                temperature: source.general?.randomness?.temperature || 0.85,
-                finalChoicePool: source.general?.randomness?.finalChoicePool || 12
+                temperature: source.general?.randomness?.temperature ?? 0.85,
+                finalChoicePool: source.general?.randomness?.finalChoicePool ?? 12
             },
             show: {
                 members: clone(source.show?.members || {})
@@ -284,6 +403,7 @@ export function createAppStore(repo) {
 
     function clearGeneratedSetlist() {
         generatedSetlist = null;
+        loadedSavedId = "";
     }
 
     // Strip deprecated "energy" field and energy-related notes from saved setlist songs
@@ -409,6 +529,133 @@ export function createAppStore(repo) {
         }
     }
 
+    // [DEBUG SYNC] Tagged logger — flip on in the console with `DEBUG_SYNC=1`.
+    // Centralised so we can change format / silence in one place.
+    function dbg(...args) {
+        if (typeof window !== "undefined" && window.DEBUG_SYNC) {
+            console.log("[sync]", ...args);
+        }
+    }
+
+    function setSyncState(next) {
+        if (syncState !== next) dbg(`syncState: ${syncState} → ${next}`);
+        if (syncStateTimer) {
+            clearTimeout(syncStateTimer);
+            syncStateTimer = null;
+        }
+        // Any state transition cancels a pending flip — if we're going back
+        // to "syncing" the gates failed, and "error"/"idle" make the flip
+        // moot.
+        if (next !== "synced" && syncFlipTimer) {
+            clearTimeout(syncFlipTimer);
+            syncFlipTimer = null;
+        }
+        syncState = next;
+        // "synced" is a transient confirmation — fade back to idle so the pill
+        // doesn't linger forever after a successful background reload.
+        if (next === "synced") {
+            // Bootstrap is over: relax rs.js's polling to its steady-state
+            // interval so we don't hammer the server every 2 s for the rest
+            // of the session. Only do this once per connect.
+            if (!initialSyncSettled) {
+                initialSyncSettled = true;
+                relaxSyncInterval();
+            }
+            syncStateTimer = setTimeout(() => {
+                if (syncState === "synced") syncState = "idle";
+                syncStateTimer = null;
+            }, 2500);
+        }
+    }
+
+    function relaxSyncInterval() {
+        try {
+            const current = repo.getSyncInterval();
+            if (current < STEADY_SYNC_INTERVAL_MS) {
+                dbg(`relaxSyncInterval: ${current}ms → ${STEADY_SYNC_INTERVAL_MS}ms`);
+                repo.setSyncInterval(STEADY_SYNC_INTERVAL_MS);
+            }
+        } catch (e) {
+            // Non-fatal: bootstrap interval keeps polling, just more
+            // frequently than ideal. Log and move on.
+            dbg(`relaxSyncInterval failed: ${e?.message || e}`);
+        }
+    }
+
+    function tightenSyncInterval() {
+        try {
+            const current = repo.getSyncInterval();
+            if (current > BOOTSTRAP_SYNC_INTERVAL_MS) {
+                dbg(`tightenSyncInterval: ${current}ms → ${BOOTSTRAP_SYNC_INTERVAL_MS}ms`);
+                repo.setSyncInterval(BOOTSTRAP_SYNC_INTERVAL_MS);
+            }
+        } catch (e) {
+            dbg(`tightenSyncInterval failed: ${e?.message || e}`);
+        }
+    }
+
+    // Cancel any pending "synced" flip because rs.js just told us it's still
+    // working. Called from every signal that proves activity is ongoing:
+    // sync-started, sync-req-done, remote onChange, reloadAll start. The
+    // pending flip will be re-scheduled by the next maybeMarkSynced() call
+    // once the gates pass again.
+    function bumpSyncActivity(reason) {
+        if (syncFlipTimer) {
+            dbg(`bumpSyncActivity: cancelling pending flip (${reason})`);
+            clearTimeout(syncFlipTimer);
+            syncFlipTimer = null;
+        }
+    }
+
+    // Decide whether sync activity is genuinely settled. Three deterministic
+    // gates, all read from real state:
+    //   1. No reloadAll currently running.
+    //   2. The cache has zero pending document bodies.
+    //   3. rs.js has reported at least one completed sync round in this
+    //      session — guards against an empty cache (no folder listing yet)
+    //      reading as "0 pending" and false-resolving on connect.
+    // The gates can pass after round 1 with the cache still empty (rs.js
+    // hasn't yet pulled the catalog folders); rs.js then waits one full
+    // `syncInterval` before starting the next round. The only way to know
+    // "no more rounds are coming" is to observe one full polling interval
+    // of silence. SYNC_SETTLE_MS = syncInterval + small buffer encodes
+    // exactly that: any sync-started / sync-req-done / remote onChange /
+    // reloadAll bumpSyncActivity()s and re-arms the gate. Once a full poll
+    // cycle elapses without any of those, rs.js's next scheduled wake-up
+    // demonstrably found no new work — and only then do we flip "synced".
+    function maybeMarkSynced() {
+        const reason =
+            syncState !== "syncing" ? `not-syncing(${syncState})` :
+            reloadInFlight > 0 ? `reloadInFlight=${reloadInFlight}` :
+            pendingBodies > 0 ? `pendingBodies=${pendingBodies}` :
+            !syncRoundCompleted ? "syncRoundCompleted=false" :
+            loadError ? "loadError" :
+            null;
+        dbg(`maybeMarkSynced: ${reason ? `blocked by ${reason}` : "scheduling flip"} (state=${syncState} reload=${reloadInFlight} pending=${pendingBodies} round=${syncRoundCompleted})`);
+        if (reason) return;
+        // Already scheduled — let the existing timer run; nothing has changed
+        // that would justify resetting it.
+        if (syncFlipTimer) return;
+        syncFlipTimer = setTimeout(() => {
+            syncFlipTimer = null;
+            // Re-check the gates: any of them may have flipped during the
+            // settle window (a new reload kicked off, a body event landed).
+            const blocker =
+                syncState !== "syncing" ? `not-syncing(${syncState})` :
+                reloadInFlight > 0 ? `reloadInFlight=${reloadInFlight}` :
+                pendingBodies > 0 ? `pendingBodies=${pendingBodies}` :
+                !syncRoundCompleted ? "syncRoundCompleted=false" :
+                loadError ? "loadError" :
+                null;
+            if (blocker) {
+                dbg(`syncFlipTimer fired but gates failed: ${blocker}`);
+                return;
+            }
+            dbg("syncFlipTimer fired — FLIPPING to synced");
+            setSyncState("synced");
+        }, SYNC_SETTLE_MS);
+    }
+
     // ---- navigation ----
     function syncRouteFromHash() {
         const next = window.location.hash.replace(/^#\/?/, "") || "roll";
@@ -421,7 +668,7 @@ export function createAppStore(repo) {
     }
 
     // ---- connection ----
-    async function connectStorage(token) {
+    function connectStorage(token) {
         if (!connectAddress.trim()) {
             addToast("Put in a remoteStorage address first.", "danger");
             return;
@@ -494,14 +741,63 @@ export function createAppStore(repo) {
         clearSyncLog();
         connectionStatus = "connecting";
         syncStatusLabel = "Switching accounts";
+        // Snapshot path skips the full-screen sync-shell, so the user lands on
+        // Roll instantly. Mark sync in-flight up front so the TopBar pill and
+        // RollScreen skeletons render immediately rather than waiting for
+        // reloadAll() to start. Reset the per-session sync gates — the new
+        // account starts a fresh round and inherits no completion state from
+        // the previous session.
+        setSyncState("syncing");
+        syncRoundCompleted = false;
+        pendingBodies = 0;
+        initialSyncSettled = false;
+        bumpSyncActivity("account swap");
+        // The previous account may have relaxed rs.js to its steady-state
+        // polling interval; tighten it back up so the new account gets a
+        // snappy bootstrap.
+        tightenSyncInterval();
         pushSyncLog(`Switching to ${address}`);
 
         // 4. Swap the rs.js connection. `swap()` disconnects cleanly (which
         //    fires `disconnected`; the global handler skips its wipe because
         //    isSwitching is true) and resets the cache before reconnecting.
+        //    `isSwitching` is intentionally NOT cleared in `finally`: rs.js's
+        //    `disconnected` event for the OLD account can fire after
+        //    `repo.swap()` resolves (the swap promise resolves via its 3 s
+        //    safety timeout before the actual event lands). The connected
+        //    handler clears it on a successful swap; the watchdog clears it
+        //    if neither connected nor a thrown error ever lands.
         isSwitching = true;
+        if (switchingWatchdog) clearTimeout(switchingWatchdog);
+        switchingWatchdog = setTimeout(() => {
+            switchingWatchdog = null;
+            if (!isSwitching) return;
+            // Full reset — the re-entry guard at the top of connectToAccount
+            // checks BOTH isSwitching AND connectionStatus === "connecting",
+            // so just clearing isSwitching would leave the user locked out
+            // of retrying. Drop everything back to a clean disconnected
+            // state and surface the failure so they know what happened.
+            isSwitching = false;
+            consumePendingSwapDisconnect();
+            connectionStatus = "disconnected";
+            setSyncState("error");
+            loadError = "Account swap timed out. Try again.";
+            addToast(loadError, "danger");
+            pushSyncLog("Swap watchdog: released after 15s — neither connected nor error fired");
+        }, 15000);
         try {
             if (repo.isConnected()) {
+                // rs.js will fire `disconnected` (for the old account) and
+                // then `connected` (for the new). Usually the disconnect
+                // lands first while isSwitching is true. But repo.swap()
+                // resolves via a 3 s safety timeout that doesn't wait for
+                // the underlying disconnect to actually fire, so the OLD
+                // account's `disconnected` can arrive AFTER the new
+                // account's `connected` — by which point isSwitching has
+                // already been released. Arm the straggler guard so that
+                // out-of-order late disconnect is swallowed instead of
+                // taking the wipe path against the new account.
+                expectSwapDisconnect();
                 await repo.swap(address, savedToken);
             } else {
                 // Not connected — straight connect, no swap dance needed.
@@ -511,15 +807,22 @@ export function createAppStore(repo) {
         } catch (error) {
             addToast(error?.message || "Could not switch accounts.", "danger");
             connectionStatus = "disconnected";
-        } finally {
-            isSwitching = false;
+            consumePendingSwapDisconnect();
+            releaseSwitching("swap threw");
         }
     }
+
+    // Per-account localStorage bases owned by the app. Keep this list in sync
+    // with anything that reads/writes via accountSlot(address).key(...).
+    const PER_ACCOUNT_STORAGE_BASES = ["snapshot", "ui-options", "current-set", "saved-sets"];
 
     function forgetAccount(address) {
         removeKnownAccountEntry(address);
         if (typeof localStorage !== "undefined") {
-            localStorage.removeItem(accountSlot(address).key("snapshot"));
+            const slot = accountSlot(address);
+            for (const base of PER_ACCOUNT_STORAGE_BASES) {
+                localStorage.removeItem(slot.key(base));
+            }
         }
         knownAccounts = getKnownAccounts();
     }
@@ -559,16 +862,30 @@ export function createAppStore(repo) {
                 Object.entries(data.members || {}).map(([name, d]) => [name, normalizeMemberRecord(d)])
             );
             showFirstRunPrompt = false;
-            generationOptions = deepMerge(defaultGenerationOptions(appConfig), generationOptions || {});
-            // Don't persistGenerationOptions() here — currentUserAddress still
-            // points to the previous account. The caller sets it after this
-            // returns, and loadUserLocalData() handles persisting correctly.
+            // generationOptions is intentionally not touched here:
+            // currentUserAddress still points at the previous account. The
+            // caller sets it after this returns, then loadUserLocalData()
+            // loads the target account's stored options.
             return true;
         } catch { return false; }
     }
 
     // ---- data loading ----
     async function reloadAll({ quiet = false, session = activeSession } = {}) {
+        const callId = Math.random().toString(36).slice(2, 6);
+        // Capture this reload's generation. By the time we return, a newer
+        // reload may have started; if so, that newer one captured a more
+        // recent cache snapshot and ours is stale. We discard our results
+        // even though our session matches.
+        reloadGen += 1;
+        const myGen = reloadGen;
+        dbg(`reloadAll[${callId}] START gen=${myGen} session=${session}/${activeSession} quiet=${quiet}`);
+        // Starting a reload is unambiguous proof of activity — cancel any
+        // pending "synced" flip from the previous round so we don't resolve
+        // while we're literally about to re-read the cache.
+        bumpSyncActivity("reloadAll start");
+        setSyncState("syncing");
+        reloadInFlight += 1;
         try {
             busyMessage = quiet ? "" : "Loading your songs...";
             loadError = "";
@@ -583,6 +900,19 @@ export function createAppStore(repo) {
                 pushSyncLog("Discarded stale load (account swapped)");
                 return;
             }
+            // Guard against this reload being superseded by a newer one
+            // started while we were awaiting loadAll. The newer reload
+            // captured a fresher cache snapshot — applying our (older)
+            // results would regress the in-memory state.
+            if (myGen !== reloadGen) {
+                dbg(`reloadAll[${callId}] DISCARD gen=${myGen} (current=${reloadGen}) — superseded by newer reload`);
+                pushSyncLog("Discarded superseded load");
+                return;
+            }
+            // Update the pending count even if we early-return below — the
+            // pill state depends on it being current.
+            pendingBodies = data.pendingBodies || 0;
+            dbg(`reloadAll[${callId}] data: ${data.songs.length} songs, pendingBodies=${pendingBodies}, hasConfig=${!!data.config}`);
             songs = data.songs.map(normalizeSongRecord);
             bootstrapMeta = data.bootstrap;
             appConfig = data.config ? normalizeAppConfig(data.config) : null;
@@ -613,9 +943,19 @@ export function createAppStore(repo) {
             loadError = error?.message || "Could not load remote data.";
             addToast(loadError, "danger");
             pushSyncLog(loadError);
+            // Stale results from an old session shouldn't flip the indicator —
+            // the live session will resolve its own state.
+            if (session === activeSession) setSyncState("error");
         } finally {
+            reloadInFlight = Math.max(0, reloadInFlight - 1);
             busyMessage = "";
             initialSyncComplete = true;
+            dbg(`reloadAll[${callId}] END gen=${myGen} songs=${songs.length} pending=${pendingBodies} reloadInFlight=${reloadInFlight}`);
+            // Try to resolve the pill. Falls through silently if any of the
+            // gates (pending bodies, in-flight reloads, sync round) aren't
+            // satisfied yet — a later reload (triggered by an onChange when
+            // the next body arrives) will check again.
+            if (session === activeSession) maybeMarkSynced();
         }
     }
 
@@ -727,8 +1067,15 @@ export function createAppStore(repo) {
         }
 
         terminateWorker();
+        // A new generation produces fresh content; any prior "loaded from
+        // saved" identity no longer applies, so saving creates a new entry.
+        loadedSavedId = "";
         isGenerating = true;
         const thisGenId = ++generationId;
+        // Capture the session so a result that lands after an account swap
+        // (even into another connected account) is discarded — checking
+        // currentUserAddress alone isn't enough.
+        const thisSession = activeSession;
         const opts = clone(generationOptions);
         Object.assign(opts, overrideOptions);
 
@@ -744,8 +1091,9 @@ export function createAppStore(repo) {
             if (type !== "done") return;
             worker.terminate();
             if (worker === activeWorker) activeWorker = null;
-            // Ignore stale results from a previous generation or disconnected session
-            if (thisGenId !== generationId || !currentUserAddress) {
+            // Ignore stale results from a previous generation, an account
+            // swap, or a disconnected session.
+            if (thisGenId !== generationId || thisSession !== activeSession || !currentUserAddress) {
                 isGenerating = false;
                 return;
             }
@@ -812,6 +1160,27 @@ export function createAppStore(repo) {
         if (!generatedSetlist) return;
         const currentSaved = savedSetlists || [];
         const songNames = generatedSetlist.songs.map(s => s.name || s.title || "?");
+
+        // If this setlist was loaded from a saved entry, update that entry in
+        // place instead of creating a duplicate with a new id and name.
+        if (loadedSavedId) {
+            const existing = currentSaved.find((s) => s.id === loadedSavedId);
+            if (existing) {
+                await updateSavedSetlist(loadedSavedId, {
+                    savedAt: nowIso(),
+                    summary: clone(generatedSetlist.summary),
+                    songs: clone(generatedSetlist.songs),
+                    songNames,
+                    seed: generatedSetlist.seed,
+                    songCount: generatedSetlist.songs.length,
+                });
+                setlistSaved = true;
+                return;
+            }
+            // Saved entry no longer exists (deleted elsewhere) — fall through.
+            loadedSavedId = "";
+        }
+
         const funNames = [
             "The Unhinged Encore", "Chaos Theory",
             "No Refunds", "The One That Slaps", "Certified Banger",
@@ -840,6 +1209,7 @@ export function createAppStore(repo) {
             await withSync("Saving setlist", () => repo.putSetlist(entry));
             savedSetlists = [entry, ...currentSaved];
             setlistSaved = true;
+            loadedSavedId = entry.id;
         } catch (error) {
             addToast(error?.message || "Could not save setlist.", "danger");
         }
@@ -849,6 +1219,7 @@ export function createAppStore(repo) {
         try {
             await withSync("Removing setlist", () => repo.deleteSetlist(id));
             savedSetlists = savedSetlists.filter((s) => s.id !== id);
+            if (loadedSavedId === id) loadedSavedId = "";
         } catch (error) {
             addToast(error?.message || "Could not remove setlist.", "danger");
         }
@@ -876,6 +1247,7 @@ export function createAppStore(repo) {
         });
         setlistLocked = true;
         setlistSaved = true;
+        loadedSavedId = id;
         persistCurrentSetlist();
         addToast(`Loaded ${saved.songs?.length || 0}-song set.`);
     }
@@ -923,7 +1295,8 @@ export function createAppStore(repo) {
             key: song.key || "",
             notes: song.notes || "",
             performance,
-            position: songList.length + 1,
+            // position is intentionally omitted; scoreFixedOrder re-stamps it
+            // after rescoring. Setting it here was off-by-one.
             incrementalScore: 0,
             cumulativeScore: 0,
             transitionNotes: [],
@@ -1081,7 +1454,7 @@ export function createAppStore(repo) {
     }
 
     async function saveSong() {
-        if (!editorSong?.name.trim()) {
+        if (!editorSong || !String(editorSong.name || "").trim()) {
             addToast("Songs need names.", "danger");
             return;
         }
@@ -1184,12 +1557,12 @@ export function createAppStore(repo) {
                 await repo.deleteSong(song.id);
             }
             // Delete all setlists from RS (list from remote to catch any beyond in-memory state)
-            const allSetlists = await repo.listSetlists();
+            const { setlists: allSetlists } = await repo.listSetlists();
             for (const setlist of allSetlists) {
                 await repo.deleteSetlist(setlist.id);
             }
             // Delete all members from RS (list from remote to catch any beyond in-memory state)
-            const allMembers = await repo.listMembers();
+            const { members: allMembers } = await repo.listMembers();
             for (const name of Object.keys(allMembers)) {
                 await repo.deleteMember(name);
             }
@@ -1739,21 +2112,65 @@ export function createAppStore(repo) {
             pushSyncLog("Redirecting this app to the remoteStorage login");
         });
         const detachSyncStarted = repo.on("sync-started", () => {
+            dbg("rs.js event: sync-started");
             pushSyncLog("Sync cycle started");
+            // Diagnostic only. We deliberately do NOT bumpSyncActivity or
+            // setSyncState("syncing") here: rs.js fires sync-started for
+            // every sync cycle, including periodic ETag-refresh cycles that
+            // accomplish no actual data movement. Treating those as
+            // "activity" pinned the flip indefinitely (each ~2 s poll
+            // cancelled the pending settle). Real data movement is signaled
+            // by remote `onChange` events, which DO bumpSyncActivity and
+            // re-set the syncing state — so any actual round 2/3 work
+            // during bootstrap, or genuine remote changes during steady
+            // state, will correctly extend / re-arm the indicator.
         });
         const detachSyncReqDone = repo.on("sync-req-done", (event) => {
+            dbg(`rs.js event: sync-req-done tasksRemaining=${event?.tasksRemaining ?? 0}`);
             pushSyncLog(`Sync request finished, ${event?.tasksRemaining ?? 0} remaining`);
+            // Diagnostic only — see sync-started above. A task completing
+            // doesn't imply data changed (refresh tasks finish without
+            // firing onChange when ETags match).
         });
         const detachSyncDone = repo.on("sync-done", (event) => {
+            dbg(`rs.js event: sync-done completed=${event?.completed}`);
             pushSyncLog(event?.completed ? "Sync cycle completed" : "Sync cycle paused for retry");
+            // sync-done {completed:true} is necessary but not sufficient: rs.js
+            // sometimes fires this before all body change events propagate, so
+            // pendingBodies (read from the cache after each reload) is the
+            // authoritative gate. We just record the milestone — the actual
+            // pill flip happens once the next reloadAll lands and confirms
+            // pendingBodies === 0.
+            if (event?.completed) {
+                syncRoundCompleted = true;
+                maybeMarkSynced();
+            }
         });
 
         const detachConnected = repo.on("connected", async () => {
             clearTimeout(safetyTimer);
+            // Swap landed (or first connect completed). Release the swap
+            // guard now: any further `disconnected` event must be a real
+            // user-initiated disconnect, not the old account's stale
+            // cleanup. Idempotent — does nothing on cold connects where
+            // the guard was never raised.
+            releaseSwitching("connected");
             // Each connect starts a fresh session so prior async work is
             // discarded even on a plain (non-swap) reconnect.
             activeSession += 1;
             connectionStatus = "connected";
+            // Fresh connection — clear any cross-session sync gates so the
+            // pill doesn't inherit completion state from the previous
+            // account. (connectToAccount already resets these for the
+            // snapshot path; this covers cold connect and OAuth-redirect.)
+            syncRoundCompleted = false;
+            pendingBodies = 0;
+            initialSyncSettled = false;
+            bumpSyncActivity("connected");
+            // Cold connect / OAuth path: ensure rs.js is in bootstrap-pace
+            // polling. (connectToAccount already does this for swaps.)
+            tightenSyncInterval();
+            if (syncState !== "error") setSyncState("syncing");
             connectAddress = repo.getUserAddress() || connectAddress;
             currentUserAddress = connectAddress;
             loadUserLocalData();
@@ -1793,12 +2210,41 @@ export function createAppStore(repo) {
             // Don't wipe state — the snapshot we restored stays visible until
             // the next `connected` event fills in real data.
             if (isSwitching) {
+                // Consume the straggler flag too: the in-window disconnect
+                // satisfies the expectation set by expectSwapDisconnect(),
+                // and we don't want a stale flag living past this point.
+                consumePendingSwapDisconnect();
                 pushSyncLog("Disconnected (switching accounts)");
+                return;
+            }
+            // Post-swap straggler: rs.js's old-account `disconnected` event
+            // can arrive AFTER the new account's `connected` because
+            // repo.swap() resolves via a 3 s safety timeout that doesn't
+            // wait for the underlying disconnect to actually finish. By the
+            // time this lands, isSwitching has already been released by the
+            // connected handler — but we still need to skip the wipe, since
+            // it's the OLD account telling us about itself. The straggler
+            // flag was armed at swap entry exactly for this case.
+            if (pendingSwapDisconnect) {
+                consumePendingSwapDisconnect();
+                pushSyncLog("Disconnected (post-swap straggler from old account — ignored)");
                 return;
             }
             terminateWorker();
             isGenerating = false;
             connectionStatus = "disconnected";
+            reloadInFlight = 0;
+            pendingBodies = 0;
+            syncRoundCompleted = false;
+            initialSyncSettled = false;
+            bumpSyncActivity("disconnected");
+            // Reset the pill's high-level state too. Without this, a
+            // disconnect mid-bootstrap (or mid-swap that fell through the
+            // wipe path) leaves syncState pinned at "syncing" — RollScreen
+            // then keeps rendering the sync skeleton forever instead of the
+            // onboarding/login UI.
+            setSyncState("idle");
+            loadError = "";
             clearUserLocalStorage();
             clearUnscopedLocalStorage();
             currentUserAddress = "";
@@ -1820,17 +2266,44 @@ export function createAppStore(repo) {
             loadError = error?.message || "remoteStorage error.";
             addToast(loadError, "danger");
             pushSyncLog(loadError);
+            // Surface the error in the pill/skeleton state. Without this,
+            // setting `loadError` alone keeps maybeMarkSynced blocked while
+            // syncState stays "syncing" — the dot pulses blue forever and
+            // the user never sees the errored state. The next reloadAll
+            // (triggered by user action or fresh remote onChange) will
+            // unconditionally re-set syncState back to "syncing" via the
+            // bumpSyncActivity / setSyncState calls in reloadAll start, so
+            // we don't need a separate recovery path here.
+            setSyncState("error");
             // Only nuke the session for auth/discovery failures. SyncError and
             // friends are typically transient (flaky network, 5xx) — let rs.js
             // retry instead of dropping the user back to the login screen.
             const fatal = error?.name === "Unauthorized" || error?.name === "DiscoveryError";
             if (fatal) {
+                // If we're mid-swap, release the guard so the upcoming
+                // `disconnected` event runs the wipe instead of being
+                // swallowed by the swap-in-progress check. Also consume
+                // the straggler flag — otherwise repo.disconnect() below
+                // would land a `disconnected` event that gets eaten by
+                // the post-swap branch instead of running the wipe we
+                // want for a fatal auth failure.
+                releaseSwitching("fatal error during swap");
+                consumePendingSwapDisconnect();
                 repo.disconnect();
             }
         });
 
         const detachChange = repo.onChange(async (event) => {
+            dbg(`rs.js change: path=${event?.relativePath || event?.path || "?"} origin=${event?.origin} oldVal=${typeof event?.oldValue} newVal=${typeof event?.newValue}`);
             if (connectionStatus !== "connected" || event?.origin === "window") return;
+            // Remote-origin events mean rs.js is streaming bodies in. Show
+            // activity in the pill even if no reload runs (defensive — the
+            // reload below will normally handle this), and cancel any
+            // pending settle-window flip since data is still arriving.
+            if (event?.origin === "remote") {
+                bumpSyncActivity("remote onChange");
+                if (syncState !== "error") setSyncState("syncing");
+            }
             // Pin the session at the moment the event fired. If the user
             // swaps accounts mid-reload, the awaited reloadAll() returns
             // into a different session and we drop its results.
@@ -1844,6 +2317,10 @@ export function createAppStore(repo) {
             window.removeEventListener("hashchange", syncRouteFromHash);
             clearTimeout(safetyTimer);
             if (syncIndicatorTimer) clearTimeout(syncIndicatorTimer);
+            if (syncStateTimer) clearTimeout(syncStateTimer);
+            if (syncFlipTimer) clearTimeout(syncFlipTimer);
+            if (switchingWatchdog) clearTimeout(switchingWatchdog);
+            if (pendingSwapDisconnectTimer) clearTimeout(pendingSwapDisconnectTimer);
             detachConnecting();
             detachAuthing();
             detachStandaloneRedirect();
@@ -1886,6 +2363,7 @@ export function createAppStore(repo) {
         get syncIndicatorVisible() { return syncIndicatorVisible; },
         get syncStatusLabel() { return syncStatusLabel; },
         get syncActivelyRunning() { return syncActiveCount > 0; },
+        get syncState() { return syncState; },
         get syncLogEntries() { return syncLogEntries; },
         get generationOptions() { return generationOptions; },
         get editorSong() { return editorSong; },

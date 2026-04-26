@@ -23,6 +23,18 @@
     store.knownAccounts.filter((a) => a.address !== store.connectAddress)
   );
 
+  // Single screen-reader/tooltip label for the sync dot. Mirrors the dot's
+  // visual state so screen readers announce transitions and power users can
+  // hover for the underlying syncStatusLabel from rs.js.
+  let dotLabel = $derived.by(() => {
+    if (store.connectionStatus !== "connected") return "Disconnected";
+    if (store.syncState === "error") return store.syncStatusLabel || "Sync failed";
+    if (store.syncActivelyRunning || store.syncState === "syncing") {
+      return store.syncStatusLabel || "Syncing";
+    }
+    return "Up to date";
+  });
+
   function handleSwitchTo(address) {
     closeMenu();
     store.connectToAccount(address);
@@ -42,7 +54,16 @@
 
 <header class="top-bar">
   <div class="title-group">
-    <span class="conn-dot" class:connected={store.connectionStatus === 'connected'} class:syncing={store.syncActivelyRunning}></span>
+    <span
+      class="conn-dot"
+      class:connected={store.connectionStatus === 'connected'}
+      class:syncing={store.syncActivelyRunning || store.syncState === 'syncing'}
+      class:errored={store.syncState === 'error'}
+      role="status"
+      aria-live="polite"
+      aria-label={dotLabel}
+      title={dotLabel}
+    ></span>
     <span class="band-name">{store.appTitle}</span>
   </div>
 
@@ -116,9 +137,13 @@
     min-width: 0;
   }
 
+  /* The dot is the single sync indicator: grey = disconnected, green = up to
+     date, blue (throbbing) = syncing, red = error. The throb is a combined
+     opacity + scale + glow pulse so the state is readable at a glance even
+     at small sizes. */
   .conn-dot {
-    width: 7px;
-    height: 7px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: var(--line);
     flex-shrink: 0;
@@ -130,15 +155,49 @@
     box-shadow: 0 0 4px color-mix(in srgb, var(--success) 40%, transparent);
   }
 
+  /* `.syncing` overrides `.connected` since both are toggled when sync fires
+     mid-session. Order matters in the cascade — keep `.syncing` after
+     `.connected`. Uses `--sync` (fixed blue), NOT `--accent`: the accent
+     is band-themed and could match `--success` (green), erasing the
+     visual difference between "syncing" and "up to date". */
   .conn-dot.syncing {
-    background: var(--accent);
-    box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 40%, transparent);
-    animation: dot-pulse 1s ease-in-out infinite;
+    background: var(--sync);
+    animation: dot-pulse 1.1s ease-in-out infinite;
   }
 
+  .conn-dot.errored {
+    background: var(--danger, #d44);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--danger, #d44) 40%, transparent);
+  }
+
+  /* Pulse the dot itself so it visibly "breathes": opacity dips to 40%,
+     scale grows to 1.7x, and the glow widens from 4px → 14px. Each
+     property reinforces the others so the change is unmistakable even at
+     8px. `transform-origin` defaults to center so scaling is symmetrical
+     even when the dot sits flush against the title-group's left edge. */
   @keyframes dot-pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(1.4); }
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+      box-shadow: 0 0 4px color-mix(in srgb, var(--sync) 40%, transparent);
+    }
+    50% {
+      opacity: 0.4;
+      transform: scale(1.7);
+      box-shadow: 0 0 14px color-mix(in srgb, var(--sync) 80%, transparent);
+    }
+  }
+
+  /* Don't fully suppress motion — users still need to know sync is alive.
+     Drop the scale/glow but keep a slow opacity breath so the indicator
+     stays animated within accessibility-friendly bounds. */
+  @media (prefers-reduced-motion: reduce) {
+    .conn-dot.syncing { animation: dot-pulse-soft 2s ease-in-out infinite; }
+  }
+
+  @keyframes dot-pulse-soft {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
   }
 
   .band-name {
