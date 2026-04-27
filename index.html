@@ -3,6 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      CSP — defense-in-depth for issue #79 (rs.js tokens live in localStorage).
+      The inline script below is pinned by sha256; csp.test.js verifies the
+      hash matches the body so editing the script fails the test with the new
+      hash to paste in.
+
+      connect-src https: stays wide open — rs.js dials user-chosen remotes —
+      so this does NOT block token exfiltration on its own. frame-ancestors,
+      sandbox, and report-to are ignored in <meta> CSP; set them as HTTP
+      headers at deploy.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'sha256-vzZ/YetcF3xkxNnz4tG+fpSoUODEamJeUrlWt4PjMP8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; img-src 'self' data:; font-src 'self'; manifest-src 'self' blob:; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"
+    />
     <meta
       name="description"
       content="Setlist Roller — a dice-powered setlist generator for bands who like to live dangerously."
@@ -12,7 +27,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#e15b37" />
-    <!-- SYNC: key + resolution logic duplicated from src/lib/theme.svelte.js to avoid FOITC -->
+    <!-- SYNC: key + resolution logic duplicated from src/lib/theme.svelte.js to avoid FOITC. -->
+    <!-- Editing this body changes the sha256 in the CSP above; csp.test.js will fail with the new hash. -->
     <script>
       try {
         var p = localStorage.getItem("setlist-roller-theme") || "system";

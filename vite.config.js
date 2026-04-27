@@ -11,6 +11,9 @@ export default defineConfig({
         VitePWA({
             registerType: "autoUpdate",
             manifest: false,
+            // auth-relay.html MUST stay out of the precache or rs.js's OAuth
+            // redirect flow loads a cached copy and never hands control back.
+            // precache.test.js inspects the built sw.js to verify. See #80.
             workbox: {
                 globPatterns: ["**/*.{js,css,html,svg,png,woff,woff2}"],
                 globIgnores: ["**/auth-relay.html"],
