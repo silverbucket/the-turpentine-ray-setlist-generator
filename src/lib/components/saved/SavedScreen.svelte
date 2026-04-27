@@ -77,7 +77,7 @@
     const pdfTitle = `${bandName} - ${setName}`;
     const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     const win = window.open("", "_blank", "width=800,height=600");
-    if (!win) { store.addToast("Popup blocked — please allow popups to print.", "warning"); return; }
+    if (!win) { store.toastWarn("Popup blocked — please allow popups to print."); return; }
     win.document.write(`<!DOCTYPE html>
 <html><head><title>${esc(pdfTitle)}</title>
 <style>
