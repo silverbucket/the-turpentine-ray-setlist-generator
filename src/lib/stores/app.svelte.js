@@ -1,11 +1,11 @@
-import { accountSlot, getAccountToken, getKnownAccounts, removeKnownAccountEntry, saveKnownAccount } from "../accounts.js";
+import { accountSlot, consumeKnownAccountsCorrupted, getAccountToken, getKnownAccounts, removeKnownAccountEntry, saveKnownAccount } from "../accounts.js";
 import { CONFIG_SECTIONS } from "../config-meta.js";
 import { blankSong, DEFAULT_APP_CONFIG, normalizeAppConfig, normalizeMemberRecord, normalizeSongRecord } from "../defaults.js";
 import { buildDefaultPerformance, scoreFixedOrder } from "../generator.js";
 import GeneratorWorker from "../generator.worker.js?worker";
 import { pruneStaleKeys, sortKeys } from "../keys.js";
 import { migrator } from "../migrations.js";
-import { clone, deepMerge, formatDelimitedList, getByPath, nowIso, parseDelimitedList, setByPath, titleForBand, tryParseJson, uid } from "../utils.js";
+import { clone, deepMerge, formatDelimitedList, getByPath, nowIso, parseDelimitedList, randomFrom, setByPath, titleForBand, tryParseJson, uid } from "../utils.js";
 
 const STORAGE_PREFIX = "setlist-roller";
 
@@ -22,8 +22,29 @@ const VALID_TOAST_TONES = new Set(Object.values(TOAST_TONE));
 const MAX_TOASTS = 3;
 // Danger gets a longer dwell so multi-line error messages can actually be read.
 const TOAST_DURATION_MS = { default: 6000, danger: 12000 };
+// Cap on the in-memory sync log surfaced in the diagnostic panel. Old entries
+// roll off so the list doesn't grow unbounded across a long session.
+const MAX_SYNC_LOG = 12;
 
-function randomFrom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+// ---- underscore-prefix property convention ----
+// Properties prefixed with `_` are ephemeral, internal-only flags that ride
+// alongside user-facing data. They are NEVER persisted to remoteStorage and
+// must never be read by UI components as if they were domain fields.
+//
+//   _locked    — On the persisted "current-set" localStorage blob: `true`
+//                while the user has the setlist locked (prevents the next
+//                roll from clobbering it). Round-tripped through localStorage
+//                only; stripped before upload to remoteStorage.
+//
+//   _keepLock  — On the options object passed into `generate()`: signals that
+//                "Optimize Order" should preserve `setlistLocked` across the
+//                regeneration. Lives only inside one generate() call; never
+//                stored anywhere.
+//
+// Adding a new `_*` flag? Make sure (a) it's stripped before any upload to
+// remoteStorage, and (b) the lifetime is bounded — long-lived ephemeral flags
+// silently accumulate on the object and turn into permanent state.
+
 export function normalizeAuthToken(token) {
     return typeof token === "string" && token.length > 0 ? token : undefined;
 }
@@ -479,12 +500,6 @@ export function createAppStore(repo) {
         return tryParseJson(localStorage.getItem(storageKey("current-set")), null);
     }
 
-    function loadCurrentSetlistLocked() {
-        if (typeof localStorage === "undefined") return false;
-        const data = tryParseJson(localStorage.getItem(storageKey("current-set")), null);
-        return data?._locked || false;
-    }
-
     function persistCurrentSetlist() {
         if (typeof localStorage === "undefined") return;
         if (generatedSetlist) {
@@ -494,7 +509,11 @@ export function createAppStore(repo) {
         }
     }
 
-    // Remove any un-scoped legacy localStorage keys so they can't leak between accounts
+    // Remove any un-scoped legacy localStorage keys so they can't leak between
+    // accounts. Called only from the `disconnected` handler — that's the
+    // migration path for users coming from the pre-multi-account build, where
+    // these keys were written without the per-account hash. After one
+    // disconnect, the keys are gone; we don't re-run this on every connect.
     function clearUnscopedLocalStorage() {
         if (typeof localStorage === "undefined") return;
         localStorage.removeItem("setlist-roller-ui-options");
@@ -512,7 +531,6 @@ export function createAppStore(repo) {
 
     // Load all per-user localStorage data (called on connect when we know the user)
     function loadUserLocalData() {
-        clearUnscopedLocalStorage();
         const current = loadCurrentSetlist();
         const locked = current?._locked || false;
         if (locked) replaceGeneratedSetlist(current);
@@ -548,7 +566,7 @@ export function createAppStore(repo) {
             second: "2-digit",
         });
         syncLogEntries = [
-            ...syncLogEntries.slice(-11),
+            ...syncLogEntries.slice(-(MAX_SYNC_LOG - 1)),
             { id: uid("sync-log"), time, message },
         ];
     }
@@ -912,14 +930,36 @@ export function createAppStore(repo) {
                 members: clone(bandMembers),
             };
             localStorage.setItem(accountSlot(currentUserAddress).key("snapshot"), JSON.stringify(data));
-        } catch { /* localStorage full — not critical */ }
+        } catch (error) {
+            // Most likely localStorage full or write blocked. Non-fatal: the
+            // next reloadAll repopulates everything from remote, so the user
+            // won't lose data — they just lose the instant-snapshot UX on a
+            // future swap. Log in dev so a real regression isn't masked.
+            if (import.meta.env?.DEV) {
+                console.warn("[app] saveSnapshot failed", error);
+            }
+        }
     }
 
     function restoreSnapshot(address) {
         if (typeof localStorage === "undefined") return false;
+        const key = accountSlot(address).key("snapshot");
+        // Reading localStorage can throw even when the global is defined —
+        // Safari "Block all cookies", iOS private browsing, etc. Catch
+        // separately from the parse path so a blocked read just falls back
+        // to the full sync path; only an actual corrupt blob triggers the
+        // cleanup-and-toast branch.
+        let raw;
         try {
-            const raw = localStorage.getItem(accountSlot(address).key("snapshot"));
-            if (!raw) return false;
+            raw = localStorage.getItem(key);
+        } catch (error) {
+            if (import.meta.env?.DEV) {
+                console.warn("[app] restoreSnapshot: localStorage read blocked", error);
+            }
+            return false;
+        }
+        if (!raw) return false;
+        try {
             const data = JSON.parse(raw);
             if (!data.config) return false;
             songs = (data.songs || []).map(normalizeSongRecord);
@@ -933,7 +973,22 @@ export function createAppStore(repo) {
             // caller sets it after this returns, then loadUserLocalData()
             // loads the target account's stored options.
             return true;
-        } catch { return false; }
+        } catch (error) {
+            // The blob exists but is unreadable — corrupt or written by an
+            // older incompatible build. Drop it so we don't keep failing on
+            // every swap, and tell the user (instant-snapshot UI silently
+            // falls back to the full sync path otherwise).
+            if (import.meta.env?.DEV) {
+                console.warn("[app] restoreSnapshot failed; dropping corrupt blob", error);
+            }
+            try { localStorage.removeItem(key); } catch (_removeError) {
+                if (import.meta.env?.DEV) {
+                    console.warn("[app] restoreSnapshot: removeItem also failed", _removeError);
+                }
+            }
+            toastWarn("Some local data was unreadable and has been reset.");
+            return false;
+        }
     }
 
     // ---- data loading ----
@@ -1392,7 +1447,7 @@ export function createAppStore(repo) {
         const [moved] = songList.splice(fromIndex, 1);
         songList.splice(toIndex, 0, moved);
         const rescored = scoreFixedOrder(songList, appConfig, { keyFlow: generationOptions.keyFlow });
-        updateCurrentSetlist({ ...generatedSetlist, songs: rescored.songs, summary: rescored.summary, _reordered: true });
+        updateCurrentSetlist({ ...generatedSetlist, songs: rescored.songs, summary: rescored.summary });
         setlistSaved = false;
         persistCurrentSetlist();
     }
@@ -2238,6 +2293,14 @@ export function createAppStore(repo) {
     function init() {
         syncRouteFromHash();
         window.addEventListener("hashchange", syncRouteFromHash);
+
+        // The known-accounts registry was already read at store-creation time
+        // (the `let knownAccounts = $state(getKnownAccounts())` initializer).
+        // If that read found a corrupt blob, surface it once now — the
+        // accounts module can't show toasts itself.
+        if (consumeKnownAccountsCorrupted()) {
+            toastWarn("Some local data was unreadable and has been reset.");
+        }
 
         // Safety timeout in case RS never fires "connected" or "not-connected"
         // (e.g. library bug or feature loading hangs).

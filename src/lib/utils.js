@@ -111,10 +111,22 @@ export function sortByName(list) {
     });
 }
 
+export function randomFrom(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
 export function tryParseJson(text, fallback) {
     try {
         return JSON.parse(text);
-    } catch (_error) {
+    } catch (error) {
+        // Silent in production — corrupt JSON usually means stale/foreign data
+        // we can safely fall back from. Surface in dev so a real bug doesn't
+        // hide behind the catch.
+        if (import.meta.env?.DEV) {
+            console.warn("[utils] tryParseJson failed", error, {
+                textPreview: typeof text === "string" ? text.slice(0, 80) : text,
+            });
+        }
         return fallback;
     }
 }
