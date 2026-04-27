@@ -1,13 +1,109 @@
 <script>
+  import { tick } from "svelte";
+
   let { open = false, onclose, title = "", children } = $props();
+
+  let sheetEl = $state();
+  let previousFocus = null;
+
+  // Focusable elements inside the sheet, used for both initial focus and the
+  // Tab-cycle trap. Excludes anything explicitly opted-out via tabindex="-1".
+  function getFocusableElements() {
+    if (!sheetEl) return [];
+    return [
+      ...sheetEl.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ];
+  }
+
+  function handleKeydown(e) {
+    if (!open) return;
+
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onclose?.();
+      return;
+    }
+
+    if (e.key === "Tab") {
+      const focusable = getFocusableElements();
+      // Empty sheet: pin focus on the dialog container so Tab can't escape.
+      if (focusable.length === 0) {
+        e.preventDefault();
+        if (sheetEl) sheetEl.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      // If focus has somehow leaked outside the sheet, pull it back in.
+      if (!sheetEl?.contains(active)) {
+        e.preventDefault();
+        first.focus();
+        return;
+      }
+
+      if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }
+
+  // While open: listen for Escape/Tab on window, move focus into the sheet,
+  // and restore focus to the previously focused element on close.
+  $effect(() => {
+    if (!open) return;
+
+    previousFocus = document.activeElement;
+    window.addEventListener("keydown", handleKeydown);
+
+    tick().then(() => {
+      if (!open) return;
+      const focusable = getFocusableElements();
+      if (focusable.length > 0) {
+        focusable[0].focus();
+      } else if (sheetEl) {
+        sheetEl.focus();
+      }
+    });
+
+    return () => {
+      window.removeEventListener("keydown", handleKeydown);
+      if (
+        previousFocus &&
+        typeof previousFocus.focus === "function" &&
+        document.body.contains(previousFocus)
+      ) {
+        previousFocus.focus();
+      }
+      previousFocus = null;
+    };
+  });
 </script>
 
 {#if open}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="overlay" class:visible={open} onclick={onclose} onkeydown={() => {}}>
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="sheet" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
-      <div class="handle-area" onclick={onclose} onkeydown={() => {}}>
+  <div class="overlay" class:visible={open} onclick={onclose}>
+    <div
+      class="sheet"
+      bind:this={sheetEl}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title || "Bottom sheet"}
+      tabindex="-1"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="handle-area" onclick={onclose}>
         <div class="handle"></div>
       </div>
 
@@ -54,6 +150,13 @@
     display: flex;
     flex-direction: column;
     animation: slide-up 0.25s ease;
+  }
+
+  /* The dialog container itself is not part of the visible focus flow — it's
+     only focusable as a fallback when the sheet has no interactive content
+     (e.g. a static info sheet). Hide the focus ring in that case. */
+  .sheet:focus {
+    outline: none;
   }
 
   @keyframes slide-up {
