@@ -132,6 +132,16 @@ textarea {
     color: inherit;
 }
 
+/*
+ * iOS Safari auto-zooms when you focus an input whose computed font-size is
+ * below 16px, and never zooms back out cleanly. Every input, select, and
+ * textarea in this app MUST stay at >= 16px on focus — including any
+ * component-level overrides. Use `font-size: 16px` (not rem) so future
+ * root-font tweaks can't drop a control below the threshold.
+ *
+ * Lint check: any `.foo input { font-size: ... }` rule that resolves to
+ * < 16px must be raised to 16px and have a comment pointing here.
+ */
 input,
 select,
 textarea {
