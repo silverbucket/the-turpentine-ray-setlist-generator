@@ -3,12 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!--
-      OAuth relay page. Locked down with a strict CSP since it's the landing
-      target after the user authorizes their remoteStorage server. The script
-      and style blocks below are pinned by sha256 — if you edit either, the
-      hash must be regenerated or this page will fail to load. See issue #79.
-    -->
+    <!-- OAuth relay. Inline <script>/<style> pinned by sha256; csp.test.js
+         re-derives the hashes on every test run. See issue #79. -->
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'none'; script-src 'sha256-8KgKxYIpD6jNCBZe1xNIncGI9p5gal9PBAYrQ5yFlUc='; style-src 'sha256-vwIuqrO2S4bT/s9pM7hDX/YlxqPW+J3roKaDzLZRqRE='; base-uri 'self'"
