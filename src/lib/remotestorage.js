@@ -260,30 +260,6 @@ export function createRemoteStorageRepository() {
         defaultAuthorize(options);
     };
 
-    /**
-     * After a disconnect, rs.js's `Sync._rs_cleanup` nulls
-     * `remoteStorage.sync` but does NOT clear `caching.activateHandler` —
-     * which still references the dead Sync's lambda. If we then call
-     * `caching.enable(path)`, `set()` finds the (stale) handler set and
-     * calls it directly, so the path is NOT pushed to `pendingActivations`.
-     * When the new Sync is constructed (on the next `ready` event), its
-     * `caching.onActivate(newCb)` overwrites the handler but finds
-     * `pendingActivations` empty — so the new Sync never receives the
-     * path activation, never queues a root task, and `forAllNodes`-based
-     * fallbacks (`collectDiffTasks`, `collectRefreshTasks`) find nothing
-     * because `IndexedDB._rs_cleanup` already deleted the local DB.
-     *
-     * Net effect: after an account swap, rs.js completes sync rounds
-     * without ever fetching the scope folder — songs never appear until
-     * the page is reloaded (which constructs a fresh Sync from a clean
-     * caching state). Clearing the handler restores the documented
-     * `enable → pendingActivations → new Sync's onActivate` flow.
-     */
-    function resetActivateHandler() {
-        remoteStorage.caching.activateHandler = undefined;
-        remoteStorage.caching.pendingActivations = [];
-    }
-
     return {
         remoteStorage,
         client,
@@ -291,8 +267,6 @@ export function createRemoteStorageRepository() {
         connect(userAddress, token) {
             const normalizedToken = normalizeBearerToken(token);
             // Re-enable caching in case it was reset by a previous disconnect.
-            // Clear the stale activate handler first — see resetActivateHandler.
-            resetActivateHandler();
             remoteStorage.caching.enable(`/${APP_SCOPE}/`);
             remoteStorage.connect(userAddress, normalizedToken);
         },
@@ -308,11 +282,6 @@ export function createRemoteStorageRepository() {
          * cache so the previous account's data can't leak, then connect.
          * Resolves once `connect()` has been issued — callers should still
          * wait for the `connected` event for sync.
-         *
-         * Avoids mutating rs.js internals beyond the documented
-         * disconnect → connect lifecycle, with one exception:
-         * `caching.activateHandler` is cleared before re-enabling — see
-         * resetActivateHandler for the rationale.
          */
         async swap(userAddress, token) {
             if (remoteStorage.connected) {
@@ -334,10 +303,6 @@ export function createRemoteStorageRepository() {
                     remoteStorage.disconnect();
                 });
             }
-            // The OLD Sync's activate handler must be cleared before
-            // enable() — otherwise the path activation goes to the dead
-            // handler and the new Sync never queues any tasks.
-            resetActivateHandler();
             remoteStorage.caching.enable(`/${APP_SCOPE}/`);
             remoteStorage.connect(userAddress, normalizeBearerToken(token));
         },
