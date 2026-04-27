@@ -1,7 +1,7 @@
-import { test, expect, buildSeed, makeSong, makeMember } from "../fixtures/test-fixtures";
+import { buildSeed, expect, makeMember, makeSong, test } from "../fixtures/test-fixtures";
 import { AppShell } from "../pages/AppShell";
-import { SongsPage } from "../pages/SongsPage";
 import { SongEditorPage } from "../pages/SongEditorPage";
+import { SongsPage } from "../pages/SongsPage";
 
 /**
  * Songs catalog screen — list, search, filter (type/status/key), empty
@@ -20,9 +20,11 @@ test.describe("Songs catalog — empty states", () => {
     });
 
     test("non-matching search shows 'Nope, nothing' state", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: { "song-1": makeSong({ id: "song-1", name: "Stairway" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: { "song-1": makeSong({ id: "song-1", name: "Stairway" }) },
+            }),
+        );
         await app.goto();
         const shell = new AppShell(page);
         await shell.gotoSongs();
@@ -35,13 +37,15 @@ test.describe("Songs catalog — empty states", () => {
 
 test.describe("Songs catalog — list & count", () => {
     test("renders all seeded songs sorted by name", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: {
-                a: makeSong({ id: "a", name: "Brown Eyed Girl" }),
-                b: makeSong({ id: "b", name: "Africa" }),
-                c: makeSong({ id: "c", name: "Creep" }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: {
+                    a: makeSong({ id: "a", name: "Brown Eyed Girl" }),
+                    b: makeSong({ id: "b", name: "Africa" }),
+                    c: makeSong({ id: "c", name: "Creep" }),
+                },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 
@@ -67,9 +71,11 @@ test.describe("Songs catalog — list & count", () => {
     });
 
     test("clicking a song row opens the editor for that song", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: { x: makeSong({ id: "x", name: "Edit Me" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: { x: makeSong({ id: "x", name: "Edit Me" }) },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 
@@ -83,13 +89,15 @@ test.describe("Songs catalog — list & count", () => {
 
 test.describe("Songs catalog — search", () => {
     test.beforeEach(async ({ app }) => {
-        await app.seed(buildSeed({
-            songs: {
-                a: makeSong({ id: "a", name: "Wonderwall" }),
-                b: makeSong({ id: "b", name: "Wonderful Tonight" }),
-                c: makeSong({ id: "c", name: "Yesterday" }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: {
+                    a: makeSong({ id: "a", name: "Wonderwall" }),
+                    b: makeSong({ id: "b", name: "Wonderful Tonight" }),
+                    c: makeSong({ id: "c", name: "Yesterday" }),
+                },
+            }),
+        );
     });
 
     test("matches by name substring (case-insensitive)", async ({ page, app }) => {
@@ -117,13 +125,15 @@ test.describe("Songs catalog — search", () => {
 
 test.describe("Songs catalog — type filter", () => {
     test("Originals/Covers/Instrumentals filter the list", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: {
-                o: makeSong({ id: "o", name: "Original Song" }),
-                c: makeSong({ id: "c", name: "Cover Song", cover: true }),
-                i: makeSong({ id: "i", name: "Inst Song", instrumental: true }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: {
+                    o: makeSong({ id: "o", name: "Original Song" }),
+                    c: makeSong({ id: "c", name: "Cover Song", cover: true }),
+                    i: makeSong({ id: "i", name: "Inst Song", instrumental: true }),
+                },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 
@@ -153,22 +163,24 @@ test.describe("Songs catalog — type filter", () => {
 
 test.describe("Songs catalog — status filters", () => {
     test("Unpracticed chip toggles to show only unpracticed songs", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            members: { Alice: makeMember("Alice", { instruments: [{ name: "Guitar" }] }) },
-            songs: {
-                a: makeSong({
-                    id: "a",
-                    name: "Practiced",
-                    members: { Alice: { instruments: [{ name: "Guitar" }] } },
-                }),
-                b: makeSong({
-                    id: "b",
-                    name: "Needs Work",
-                    unpracticed: true,
-                    members: { Alice: { instruments: [{ name: "Guitar" }] } },
-                }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                members: { Alice: makeMember("Alice", { instruments: [{ name: "Guitar" }] }) },
+                songs: {
+                    a: makeSong({
+                        id: "a",
+                        name: "Practiced",
+                        members: { Alice: { instruments: [{ name: "Guitar" }] } },
+                    }),
+                    b: makeSong({
+                        id: "b",
+                        name: "Needs Work",
+                        unpracticed: true,
+                        members: { Alice: { instruments: [{ name: "Guitar" }] } },
+                    }),
+                },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 
@@ -179,17 +191,19 @@ test.describe("Songs catalog — status filters", () => {
     });
 
     test("Incomplete chip surfaces songs missing setup", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            members: { Alice: makeMember("Alice", { instruments: [{ name: "Guitar" }] }) },
-            songs: {
-                ok: makeSong({
-                    id: "ok",
-                    name: "Complete",
-                    members: { Alice: { instruments: [{ name: "Guitar" }] } },
-                }),
-                inc: makeSong({ id: "inc", name: "Half-baked", members: {} }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                members: { Alice: makeMember("Alice", { instruments: [{ name: "Guitar" }] }) },
+                songs: {
+                    ok: makeSong({
+                        id: "ok",
+                        name: "Complete",
+                        members: { Alice: { instruments: [{ name: "Guitar" }] } },
+                    }),
+                    inc: makeSong({ id: "inc", name: "Half-baked", members: {} }),
+                },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 
@@ -204,13 +218,15 @@ test.describe("Songs catalog — status filters", () => {
 
 test.describe("Songs catalog — key filter", () => {
     test("Key chips filter to songs that match", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: {
-                c: makeSong({ id: "c", name: "C Major Song", key: "C" }),
-                d: makeSong({ id: "d", name: "D Major Song", key: "D" }),
-                e: makeSong({ id: "e", name: "E Minor Song", key: "Em" }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: {
+                    c: makeSong({ id: "c", name: "C Major Song", key: "C" }),
+                    d: makeSong({ id: "d", name: "D Major Song", key: "D" }),
+                    e: makeSong({ id: "e", name: "E Minor Song", key: "Em" }),
+                },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 
@@ -230,9 +246,11 @@ test.describe("Songs catalog — key filter", () => {
     });
 
     test("key filter section hidden when no songs have a key", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: { x: makeSong({ id: "x", name: "Keyless" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: { x: makeSong({ id: "x", name: "Keyless" }) },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 
@@ -243,13 +261,15 @@ test.describe("Songs catalog — key filter", () => {
 
 test.describe("Songs catalog — pills & badges", () => {
     test("cover and instrumental pills appear on song rows", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: {
-                c: makeSong({ id: "c", name: "Covering", cover: true }),
-                i: makeSong({ id: "i", name: "Inst", instrumental: true }),
-                u: makeSong({ id: "u", name: "Untouched", unpracticed: true }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: {
+                    c: makeSong({ id: "c", name: "Covering", cover: true }),
+                    i: makeSong({ id: "i", name: "Inst", instrumental: true }),
+                    u: makeSong({ id: "u", name: "Untouched", unpracticed: true }),
+                },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 
@@ -260,9 +280,11 @@ test.describe("Songs catalog — pills & badges", () => {
     });
 
     test("songs without a name show 'Untitled'", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: { x: makeSong({ id: "x", name: "" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: { x: makeSong({ id: "x", name: "" }) },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 

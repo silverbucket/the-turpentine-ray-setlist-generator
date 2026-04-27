@@ -26,4 +26,10 @@ export default defineConfig({
         host: "0.0.0.0",
         port: 4173,
     },
+    // Vitest config — keep Playwright E2E specs out of the unit-test runner.
+    // Without this exclude, vitest picks up tests/e2e/*.spec.ts and Playwright's
+    // test.describe() throws because it's running under the wrong runner.
+    test: {
+        exclude: ["tests/e2e/**", "tests/pages/**", "tests/fixtures/**", "node_modules/**", "dist/**"],
+    },
 });

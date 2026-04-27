@@ -1,4 +1,4 @@
-import { type Page, type Locator, expect } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * Band screen — band name, members, advanced config, data import/export,
@@ -48,7 +48,10 @@ export class BandPage {
             .getByRole("button", { name: "Add" });
         this.memberRows = this.screen.locator(".member-row");
         this.statSongsCount = this.screen.locator(".stat-box").filter({ hasText: "songs" }).locator(".stat-value");
-        this.statInstrumentTypes = this.screen.locator(".stat-box").filter({ hasText: "instrument types" }).locator(".stat-value");
+        this.statInstrumentTypes = this.screen
+            .locator(".stat-box")
+            .filter({ hasText: "instrument types" })
+            .locator(".stat-value");
         this.advancedConfigLink = this.screen.locator(".link-card");
         this.exportAllButton = this.screen.getByRole("button", { name: "Export All" });
         this.importFileInput = this.screen.locator('input[type="file"]');
@@ -194,7 +197,7 @@ export class BandPage {
      * Set the import file from a JSON-serializable payload. Wraps
      * setInputFiles so the test doesn't need to know the file API specifics.
      */
-    async setImportPayload(payload: any, fileName = "import.json") {
+    async setImportPayload(payload: unknown, fileName = "import.json") {
         await this.importFileInput.setInputFiles({
             name: fileName,
             mimeType: "application/json",

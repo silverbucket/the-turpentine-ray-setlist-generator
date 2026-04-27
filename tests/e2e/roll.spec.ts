@@ -1,4 +1,5 @@
-import { test, expect, buildSeed, makeSong, makeMember } from "../fixtures/test-fixtures";
+import type { SeedSong } from "../fixtures/fake-repo";
+import { buildSeed, expect, makeSong, test } from "../fixtures/test-fixtures";
 import { AppShell } from "../pages/AppShell";
 import { RollPage } from "../pages/RollPage";
 import { SavedPage } from "../pages/SavedPage";
@@ -10,7 +11,7 @@ import { SavedPage } from "../pages/SavedPage";
  * Generation runs in a Web Worker so we wait for `generatedSetlist` rather
  * than relying on UI animation timing.
  */
-function seedWithCatalog(extraSongs: any[] = []) {
+function seedWithCatalog(extraSongs: SeedSong[] = []) {
     const builtins = [
         makeSong({ id: "a", name: "Africa", key: "B" }),
         makeSong({ id: "b", name: "Bohemian Rhapsody", key: "Bb", cover: true }),
@@ -24,8 +25,10 @@ function seedWithCatalog(extraSongs: any[] = []) {
         makeSong({ id: "j", name: "Jolene", key: "Am", cover: true }),
     ];
     const all = [...builtins, ...extraSongs];
-    const songs: Record<string, any> = {};
-    all.forEach((s) => { songs[s.id] = s; });
+    const songs: Record<string, SeedSong> = {};
+    all.forEach((s) => {
+        songs[s.id] = s;
+    });
     return buildSeed({ songs });
 }
 
@@ -284,12 +287,14 @@ test.describe("Roll screen — add song dialog", () => {
 
 test.describe("Roll screen — pre-conditions", () => {
     test("rolling with all songs unpracticed shows a toast and bails", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: {
-                a: makeSong({ id: "a", name: "Wobbly", unpracticed: true }),
-                b: makeSong({ id: "b", name: "Wonky", unpracticed: true }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: {
+                    a: makeSong({ id: "a", name: "Wobbly", unpracticed: true }),
+                    b: makeSong({ id: "b", name: "Wonky", unpracticed: true }),
+                },
+            }),
+        );
         await app.goto();
         await app.waitForReady();
         const shell = new AppShell(page);

@@ -1,4 +1,4 @@
-import { test, expect, buildSeed, makeSong, makeMember } from "../fixtures/test-fixtures";
+import { buildSeed, expect, makeMember, makeSong, test } from "../fixtures/test-fixtures";
 import { AppShell } from "../pages/AppShell";
 import { BandPage } from "../pages/BandPage";
 
@@ -54,12 +54,14 @@ test.describe("Band screen — members", () => {
     });
 
     test("seeded members render in the list", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            members: {
-                Alice: makeMember("Alice", { instruments: [{ name: "Guitar" }] }),
-                Bob: makeMember("Bob", { instruments: [{ name: "Bass" }] }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                members: {
+                    Alice: makeMember("Alice", { instruments: [{ name: "Guitar" }] }),
+                    Bob: makeMember("Bob", { instruments: [{ name: "Bass" }] }),
+                },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoBand();
 
@@ -70,9 +72,11 @@ test.describe("Band screen — members", () => {
     });
 
     test("clicking a member opens member-edit subview", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            members: { Alice: makeMember("Alice") },
-        }));
+        await app.seed(
+            buildSeed({
+                members: { Alice: makeMember("Alice") },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoBand();
 
@@ -82,9 +86,11 @@ test.describe("Band screen — members", () => {
     });
 
     test("can rename a member from the edit subview", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            members: { Alice: makeMember("Alice") },
-        }));
+        await app.seed(
+            buildSeed({
+                members: { Alice: makeMember("Alice") },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoBand();
 
@@ -99,9 +105,11 @@ test.describe("Band screen — members", () => {
     });
 
     test("can remove a member from the edit subview", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            members: { Alice: makeMember("Alice") },
-        }));
+        await app.seed(
+            buildSeed({
+                members: { Alice: makeMember("Alice") },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoBand();
 
@@ -116,9 +124,11 @@ test.describe("Band screen — members", () => {
 
 test.describe("Band screen — instruments", () => {
     test("can add an instrument to a member from member-edit", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            members: { Alice: makeMember("Alice") },
-        }));
+        await app.seed(
+            buildSeed({
+                members: { Alice: makeMember("Alice") },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoBand();
 
@@ -130,19 +140,23 @@ test.describe("Band screen — instruments", () => {
     });
 
     test("seeded instruments render with correct details", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            members: {
-                Alice: makeMember("Alice", {
-                    instruments: [{
-                        name: "Guitar",
-                        defaultTuning: "EADGBE",
-                        tunings: ["EADGBE", "DADGAD"],
-                        techniques: ["fingerpick", "strum"],
-                        defaultTechnique: "strum",
-                    }],
-                }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                members: {
+                    Alice: makeMember("Alice", {
+                        instruments: [
+                            {
+                                name: "Guitar",
+                                defaultTuning: "EADGBE",
+                                tunings: ["EADGBE", "DADGAD"],
+                                techniques: ["fingerpick", "strum"],
+                                defaultTechnique: "strum",
+                            },
+                        ],
+                    }),
+                },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoBand();
 
@@ -160,17 +174,19 @@ test.describe("Band screen — instruments", () => {
 
 test.describe("Band screen — stats", () => {
     test("songs count and instrument types match seeded data", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            members: {
-                Alice: makeMember("Alice", { instruments: [{ name: "Guitar" }] }),
-                Bob: makeMember("Bob", { instruments: [{ name: "Bass" }, { name: "Synth" }] }),
-            },
-            songs: {
-                a: makeSong({ id: "a", name: "One" }),
-                b: makeSong({ id: "b", name: "Two" }),
-                c: makeSong({ id: "c", name: "Three" }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                members: {
+                    Alice: makeMember("Alice", { instruments: [{ name: "Guitar" }] }),
+                    Bob: makeMember("Bob", { instruments: [{ name: "Bass" }, { name: "Synth" }] }),
+                },
+                songs: {
+                    a: makeSong({ id: "a", name: "One" }),
+                    b: makeSong({ id: "b", name: "Two" }),
+                    c: makeSong({ id: "c", name: "Three" }),
+                },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoBand();
 
@@ -221,15 +237,17 @@ test.describe("Band screen — die color", () => {
     });
 
     test("reset button clears the die color override", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            config: {
-                bandName: "Test Band",
-                schemaVersion: 2,
-                createdAt: "2024-01-01T00:00:00.000Z",
-                updatedAt: "2024-01-01T00:00:00.000Z",
-                ui: { dieColor: "#ef4444" },
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                config: {
+                    bandName: "Test Band",
+                    schemaVersion: 2,
+                    createdAt: "2024-01-01T00:00:00.000Z",
+                    updatedAt: "2024-01-01T00:00:00.000Z",
+                    ui: { dieColor: "#ef4444" },
+                },
+            }),
+        );
         await app.goto();
         await app.waitForReady();
         await new AppShell(page).gotoBand();

@@ -1,4 +1,4 @@
-import { test, expect, buildSeed, makeSong, makeMember } from "../fixtures/test-fixtures";
+import { buildSeed, expect, makeMember, makeSong, test } from "../fixtures/test-fixtures";
 import { AppShell } from "../pages/AppShell";
 import { BandPage } from "../pages/BandPage";
 import { SongsPage } from "../pages/SongsPage";
@@ -11,15 +11,17 @@ import { SongsPage } from "../pages/SongsPage";
 
 test.describe("Export", () => {
     test("Export All produces a JSON download with the expected payload shape", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: {
-                "s1": makeSong({ id: "s1", name: "Africa", key: "B" }),
-                "s2": makeSong({ id: "s2", name: "Bohemian Rhapsody", key: "Bb" }),
-            },
-            members: {
-                "Alice": makeMember("Alice", { instruments: [{ id: "guitar", name: "Guitar" }] }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: {
+                    s1: makeSong({ id: "s1", name: "Africa", key: "B" }),
+                    s2: makeSong({ id: "s2", name: "Bohemian Rhapsody", key: "Bb" }),
+                },
+                members: {
+                    Alice: makeMember("Alice", { instruments: [{ id: "guitar", name: "Guitar" }] }),
+                },
+            }),
+        );
         await app.goto();
         await app.waitForReady();
         await new AppShell(page).gotoBand();
@@ -40,7 +42,7 @@ test.describe("Export", () => {
 
         expect(Array.isArray(json.songs)).toBe(true);
         expect(json.songs).toHaveLength(2);
-        expect(json.songs.map((s: any) => s.name).sort()).toEqual(["Africa", "Bohemian Rhapsody"]);
+        expect(json.songs.map((s: { name: string }) => s.name).sort()).toEqual(["Africa", "Bohemian Rhapsody"]);
         expect(json.config?.bandName).toBe("Test Band");
         expect(json.bandMembers?.Alice).toBeDefined();
     });
@@ -72,11 +74,13 @@ test.describe("Import", () => {
     });
 
     test("Importing songs in skip mode adds new songs and leaves existing ones alone", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: {
-                "s1": makeSong({ id: "s1", name: "Existing Song", key: "C" }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: {
+                    s1: makeSong({ id: "s1", name: "Existing Song", key: "C" }),
+                },
+            }),
+        );
         await app.goto();
         await app.waitForReady();
         const shell = new AppShell(page);
@@ -104,11 +108,13 @@ test.describe("Import", () => {
     });
 
     test("Importing songs in overwrite mode replaces existing songs by id", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: {
-                "s1": makeSong({ id: "s1", name: "Old Name", key: "C" }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: {
+                    s1: makeSong({ id: "s1", name: "Old Name", key: "C" }),
+                },
+            }),
+        );
         await app.goto();
         await app.waitForReady();
         const shell = new AppShell(page);
@@ -116,9 +122,7 @@ test.describe("Import", () => {
 
         const band = new BandPage(page);
         await band.setImportPayload({
-            songs: [
-                { id: "s1", name: "New Name", key: "G" },
-            ],
+            songs: [{ id: "s1", name: "New Name", key: "G" }],
         });
         await band.setImportMode("overwrite");
         await band.importButton.click();
@@ -141,8 +145,8 @@ test.describe("Import", () => {
         await band.setImportPayload({
             songs: [],
             bandMembers: {
-                "Alice": { name: "Alice", instruments: [], defaultInstrument: "" },
-                "Bob": { name: "Bob", instruments: [], defaultInstrument: "" },
+                Alice: { name: "Alice", instruments: [], defaultInstrument: "" },
+                Bob: { name: "Bob", instruments: [], defaultInstrument: "" },
             },
         });
         await band.importButton.click();
@@ -192,9 +196,7 @@ test.describe("Import", () => {
         await shell.gotoBand();
 
         const band = new BandPage(page);
-        await band.setImportPayload([
-            { id: "legacy-1", name: "Legacy Song", key: "F" },
-        ]);
+        await band.setImportPayload([{ id: "legacy-1", name: "Legacy Song", key: "F" }]);
         await band.importButton.click();
 
         await expect(shell.toast).toContainText(/Imported/);
@@ -205,22 +207,24 @@ test.describe("Import", () => {
 
 test.describe("Delete all data", () => {
     test("accepting both confirms wipes songs, members, setlists and triggers first-run", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: { "s1": makeSong({ id: "s1", name: "Africa" }) },
-            members: { "Alice": makeMember("Alice") },
-            setlists: {
-                "set-1": {
-                    id: "set-1",
-                    name: "Saved Set",
-                    savedAt: "2024-09-15T20:00:00.000Z",
-                    songCount: 1,
-                    songs: [{ id: "s1", name: "Africa" }],
-                    schemaVersion: 2,
-                    createdAt: "2024-09-15T20:00:00.000Z",
-                    updatedAt: "2024-09-15T20:00:00.000Z",
+        await app.seed(
+            buildSeed({
+                songs: { s1: makeSong({ id: "s1", name: "Africa" }) },
+                members: { Alice: makeMember("Alice") },
+                setlists: {
+                    "set-1": {
+                        id: "set-1",
+                        name: "Saved Set",
+                        savedAt: "2024-09-15T20:00:00.000Z",
+                        songCount: 1,
+                        songs: [{ id: "s1", name: "Africa" }],
+                        schemaVersion: 2,
+                        createdAt: "2024-09-15T20:00:00.000Z",
+                        updatedAt: "2024-09-15T20:00:00.000Z",
+                    },
                 },
-            },
-        }));
+            }),
+        );
         await app.goto();
         await app.waitForReady();
         const shell = new AppShell(page);
@@ -241,9 +245,11 @@ test.describe("Delete all data", () => {
     });
 
     test("cancelling the first confirm leaves data intact", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: { "s1": makeSong({ id: "s1", name: "Survives" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: { s1: makeSong({ id: "s1", name: "Survives" }) },
+            }),
+        );
         await app.goto();
         await app.waitForReady();
         const shell = new AppShell(page);
@@ -259,9 +265,11 @@ test.describe("Delete all data", () => {
     });
 
     test("cancelling the second confirm leaves data intact", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: { "s1": makeSong({ id: "s1", name: "AlsoSurvives" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: { s1: makeSong({ id: "s1", name: "AlsoSurvives" }) },
+            }),
+        );
         await app.goto();
         await app.waitForReady();
         const shell = new AppShell(page);

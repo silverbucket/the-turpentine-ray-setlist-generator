@@ -1,5 +1,5 @@
-import { test as base, type Page } from "@playwright/test";
-import { FAKE_REPO_INIT_SCRIPT, type FakeRepoSeed } from "./fake-repo";
+import { test as base } from "@playwright/test";
+import { FAKE_REPO_INIT_SCRIPT, type FakeRepoSeed, type SeedMember, type SeedSong } from "./fake-repo";
 
 /**
  * Custom fixture that:
@@ -11,6 +11,25 @@ import { FAKE_REPO_INIT_SCRIPT, type FakeRepoSeed } from "./fake-repo";
  * `await app.goto()`. By default the app boots auto-connected with a fake
  * user so tests don't have to walk the connection screen.
  */
+/**
+ * Shape of the snapshot we read out of the running store via `getState()`.
+ * The fields below are JSON-cloned from the live `$state` runes, so anything
+ * we want to assert against has to be listed here.
+ */
+export type AppStateSnapshot = {
+    connectionStatus: string;
+    activeView: string;
+    songs: SeedSong[];
+    savedSetlists: unknown[];
+    bandMembers: Record<string, SeedMember>;
+    appConfig: Record<string, unknown> | null;
+    generatedSetlist: Record<string, unknown> | null;
+    setlistLocked: boolean;
+    setlistSaved: boolean;
+    showFirstRunPrompt: boolean;
+    toastMessages: unknown[];
+};
+
 export type AppContext = {
     /**
      * Set seed data and inject scripts. Must be called before goto(). Calling
@@ -22,9 +41,9 @@ export type AppContext = {
     /** Wait until the app shell is rendered (post-sync). */
     waitForReady: () => Promise<void>;
     /** Read the current store state out of the running app. */
-    getState: () => Promise<any>;
+    getState: () => Promise<AppStateSnapshot | null>;
     /** Drive the store directly — useful for setup that bypasses the UI. */
-    callStore: <T = any>(name: string, ...args: any[]) => Promise<T>;
+    callStore: <T = unknown>(name: string, ...args: unknown[]) => Promise<T>;
 };
 
 export const test = base.extend<{ app: AppContext }>({
@@ -42,8 +61,8 @@ export const test = base.extend<{ app: AppContext }>({
                 // factory runs. addInitScript fires for every navigation in
                 // this BrowserContext, so we attach the seed once and reuse.
                 await page.addInitScript((s) => {
-                    (window as any).__SR_FAKE_SEED__ = s;
-                }, seed as any);
+                    (window as unknown as { __SR_FAKE_SEED__: FakeRepoSeed }).__SR_FAKE_SEED__ = s;
+                }, seed);
             },
             async goto(path = "/") {
                 await page.goto(path);
@@ -60,33 +79,31 @@ export const test = base.extend<{ app: AppContext }>({
             },
             async getState() {
                 return page.evaluate(() => {
-                    const s = (window as any).__SR_STORE__;
+                    const s = (window as unknown as { __SR_STORE__?: Record<string, unknown> }).__SR_STORE__;
                     if (!s) return null;
                     return {
-                        connectionStatus: s.connectionStatus,
-                        activeView: s.activeView,
+                        connectionStatus: s.connectionStatus as string,
+                        activeView: s.activeView as string,
                         songs: JSON.parse(JSON.stringify(s.songs)),
                         savedSetlists: JSON.parse(JSON.stringify(s.savedSetlists)),
                         bandMembers: JSON.parse(JSON.stringify(s.bandMembers)),
                         appConfig: JSON.parse(JSON.stringify(s.appConfig || null)),
-                        generatedSetlist: s.generatedSetlist
-                            ? JSON.parse(JSON.stringify(s.generatedSetlist))
-                            : null,
-                        setlistLocked: s.setlistLocked,
-                        setlistSaved: s.setlistSaved,
-                        showFirstRunPrompt: s.showFirstRunPrompt,
+                        generatedSetlist: s.generatedSetlist ? JSON.parse(JSON.stringify(s.generatedSetlist)) : null,
+                        setlistLocked: s.setlistLocked as boolean,
+                        setlistSaved: s.setlistSaved as boolean,
+                        showFirstRunPrompt: s.showFirstRunPrompt as boolean,
                         toastMessages: JSON.parse(JSON.stringify(s.toastMessages)),
                     };
                 });
             },
-            async callStore<T = any>(name: string, ...args: any[]): Promise<T> {
+            async callStore<T = unknown>(name: string, ...args: unknown[]): Promise<T> {
                 return page.evaluate(
                     ({ name, args }) => {
-                        const s = (window as any).__SR_STORE__;
+                        const s = (window as unknown as { __SR_STORE__?: Record<string, unknown> }).__SR_STORE__;
                         if (!s) throw new Error("Store not available");
                         const fn = s[name];
                         if (typeof fn !== "function") throw new Error(`Store has no method '${name}'`);
-                        return fn.call(s, ...args);
+                        return (fn as (...a: unknown[]) => unknown).call(s, ...args);
                     },
                     { name, args },
                 ) as Promise<T>;
@@ -115,20 +132,39 @@ export function buildSeed(overrides: Partial<FakeRepoSeed> = {}): FakeRepoSeed {
             beamWidth: 512,
             limits: { covers: -1, instrumentals: -1 },
             order: {
-                first: [["notGoodOpener", false], ["cover", false], ["instrumental", false]],
-                second: [["cover", false], ["instrumental", false]],
+                first: [
+                    ["notGoodOpener", false],
+                    ["cover", false],
+                    ["instrumental", false],
+                ],
+                second: [
+                    ["cover", false],
+                    ["instrumental", false],
+                ],
                 penultimate: [],
                 last: [["notGoodCloser", false]],
             },
             weighting: {
-                tuning: 4, capo: 2, instrument: 3, technique: 1,
-                keyFlow: 2, positionMiss: 8, earlyCover: 2, earlyInstrumental: 2,
+                tuning: 4,
+                capo: 2,
+                instrument: 3,
+                technique: 1,
+                keyFlow: 2,
+                positionMiss: 8,
+                earlyCover: 2,
+                earlyInstrumental: 2,
             },
             randomness: {
-                variantJitter: 1.5, stateJitter: 1, finalChoicePool: 12,
-                temperature: 0.85, shuffleCatalog: true, songBias: 3,
-                beamChoicePoolMultiplier: 6, beamTemperature: 1.1,
-                maxStatesPerLastSong: 24, blockShuffleTemperature: 1.4,
+                variantJitter: 1.5,
+                stateJitter: 1,
+                finalChoicePool: 12,
+                temperature: 0.85,
+                shuffleCatalog: true,
+                songBias: 3,
+                beamChoicePoolMultiplier: 6,
+                beamTemperature: 1.1,
+                maxStatesPerLastSong: 24,
+                blockShuffleTemperature: 1.4,
             },
         },
         show: {},
@@ -136,7 +172,13 @@ export function buildSeed(overrides: Partial<FakeRepoSeed> = {}): FakeRepoSeed {
             tuning: { kind: "instrumentField", field: "tuning", minStreak: 2, allowChangeOnLastSong: true },
             capo: { kind: "instrumentDelta", field: "capo", minStreak: 2, allowChangeOnLastSong: true },
             instruments: { kind: "instrumentSet", weightKey: "instrument", minStreak: 2, allowChangeOnLastSong: true },
-            picking: { kind: "instrumentField", field: "picking", weightKey: "technique", minStreak: 1, allowChangeOnLastSong: true },
+            picking: {
+                kind: "instrumentField",
+                field: "picking",
+                weightKey: "technique",
+                minStreak: 1,
+                allowChangeOnLastSong: true,
+            },
         },
     };
 
@@ -152,10 +194,10 @@ export function buildSeed(overrides: Partial<FakeRepoSeed> = {}): FakeRepoSeed {
 }
 
 let songCounter = 0;
-export function makeSong(overrides: any = {}): any {
+export function makeSong(overrides: Partial<SeedSong> = {}): SeedSong {
     songCounter += 1;
-    const id = overrides.id || `song-${songCounter}`;
-    const name = overrides.name || `Song ${songCounter}`;
+    const id = (overrides.id as string | undefined) || `song-${songCounter}`;
+    const name = (overrides.name as string | undefined) || `Song ${songCounter}`;
     return {
         id,
         name,
@@ -174,7 +216,7 @@ export function makeSong(overrides: any = {}): any {
     };
 }
 
-export function makeMember(name: string, overrides: any = {}): any {
+export function makeMember(name: string, overrides: Partial<SeedMember> = {}): SeedMember {
     return {
         name,
         instruments: [],

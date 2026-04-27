@@ -7,14 +7,26 @@
  * Tests can pre-seed state by setting `window.__SR_FAKE_SEED__` before
  * navigating, and can drive the repo at runtime via `window.__SR_REPO__`.
  */
+
+/**
+ * Domain-shape aliases used throughout the seed data. We keep them open with
+ * `[key: string]: unknown` because tests routinely seed partial / extended
+ * shapes (e.g. anxiety summaries) without wanting the full app types.
+ */
+export type SeedSong = { id: string; name?: string; [key: string]: unknown };
+export type SeedSetlist = { id: string; name?: string; [key: string]: unknown };
+export type SeedMember = { name: string; [key: string]: unknown };
+export type SeedConfig = { bandName?: string; [key: string]: unknown };
+export type SeedBootstrap = { [key: string]: unknown };
+
 export type FakeRepoSeed = {
     /** When set, the repo boots in connected state with this user address */
     autoConnectAs?: string;
-    songs?: Record<string, any>;
-    setlists?: Record<string, any>;
-    members?: Record<string, any>;
-    config?: any;
-    bootstrap?: any;
+    songs?: Record<string, SeedSong>;
+    setlists?: Record<string, SeedSetlist>;
+    members?: Record<string, SeedMember>;
+    config?: SeedConfig;
+    bootstrap?: SeedBootstrap;
 };
 
 /**

@@ -1,6 +1,6 @@
-import { test, expect, buildSeed } from "../fixtures/test-fixtures";
-import { ConnectPage } from "../pages/ConnectPage";
+import { buildSeed, expect, test } from "../fixtures/test-fixtures";
 import { AppShell } from "../pages/AppShell";
+import { ConnectPage } from "../pages/ConnectPage";
 
 /**
  * The connection screen is the disconnected entry point. Without a seed,
@@ -47,7 +47,7 @@ test.describe("Connection screen", () => {
         await expect(page.locator("nav.bottom-nav")).toHaveCount(0);
     });
 
-    test("known accounts appear in Recent list after connecting", async ({ page, app, context }) => {
+    test("known accounts appear in Recent list after connecting", async ({ page, app }) => {
         await app.goto();
         const connect = new ConnectPage(page);
         await connect.waitForVisible();

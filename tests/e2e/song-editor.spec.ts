@@ -1,7 +1,8 @@
-import { test, expect, buildSeed, makeSong, makeMember } from "../fixtures/test-fixtures";
+import type { SeedSong } from "../fixtures/fake-repo";
+import { buildSeed, expect, makeMember, makeSong, test } from "../fixtures/test-fixtures";
 import { AppShell } from "../pages/AppShell";
-import { SongsPage } from "../pages/SongsPage";
 import { SongEditorPage } from "../pages/SongEditorPage";
+import { SongsPage } from "../pages/SongsPage";
 
 /**
  * Song editor — the overlay that opens when adding or editing a song.
@@ -26,16 +27,18 @@ test.describe("Song editor — basics", () => {
 
         await songs.expectSongVisible("Sunday Morning");
         const state = await app.getState();
-        const created = state.songs.find((s: any) => s.name === "Sunday Morning");
+        const created = state.songs.find((s: SeedSong) => s.name === "Sunday Morning");
         expect(created).toBeTruthy();
         expect(created.key).toBe("D");
         expect(created.notes).toBe("Capo on 2");
     });
 
     test("editing a song persists changes after closing/reopening", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: { x: makeSong({ id: "x", name: "Original" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: { x: makeSong({ id: "x", name: "Original" }) },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 
@@ -55,9 +58,11 @@ test.describe("Song editor — basics", () => {
     });
 
     test("Back button closes the editor without saving (changes discarded)", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: { x: makeSong({ id: "x", name: "Stable" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: { x: makeSong({ id: "x", name: "Stable" }) },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 
@@ -74,9 +79,11 @@ test.describe("Song editor — basics", () => {
     });
 
     test("toggling Cover and Instrumental chips updates the song flags", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: { x: makeSong({ id: "x", name: "Toggle Me" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: { x: makeSong({ id: "x", name: "Toggle Me" }) },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 
@@ -89,15 +96,17 @@ test.describe("Song editor — basics", () => {
         await editor.save();
 
         const state = await app.getState();
-        const song = state.songs.find((s: any) => s.name === "Toggle Me");
+        const song = state.songs.find((s: SeedSong) => s.name === "Toggle Me");
         expect(song.cover).toBe(true);
         expect(song.instrumental).toBe(true);
     });
 
     test("toggling 'Not a good opener / closer' updates flags", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: { x: makeSong({ id: "x", name: "Mid-set Only" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: { x: makeSong({ id: "x", name: "Mid-set Only" }) },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 
@@ -110,15 +119,17 @@ test.describe("Song editor — basics", () => {
         await editor.save();
 
         const state = await app.getState();
-        const song = state.songs.find((s: any) => s.name === "Mid-set Only");
+        const song = state.songs.find((s: SeedSong) => s.name === "Mid-set Only");
         expect(song.notGoodOpener).toBe(true);
         expect(song.notGoodCloser).toBe(true);
     });
 
     test("Unpracticed chip surfaces the warning pill on the songs list", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: { x: makeSong({ id: "x", name: "Brand New Tune" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: { x: makeSong({ id: "x", name: "Brand New Tune" }) },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 
@@ -135,11 +146,13 @@ test.describe("Song editor — basics", () => {
 
 test.describe("Song editor — duplicate", () => {
     test("duplicate creates a copy and switches to editing it", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: {
-                x: makeSong({ id: "x", name: "Duplicatable", key: "G", notes: "fingerpicked" }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: {
+                    x: makeSong({ id: "x", name: "Duplicatable", key: "G", notes: "fingerpicked" }),
+                },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 
@@ -157,16 +170,18 @@ test.describe("Song editor — duplicate", () => {
         const state = await app.getState();
         expect(state.songs.length).toBe(2);
         // Both should share the same key and notes.
-        const keys = state.songs.map((s: any) => s.key).sort();
+        const keys = state.songs.map((s: SeedSong) => s.key as string).sort();
         expect(keys).toEqual(["G", "G"]);
     });
 });
 
 test.describe("Song editor — delete confirmation", () => {
     test("deleting a song requires a 'Yes, delete' confirmation", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: { x: makeSong({ id: "x", name: "Doomed" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: { x: makeSong({ id: "x", name: "Doomed" }) },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 
@@ -181,9 +196,11 @@ test.describe("Song editor — delete confirmation", () => {
     });
 
     test("Cancel preserves the song", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: { x: makeSong({ id: "x", name: "Saved" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: { x: makeSong({ id: "x", name: "Saved" }) },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 
@@ -200,12 +217,14 @@ test.describe("Song editor — delete confirmation", () => {
 
 test.describe("Song editor — members & instruments", () => {
     test("can add an existing band member to a song", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            members: {
-                Alice: makeMember("Alice", { instruments: [{ name: "Guitar" }] }),
-            },
-            songs: { x: makeSong({ id: "x", name: "Add Alice" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                members: {
+                    Alice: makeMember("Alice", { instruments: [{ name: "Guitar" }] }),
+                },
+                songs: { x: makeSong({ id: "x", name: "Add Alice" }) },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 
@@ -220,14 +239,16 @@ test.describe("Song editor — members & instruments", () => {
         await editor.save();
 
         const state = await app.getState();
-        const song = state.songs.find((s: any) => s.name === "Add Alice");
+        const song = state.songs.find((s: SeedSong) => s.name === "Add Alice");
         expect(song.members.Alice).toBeTruthy();
     });
 
     test("can add a new ad-hoc member from the editor", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: { x: makeSong({ id: "x", name: "Solo Tune" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: { x: makeSong({ id: "x", name: "Solo Tune" }) },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSongs();
 

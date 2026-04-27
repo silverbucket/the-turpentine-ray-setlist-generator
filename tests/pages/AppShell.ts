@@ -1,4 +1,4 @@
-import { type Page, type Locator, expect } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * Common chrome — top bar, bottom nav, toasts, modals — that lives outside
@@ -49,11 +49,21 @@ export class AppShell {
         this.toast = page.locator(".toast-pill");
     }
 
-    async gotoRoll() { await this.rollTab.click(); }
-    async gotoSaved() { await this.savedTab.click(); }
-    async gotoSongs() { await this.songsTab.click(); }
-    async gotoBand() { await this.bandTab.click(); }
-    async gotoHelp() { await this.helpTab.click(); }
+    async gotoRoll() {
+        await this.rollTab.click();
+    }
+    async gotoSaved() {
+        await this.savedTab.click();
+    }
+    async gotoSongs() {
+        await this.songsTab.click();
+    }
+    async gotoBand() {
+        await this.bandTab.click();
+    }
+    async gotoHelp() {
+        await this.helpTab.click();
+    }
 
     /**
      * Idempotent: opens the dropdown if it's closed, no-ops if already open.
@@ -82,7 +92,10 @@ export class AppShell {
     }
 
     async getActiveView(): Promise<string> {
-        return this.page.evaluate(() => (window as any).__SR_STORE__?.activeView);
+        return this.page.evaluate(() => {
+            const s = (window as unknown as { __SR_STORE__?: { activeView?: string } }).__SR_STORE__;
+            return s?.activeView ?? "";
+        });
     }
 
     async expectActiveView(name: string) {
@@ -108,9 +121,6 @@ export class AppShell {
 
     async switchToAccount(address: string) {
         await this.openMenu();
-        await this.page
-            .locator(".dropdown-item--account")
-            .filter({ hasText: address })
-            .click();
+        await this.page.locator(".dropdown-item--account").filter({ hasText: address }).click();
     }
 }

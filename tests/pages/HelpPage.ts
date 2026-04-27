@@ -1,4 +1,4 @@
-import { type Page, type Locator } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 /**
  * Help screen — static documentation with inline links that navigate

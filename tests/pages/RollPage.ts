@@ -1,4 +1,4 @@
-import { type Page, type Locator, expect } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * Roll screen — the dice, song count stepper, settings drawer, generated
@@ -49,7 +49,10 @@ export class RollPage {
             .locator(".adv-field")
             .filter({ hasText: "Max instrumentals" })
             .locator(".no-limit-toggle input");
-        this.seedInput = this.screen.locator('input[type="number"]').filter({ hasNot: page.locator(".adv-field input") }).last();
+        this.seedInput = this.screen
+            .locator('input[type="number"]')
+            .filter({ hasNot: page.locator(".adv-field input") })
+            .last();
         this.keyFlowToggle = this.screen.locator("label").filter({ hasText: "Smooth key flow" });
         this.setlistSongs = this.screen.locator(".song-list .song-card");
         this.anxietyValue = this.screen.locator(".roadie-val");
@@ -67,12 +70,14 @@ export class RollPage {
     }
 
     async setSongCount(count: number) {
-        // NumberStepper uses aria-label "Song count"
-        const stepperLabel = this.screen.locator(".count-control");
-        const valueLocator = stepperLabel.locator(".stepper-value, [aria-label='Song count']").first();
-        // Read current and step until matching.
+        // NumberStepper is fiddly to drive via clicks at high values, so we
+        // call the store directly. The UI re-renders from the same state.
         await this.page.evaluate((c) => {
-            const s = (window as any).__SR_STORE__;
+            const s = (
+                window as unknown as {
+                    __SR_STORE__?: { updateGenerationField?: (field: string, value: unknown) => void };
+                }
+            ).__SR_STORE__;
             s?.updateGenerationField?.("count", c);
         }, count);
     }

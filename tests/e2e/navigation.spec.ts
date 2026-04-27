@@ -1,4 +1,4 @@
-import { test, expect, buildSeed } from "../fixtures/test-fixtures";
+import { buildSeed, expect, test } from "../fixtures/test-fixtures";
 import { AppShell } from "../pages/AppShell";
 
 /**

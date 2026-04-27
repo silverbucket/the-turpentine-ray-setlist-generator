@@ -1,4 +1,4 @@
-import { type Page, type Locator, expect } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * Connection screen — the first thing users see before connecting their
@@ -46,8 +46,6 @@ export class ConnectPage {
     }
 
     async forgetAccount(address: string) {
-        await this.recentAccountByAddress(address)
-            .getByRole("button", { name: "Forget account" })
-            .click();
+        await this.recentAccountByAddress(address).getByRole("button", { name: "Forget account" }).click();
     }
 }

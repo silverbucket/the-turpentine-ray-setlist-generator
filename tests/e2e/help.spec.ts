@@ -1,4 +1,4 @@
-import { test, expect, buildSeed } from "../fixtures/test-fixtures";
+import { buildSeed, expect, test } from "../fixtures/test-fixtures";
 import { AppShell } from "../pages/AppShell";
 import { HelpPage } from "../pages/HelpPage";
 
@@ -18,7 +18,7 @@ test.describe("Help screen", () => {
         // Each major section heading should be present
         for (const heading of [
             "Getting started",
-            "What \"incomplete\" means",
+            'What "incomplete" means',
             "After you roll",
             "Tweaking the results",
             "Data & backups",

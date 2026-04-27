@@ -1,10 +1,11 @@
-import { test, expect, buildSeed, makeSong, makeMember } from "../fixtures/test-fixtures";
+import type { SeedSong } from "../fixtures/fake-repo";
+import { buildSeed, expect, makeSong, test } from "../fixtures/test-fixtures";
 import { AppShell } from "../pages/AppShell";
-import { ConnectPage } from "../pages/ConnectPage";
-import { SongsPage } from "../pages/SongsPage";
-import { SongEditorPage } from "../pages/SongEditorPage";
-import { RollPage } from "../pages/RollPage";
 import { BandPage } from "../pages/BandPage";
+import { ConnectPage } from "../pages/ConnectPage";
+import { RollPage } from "../pages/RollPage";
+import { SongEditorPage } from "../pages/SongEditorPage";
+import { SongsPage } from "../pages/SongsPage";
 
 /**
  * Edge cases — first-run, account switching, multi-account, large datasets,
@@ -74,7 +75,7 @@ test.describe("Multi-account switching", () => {
 
 test.describe("Large datasets", () => {
     test("songs list with 50 songs renders all of them", async ({ page, app }) => {
-        const songs: Record<string, any> = {};
+        const songs: Record<string, SeedSong> = {};
         for (let i = 0; i < 50; i++) {
             const id = `song-${i}`;
             songs[id] = makeSong({ id, name: `Track ${String(i).padStart(2, "0")}` });
@@ -93,7 +94,7 @@ test.describe("Large datasets", () => {
     });
 
     test("roll generation works with 30 candidate songs", async ({ page, app }) => {
-        const songs: Record<string, any> = {};
+        const songs: Record<string, SeedSong> = {};
         for (let i = 0; i < 30; i++) {
             const id = `song-${i}`;
             songs[id] = makeSong({ id, name: `Tune ${i}` });
@@ -111,12 +112,14 @@ test.describe("Large datasets", () => {
 
 test.describe("Search / filter edge cases", () => {
     test("search with no matches shows zero rows", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: {
-                "s1": makeSong({ id: "s1", name: "Africa" }),
-                "s2": makeSong({ id: "s2", name: "Bohemian Rhapsody" }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: {
+                    s1: makeSong({ id: "s1", name: "Africa" }),
+                    s2: makeSong({ id: "s2", name: "Bohemian Rhapsody" }),
+                },
+            }),
+        );
         await app.goto();
         await app.waitForReady();
         await new AppShell(page).gotoSongs();
@@ -128,12 +131,14 @@ test.describe("Search / filter edge cases", () => {
     });
 
     test("clearing the search restores all rows", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: {
-                "s1": makeSong({ id: "s1", name: "Africa" }),
-                "s2": makeSong({ id: "s2", name: "Bohemian Rhapsody" }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: {
+                    s1: makeSong({ id: "s1", name: "Africa" }),
+                    s2: makeSong({ id: "s2", name: "Bohemian Rhapsody" }),
+                },
+            }),
+        );
         await app.goto();
         await app.waitForReady();
         await new AppShell(page).gotoSongs();
@@ -149,9 +154,11 @@ test.describe("Search / filter edge cases", () => {
     });
 
     test("search is case-insensitive", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: { "s1": makeSong({ id: "s1", name: "Africa" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: { s1: makeSong({ id: "s1", name: "Africa" }) },
+            }),
+        );
         await app.goto();
         await app.waitForReady();
         await new AppShell(page).gotoSongs();
@@ -183,7 +190,7 @@ test.describe("Boundary inputs", () => {
         await expect(new AppShell(page).toast).toContainText(/name/i);
     });
 
-    test("song count stepper enforces minimum and maximum", async ({ page, app }) => {
+    test("song count stepper enforces minimum and maximum", async ({ app }) => {
         await app.seed(buildSeed());
         await app.goto();
         await app.waitForReady();
@@ -191,7 +198,7 @@ test.describe("Boundary inputs", () => {
         // Drive count down to 1 and try to push below
         await app.callStore("updateGenerationField", "count", 1);
         const stateAtMin = await app.getState();
-        expect(stateAtMin.generatedSetlist === null || stateAtMin.generatedSetlist === undefined).toBe(true);
+        expect(stateAtMin?.generatedSetlist === null || stateAtMin?.generatedSetlist === undefined).toBe(true);
 
         // Try to set unreasonably high — store should clamp or accept
         await app.callStore("updateGenerationField", "count", 100);
@@ -202,9 +209,11 @@ test.describe("Boundary inputs", () => {
 
     test("very long song name is accepted and rendered", async ({ page, app }) => {
         const longName = "A".repeat(200);
-        await app.seed(buildSeed({
-            songs: { "s1": makeSong({ id: "s1", name: longName }) },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: { s1: makeSong({ id: "s1", name: longName }) },
+            }),
+        );
         await app.goto();
         await app.waitForReady();
         await new AppShell(page).gotoSongs();
@@ -215,15 +224,20 @@ test.describe("Boundary inputs", () => {
 
     test("special characters in band name are preserved through reload", async ({ page, app }) => {
         const tricky = "Guns N' Roses & Co.";
-        await app.seed(buildSeed({
-            config: {
-                bandName: tricky, schemaVersion: 2,
-                createdAt: "2024-01-01T00:00:00.000Z",
-                updatedAt: "2024-01-01T00:00:00.000Z",
-                ui: { dieColor: null },
-                general: {}, show: {}, props: {},
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                config: {
+                    bandName: tricky,
+                    schemaVersion: 2,
+                    createdAt: "2024-01-01T00:00:00.000Z",
+                    updatedAt: "2024-01-01T00:00:00.000Z",
+                    ui: { dieColor: null },
+                    general: {},
+                    show: {},
+                    props: {},
+                },
+            }),
+        );
         await app.goto();
         await app.waitForReady();
         const shell = new AppShell(page);
@@ -246,7 +260,7 @@ test.describe("Roll behavior edge cases", () => {
     });
 
     test("setlist song count never exceeds requested count", async ({ page, app }) => {
-        const songs: Record<string, any> = {};
+        const songs: Record<string, SeedSong> = {};
         for (let i = 0; i < 20; i++) {
             const id = `song-${i}`;
             songs[id] = makeSong({ id, name: `Number ${i}` });
@@ -268,7 +282,7 @@ test.describe("Roll behavior edge cases", () => {
 
 test.describe("Locked setlist re-roll prompt", () => {
     test("rolling on a locked setlist asks for confirmation", async ({ page, app }) => {
-        const songs: Record<string, any> = {};
+        const songs: Record<string, SeedSong> = {};
         for (let i = 0; i < 12; i++) {
             const id = `song-${i}`;
             songs[id] = makeSong({ id, name: `Locked ${i}` });
@@ -329,13 +343,15 @@ test.describe("Hash routing edge cases", () => {
 
 test.describe("Persistence across reloads", () => {
     test("song count setting persists after reload", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            songs: {
-                "s1": makeSong({ id: "s1", name: "A" }),
-                "s2": makeSong({ id: "s2", name: "B" }),
-                "s3": makeSong({ id: "s3", name: "C" }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                songs: {
+                    s1: makeSong({ id: "s1", name: "A" }),
+                    s2: makeSong({ id: "s2", name: "B" }),
+                    s3: makeSong({ id: "s3", name: "C" }),
+                },
+            }),
+        );
         await app.goto();
         await app.waitForReady();
 

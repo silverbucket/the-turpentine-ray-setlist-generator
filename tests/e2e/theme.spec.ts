@@ -1,4 +1,4 @@
-import { test, expect, buildSeed } from "../fixtures/test-fixtures";
+import { buildSeed, expect, test } from "../fixtures/test-fixtures";
 import { AppShell } from "../pages/AppShell";
 
 /**
@@ -44,7 +44,7 @@ test.describe("Theme cycling", () => {
         expect(await shell.getTheme()).toBe("dark");
     });
 
-    test("emulated dark color scheme makes 'system' resolve to dark", async ({ page, app, browser }) => {
+    test("emulated dark color scheme makes 'system' resolve to dark", async ({ page, app }) => {
         // The default browser context honors emulateMedia. We re-create page
         // with the dark scheme set so the system preference resolves there.
         await page.emulateMedia({ colorScheme: "dark" });

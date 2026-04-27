@@ -1,13 +1,14 @@
-import { test, expect, buildSeed, makeSong } from "../fixtures/test-fixtures";
+import type { SeedSetlist } from "../fixtures/fake-repo";
+import { buildSeed, expect, test } from "../fixtures/test-fixtures";
 import { AppShell } from "../pages/AppShell";
-import { SavedPage } from "../pages/SavedPage";
 import { RollPage } from "../pages/RollPage";
+import { SavedPage } from "../pages/SavedPage";
 
 /**
  * Saved screen ("Greatest Hits") — list of saved setlists, view/edit/load/
  * delete actions, plus the print modal.
  */
-function setlistFixture(overrides: any = {}) {
+function setlistFixture(overrides: Partial<SeedSetlist> = {}): SeedSetlist {
     return {
         id: "set-1",
         name: "Friday Night Set",
@@ -38,12 +39,14 @@ test.describe("Saved screen — empty state", () => {
 
 test.describe("Saved screen — list", () => {
     test("seeded setlists render as cards with name and song count", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            setlists: {
-                "set-1": setlistFixture({ id: "set-1", name: "Friday" }),
-                "set-2": setlistFixture({ id: "set-2", name: "Saturday", savedAt: "2024-09-16T20:00:00.000Z" }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                setlists: {
+                    "set-1": setlistFixture({ id: "set-1", name: "Friday" }),
+                    "set-2": setlistFixture({ id: "set-2", name: "Saturday", savedAt: "2024-09-16T20:00:00.000Z" }),
+                },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSaved();
 
@@ -55,16 +58,21 @@ test.describe("Saved screen — list", () => {
     });
 
     test("setlists are sorted by savedAt (most recent first)", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            setlists: {
-                old: setlistFixture({ id: "old", name: "Old Show", savedAt: "2024-01-01T00:00:00.000Z" }),
-                new: setlistFixture({ id: "new", name: "New Show", savedAt: "2024-12-31T00:00:00.000Z" }),
-            },
-        }));
+        await app.seed(
+            buildSeed({
+                setlists: {
+                    old: setlistFixture({ id: "old", name: "Old Show", savedAt: "2024-01-01T00:00:00.000Z" }),
+                    new: setlistFixture({ id: "new", name: "New Show", savedAt: "2024-12-31T00:00:00.000Z" }),
+                },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSaved();
 
         const saved = new SavedPage(page);
+        // Wait for both cards to render before reading their text — otherwise
+        // allInnerTexts() can race the initial render and return [].
+        await expect(saved.savedCards).toHaveCount(2);
         const names = await saved.savedCards.locator(".saved-name").allInnerTexts();
         expect(names).toEqual(["New Show", "Old Show"]);
     });
@@ -72,9 +80,11 @@ test.describe("Saved screen — list", () => {
 
 test.describe("Saved screen — view modal", () => {
     test("clicking a card opens the print/view modal", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            setlists: { "s": setlistFixture({ id: "s", name: "Acoustic" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                setlists: { s: setlistFixture({ id: "s", name: "Acoustic" }) },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSaved();
 
@@ -86,9 +96,11 @@ test.describe("Saved screen — view modal", () => {
     });
 
     test("Close button closes the modal", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            setlists: { "s": setlistFixture({ id: "s" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                setlists: { s: setlistFixture({ id: "s" }) },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSaved();
 
@@ -98,9 +110,11 @@ test.describe("Saved screen — view modal", () => {
     });
 
     test("Load to Roll button loads the setlist into the Roll screen", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            setlists: { "s": setlistFixture({ id: "s", name: "Loadable" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                setlists: { s: setlistFixture({ id: "s", name: "Loadable" }) },
+            }),
+        );
         await app.goto();
         const shell = new AppShell(page);
         await shell.gotoSaved();
@@ -118,9 +132,11 @@ test.describe("Saved screen — view modal", () => {
 
 test.describe("Saved screen — edit", () => {
     test("can rename a saved setlist", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            setlists: { "s": setlistFixture({ id: "s", name: "Old Name" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                setlists: { s: setlistFixture({ id: "s", name: "Old Name" }) },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSaved();
 
@@ -134,9 +150,11 @@ test.describe("Saved screen — edit", () => {
     });
 
     test("Cancel discards the rename", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            setlists: { "s": setlistFixture({ id: "s", name: "Stable" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                setlists: { s: setlistFixture({ id: "s", name: "Stable" }) },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSaved();
 
@@ -150,9 +168,11 @@ test.describe("Saved screen — edit", () => {
 
 test.describe("Saved screen — load", () => {
     test("Load button on the card navigates to roll with that setlist", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            setlists: { "s": setlistFixture({ id: "s", name: "Direct Load" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                setlists: { s: setlistFixture({ id: "s", name: "Direct Load" }) },
+            }),
+        );
         await app.goto();
         const shell = new AppShell(page);
         await shell.gotoSaved();
@@ -165,9 +185,11 @@ test.describe("Saved screen — load", () => {
 
 test.describe("Saved screen — delete with confirm", () => {
     test("Remove → Delete? confirms and deletes", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            setlists: { "s": setlistFixture({ id: "s", name: "Doomed Set" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                setlists: { s: setlistFixture({ id: "s", name: "Doomed Set" }) },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSaved();
 
@@ -177,9 +199,11 @@ test.describe("Saved screen — delete with confirm", () => {
     });
 
     test("Remove → No cancels the deletion", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            setlists: { "s": setlistFixture({ id: "s", name: "Reprieve" }) },
-        }));
+        await app.seed(
+            buildSeed({
+                setlists: { s: setlistFixture({ id: "s", name: "Reprieve" }) },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSaved();
 
@@ -191,13 +215,17 @@ test.describe("Saved screen — delete with confirm", () => {
 
 test.describe("Saved screen — modal contents", () => {
     test("anxiety summary appears in the modal when present", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            setlists: { "s": setlistFixture({
-                id: "s",
-                name: "With Anxiety",
-                summary: { anxiety: { scaled: 6, label: "Sweaty" } },
-            }) },
-        }));
+        await app.seed(
+            buildSeed({
+                setlists: {
+                    s: setlistFixture({
+                        id: "s",
+                        name: "With Anxiety",
+                        summary: { anxiety: { scaled: 6, label: "Sweaty" } },
+                    }),
+                },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSaved();
 
@@ -207,13 +235,17 @@ test.describe("Saved screen — modal contents", () => {
     });
 
     test("song notes are rendered in the print modal", async ({ page, app }) => {
-        await app.seed(buildSeed({
-            setlists: { "s": setlistFixture({
-                id: "s",
-                name: "With Notes",
-                songs: [{ id: "a", name: "Africa", notes: "Cue intro on synth" }],
-            }) },
-        }));
+        await app.seed(
+            buildSeed({
+                setlists: {
+                    s: setlistFixture({
+                        id: "s",
+                        name: "With Notes",
+                        songs: [{ id: "a", name: "Africa", notes: "Cue intro on synth" }],
+                    }),
+                },
+            }),
+        );
         await app.goto();
         await new AppShell(page).gotoSaved();
 
