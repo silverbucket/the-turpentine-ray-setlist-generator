@@ -185,6 +185,10 @@ export function createAppStore(repo) {
     // Count of in-flight reloadAll calls. We can't mark "synced" while any
     // reload is mid-flight.
     let reloadInFlight = 0;
+    // Bumped when manual recovery abandons a stalled reload. Late completions
+    // from older epochs are still stale via reloadGen, and should not touch
+    // in-flight accounting for the fresh retry.
+    let reloadEpoch = 0;
     // Monotonic counter incremented on every reloadAll START. After a reload
     // completes, it only applies its results if its captured generation is
     // still the latest — older concurrent reloads (which captured an emptier
@@ -935,6 +939,7 @@ export function createAppStore(repo) {
     // ---- data loading ----
     async function reloadAll({ quiet = false, session = activeSession } = {}) {
         const callId = Math.random().toString(36).slice(2, 6);
+        const myEpoch = reloadEpoch;
         // Capture this reload's generation. By the time we return, a newer
         // reload may have started; if so, that newer one captured a more
         // recent cache snapshot and ours is stale. We discard our results
@@ -1017,31 +1022,38 @@ export function createAppStore(repo) {
             // the live session will resolve its own state.
             if (session === activeSession) setSyncState("error");
         } finally {
-            reloadInFlight = Math.max(0, reloadInFlight - 1);
-            busyMessage = "";
-            initialSyncComplete = true;
-            // Only the last in-flight reload should clear the watchdog —
-            // a fast one finishing while a slow one is still pulling
-            // shouldn't drop the stall guard.
-            if (reloadInFlight === 0) {
-                if (syncStalledTimer) clearTimeout(syncStalledTimer);
-                syncStalledTimer = null;
-                syncStalled = false;
+            if (myEpoch === reloadEpoch) {
+                reloadInFlight = Math.max(0, reloadInFlight - 1);
+                busyMessage = "";
+                initialSyncComplete = true;
+                // Only the last in-flight reload should clear the watchdog —
+                // a fast one finishing while a slow one is still pulling
+                // shouldn't drop the stall guard.
+                if (reloadInFlight === 0) {
+                    if (syncStalledTimer) clearTimeout(syncStalledTimer);
+                    syncStalledTimer = null;
+                    syncStalled = false;
+                }
+            } else {
+                dbg(`reloadAll[${callId}] ignored stale epoch ${myEpoch} (current=${reloadEpoch})`);
             }
             dbg(`reloadAll[${callId}] END gen=${myGen} songs=${songs.length} pending=${pendingBodies} reloadInFlight=${reloadInFlight}`);
             // Try to resolve the pill. Falls through silently if any of the
             // gates (pending bodies, in-flight reloads, sync round) aren't
             // satisfied yet — a later reload (triggered by an onChange when
             // the next body arrives) will check again.
-            if (session === activeSession) maybeMarkSynced();
+            if (session === activeSession && myEpoch === reloadEpoch) maybeMarkSynced();
         }
     }
 
     // Manual recovery for the stall watchdog. Invoked from the sync-shell's
-    // Retry button. We don't try to abort a stuck rs.js operation — just
-    // start a fresh reloadAll on top of it. If the underlying load finally
-    // resolves, our generation guards (reloadGen) discard its stale results.
+    // Retry button. We don't try to abort a stuck rs.js operation; instead
+    // we retire it from our accounting and start a fresh reload. If the
+    // underlying load finally resolves, its generation/epoch guards keep it
+    // from applying stale data or blocking the retry.
     async function retrySync() {
+        reloadEpoch += 1;
+        reloadInFlight = 0;
         syncStalled = false;
         if (syncStalledTimer) {
             clearTimeout(syncStalledTimer);
