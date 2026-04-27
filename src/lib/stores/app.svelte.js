@@ -139,7 +139,6 @@ export function createAppStore(repo) {
     let loadError = $state("");
     let busyMessage = $state("");
     let toastMessages = $state([]);
-    let showFirstRunPrompt = $state(false);
     let initialSyncComplete = $state(false);
     let firstRunBandName = $state("");
 
@@ -230,6 +229,19 @@ export function createAppStore(repo) {
 
     // ---- derived ----
     let appTitle = $derived(titleForBand(appConfig?.bandName));
+    // First-run modal visibility is derived, not stored. Tying it to the
+    // connection state (rather than scattering imperative `showFirstRunPrompt
+    // = true/false` writes across reloadAll, restoreSnapshot, deleteAllData,
+    // finishFirstRun, and the disconnected handler) prevents a class of drift
+    // bugs where a partial auth failure leaves the modal visible after
+    // connectionStatus has already flipped back to "disconnected" — which
+    // surfaced as the user seeing the band-name prompt instead of the login
+    // page after a failed authorization. The modal only makes sense when
+    // we're actually connected, the initial sync has landed, and there's no
+    // appConfig yet — so encode exactly that.
+    let showFirstRunPrompt = $derived(
+        connectionStatus === "connected" && initialSyncComplete && !appConfig,
+    );
     let emptyCatalog = $derived(connectionStatus === "connected" && songs.length === 0);
     let bandMemberEntries = $derived(
         Object.entries(bandMembers || {}).sort(([a], [b]) => a.localeCompare(b))
@@ -861,7 +873,6 @@ export function createAppStore(repo) {
             bandMembers = Object.fromEntries(
                 Object.entries(data.members || {}).map(([name, d]) => [name, normalizeMemberRecord(d)])
             );
-            showFirstRunPrompt = false;
             // generationOptions is intentionally not touched here:
             // currentUserAddress still points at the previous account. The
             // caller sets it after this returns, then loadUserLocalData()
@@ -926,7 +937,6 @@ export function createAppStore(repo) {
             }
 
             if (!appConfig) {
-                showFirstRunPrompt = true;
                 firstRunBandName = "";
                 navigate("roll");
                 generationOptions = defaultGenerationOptions(DEFAULT_APP_CONFIG);
@@ -934,7 +944,6 @@ export function createAppStore(repo) {
                 return;
             }
 
-            showFirstRunPrompt = false;
             generationOptions = deepMerge(defaultGenerationOptions(appConfig), generationOptions || {});
             persistGenerationOptions();
             scheduleSnapshot();
@@ -970,7 +979,6 @@ export function createAppStore(repo) {
             appConfig = await withSync("Setting up", () => repo.ensureConfig(bandName));
             generationOptions = defaultGenerationOptions(appConfig);
             persistGenerationOptions();
-            showFirstRunPrompt = false;
             addToast(`Welcome, ${bandName}.`);
         } catch (error) {
             addToast(error?.message || "Could not save your band name.", "danger");
@@ -1578,8 +1586,9 @@ export function createAppStore(repo) {
             bandMembers = {};
             persistCurrentSetlist();
             if (editorSong) closeEditor();
-            // Trigger first-run experience
-            showFirstRunPrompt = true;
+            // Trigger first-run experience: with appConfig now null and the
+            // session still connected/synced, the derived showFirstRunPrompt
+            // will evaluate to true and the modal will render.
             firstRunBandName = "";
             navigate("roll");
             generationOptions = defaultGenerationOptions(DEFAULT_APP_CONFIG);
@@ -2255,7 +2264,6 @@ export function createAppStore(repo) {
             setlistSaved = false;
             savedSetlists = [];
             bandMembers = {};
-            showFirstRunPrompt = false;
             initialSyncComplete = false;
             selectedSongId = "";
             editorSong = null;
