@@ -2,15 +2,23 @@ import { readFileSync } from "node:fs";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { cspHashPlugin } from "./vite-plugin-csp-hash.js";
 
 const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
 
 export default defineConfig({
     plugins: [
         svelte(),
+        // Auto-fills CSP sha256 hashes for inline <script>/<style> blocks in
+        // index.html and the listed public/* files. Edit a script body and
+        // the next dev refresh / build picks up the new hash; no manual step.
+        cspHashPlugin({ publicHtml: ["auth-relay.html"] }),
         VitePWA({
             registerType: "autoUpdate",
             manifest: false,
+            // auth-relay.html MUST stay out of the precache or rs.js's OAuth
+            // redirect flow loads a cached copy and never hands control back.
+            // precache.test.js inspects the built sw.js to verify. See #80.
             workbox: {
                 globPatterns: ["**/*.{js,css,html,svg,png,woff,woff2}"],
                 globIgnores: ["**/auth-relay.html"],
