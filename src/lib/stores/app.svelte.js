@@ -1811,27 +1811,42 @@ export function createAppStore(repo) {
         const clean = newName.trim();
         if (!clean || clean === oldName || bandMemberEntries.some(([n]) => n === clean)) return;
         const data = bandMembers[oldName] || { instruments: [] };
+
+        // Put the new key first so a failure leaves the original member
+        // intact — songs that reference `oldName` still resolve, and we
+        // bail out without touching local state.
         try {
-            await withSync("Renaming member", async () => {
-                // Put the new key first so a failure leaves the original
-                // member intact — songs that reference `oldName` still
-                // resolve. If we deleted first and the put failed, the old
-                // key would be gone and any catalog references would be
-                // orphaned. The reverse failure mode (put succeeds, delete
-                // fails) leaves a temporary duplicate that resolves on the
-                // next sync; the in-memory mutation below removes the old
-                // entry locally so the UI shows the rename immediately.
-                await repo.putMember(clean, data);
-                await repo.deleteMember(oldName);
-            });
-            const next = { ...bandMembers };
-            delete next[oldName];
-            next[clean] = data;
-            bandMembers = next;
-            if (expandedBandMember === oldName) expandedBandMember = clean;
-            toastInfo(`Renamed "${oldName}" to "${clean}".`);
+            await withSync("Renaming member", () => repo.putMember(clean, data));
         } catch (error) {
             toastError(error?.message || "Could not rename member.");
+            return;
+        }
+
+        // Apply the local rename now: the new key exists remotely, so the
+        // UI must switch over even if the follow-up delete fails. The
+        // caller (BandScreen) moves `editingMemberName` to `clean` without
+        // awaiting this function; without the local mutation here the
+        // edit-view filter would match nothing and the pane would go blank.
+        const next = { ...bandMembers };
+        delete next[oldName];
+        next[clean] = data;
+        bandMembers = next;
+        if (expandedBandMember === oldName) expandedBandMember = clean;
+
+        // Best-effort delete of the old key. A failure here leaves a
+        // temporary duplicate in remoteStorage; rs.js retries on the next
+        // sync round and the next reloadAll reconciles. This is the
+        // explicit "duplicate member that resolves on next sync" failure
+        // mode #70 accepts — surface it as a warning, not a hard error.
+        try {
+            await withSync("Cleaning up old member name", () => repo.deleteMember(oldName));
+            toastInfo(`Renamed "${oldName}" to "${clean}".`);
+        } catch (error) {
+            toastWarn(
+                `Renamed to "${clean}". Old name will clear on the next sync.${
+                    error?.message ? ` (${error.message})` : ""
+                }`,
+            );
         }
     }
 
