@@ -989,20 +989,49 @@ export function createAppStore(repo) {
             // Update the pending count even if we early-return below — the
             // pill state depends on it being current.
             pendingBodies = data.pendingBodies || 0;
-            dbg(`reloadAll[${callId}] data: ${data.songs.length} songs, pendingBodies=${pendingBodies}, hasConfig=${!!data.config}`);
-            songs = data.songs.map(normalizeSongRecord);
-            bootstrapMeta = data.bootstrap;
-            appConfig = data.config ? normalizeAppConfig(data.config) : null;
-            if (data.setlists) {
+            const errors = data.errors || {};
+            const errorEntries = Object.entries(errors);
+            dbg(
+                `reloadAll[${callId}] data: ${data.songs?.length ?? "—"} songs, pendingBodies=${pendingBodies}, hasConfig=${!!data.config}, errors=${errorEntries.length}`,
+            );
+            // Apply each slice only when its load actually succeeded. A
+            // rejected slice leaves the prior in-memory value intact rather
+            // than blanking the UI — partial offline-first loads are the
+            // whole point of allSettled. `data.<slice>` is undefined when
+            // that slice rejected.
+            if (data.songs !== undefined) {
+                songs = data.songs.map(normalizeSongRecord);
+            }
+            if (!errors.bootstrap) {
+                bootstrapMeta = data.bootstrap;
+            }
+            if (!errors.config) {
+                appConfig = data.config ? normalizeAppConfig(data.config) : null;
+            }
+            if (data.setlists !== undefined) {
                 savedSetlists = stripEnergy(data.setlists);
             }
-            if (data.members) {
+            if (data.members !== undefined) {
                 bandMembers = Object.fromEntries(
-                    Object.entries(data.members).map(([name, data]) => [name, normalizeMemberRecord(data)])
+                    Object.entries(data.members).map(([name, data]) => [name, normalizeMemberRecord(data)]),
                 );
             }
 
-            if (!appConfig) {
+            // Surface partial-failure warnings without short-circuiting. We
+            // skip a toast for `bootstrap` because the metadata is already
+            // optional (callers treat missing bootstrap as "none yet").
+            for (const [slice, error] of errorEntries) {
+                pushSyncLog(`Could not load ${slice}: ${error.message}`);
+                if (slice === "bootstrap") continue;
+                if (!quiet) toastWarn(`Couldn't load ${slice} — keeping last known data.`);
+            }
+
+            // First-run prompt: only when we *know* the config is truly
+            // absent (the slice loaded successfully and returned null), not
+            // when the config slice failed and we kept the previous value.
+            // Without this guard a transient config read failure would push
+            // a returning user into first-run, risking a duplicate config.
+            if (!errors.config && !appConfig) {
                 firstRunBandName = "";
                 navigate("roll");
                 generationOptions = defaultGenerationOptions(DEFAULT_APP_CONFIG);
@@ -1010,9 +1039,11 @@ export function createAppStore(repo) {
                 return;
             }
 
-            generationOptions = deepMerge(defaultGenerationOptions(appConfig), generationOptions || {});
-            persistGenerationOptions();
-            scheduleSnapshot();
+            if (appConfig) {
+                generationOptions = deepMerge(defaultGenerationOptions(appConfig), generationOptions || {});
+                persistGenerationOptions();
+                scheduleSnapshot();
+            }
             pushSyncLog("Initial data load finished");
         } catch (error) {
             loadError = error?.message || "Could not load remote data.";
@@ -1782,8 +1813,16 @@ export function createAppStore(repo) {
         const data = bandMembers[oldName] || { instruments: [] };
         try {
             await withSync("Renaming member", async () => {
-                await repo.deleteMember(oldName);
+                // Put the new key first so a failure leaves the original
+                // member intact — songs that reference `oldName` still
+                // resolve. If we deleted first and the put failed, the old
+                // key would be gone and any catalog references would be
+                // orphaned. The reverse failure mode (put succeeds, delete
+                // fails) leaves a temporary duplicate that resolves on the
+                // next sync; the in-memory mutation below removes the old
+                // entry locally so the UI shows the rename immediately.
                 await repo.putMember(clean, data);
+                await repo.deleteMember(oldName);
             });
             const next = { ...bandMembers };
             delete next[oldName];
