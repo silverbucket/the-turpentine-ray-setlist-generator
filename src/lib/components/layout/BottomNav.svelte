@@ -19,7 +19,7 @@
       class:active={store.activeView === tab.id}
       onclick={() => store.navigate(tab.id)}
     >
-      <span class="tab-icon">{tab.icon}</span>
+      <span class="tab-icon" aria-hidden="true">{tab.icon}</span>
       <span class="tab-label">{tab.label}</span>
     </button>
   {/each}

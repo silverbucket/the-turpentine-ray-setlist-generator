@@ -1,10 +1,12 @@
 <script>
-  import { getContext } from "svelte";
+  import { getContext, tick } from "svelte";
   import { cycleTheme, getThemePreference } from "../../theme.svelte.js";
 
   const store = getContext("app");
 
   let menuOpen = $state(false);
+  let menuBtnEl = $state();
+  let dropdownEl = $state();
   const themeLabel = { system: "◐ System", light: "☀ Light", dark: "☽ Dark" };
 
   function toggleMenu() {
@@ -45,11 +47,75 @@
     store.connectAddress = "";
     store.disconnectStorage();
   }
+
+  // Focusable items inside the dropdown — used for the Tab cycle and for
+  // moving initial focus into the menu when it opens.
+  function getFocusableElements() {
+    if (!dropdownEl) return [];
+    return [
+      ...dropdownEl.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ];
+  }
+
+  function handleMenuKeydown(e) {
+    if (!menuOpen) return;
+
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeMenu();
+      // Return focus to the trigger so keyboard users land somewhere sensible.
+      menuBtnEl?.focus();
+      return;
+    }
+
+    if (e.key === "Tab") {
+      const focusable = getFocusableElements();
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (!dropdownEl?.contains(active)) {
+        e.preventDefault();
+        first.focus();
+        return;
+      }
+
+      if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }
+
+  // Wire up keyboard handling and initial focus while the menu is open.
+  $effect(() => {
+    if (!menuOpen) return;
+
+    window.addEventListener("keydown", handleMenuKeydown);
+
+    tick().then(() => {
+      if (!menuOpen) return;
+      const focusable = getFocusableElements();
+      if (focusable.length > 0) focusable[0].focus();
+    });
+
+    return () => {
+      window.removeEventListener("keydown", handleMenuKeydown);
+    };
+  });
 </script>
 
 {#if menuOpen}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="menu-backdrop" onclick={closeMenu} onkeydown={() => {}}></div>
+  <div class="menu-backdrop" onclick={closeMenu}></div>
 {/if}
 
 <header class="top-bar">
@@ -70,12 +136,20 @@
   <div class="right">
 
     <div class="menu-wrapper">
-      <button type="button" class="menu-btn" onclick={toggleMenu} aria-label="Menu">
+      <button
+        type="button"
+        class="menu-btn"
+        bind:this={menuBtnEl}
+        onclick={toggleMenu}
+        aria-label="Menu"
+        aria-haspopup="true"
+        aria-expanded={menuOpen}
+      >
         &middot;&middot;&middot;
       </button>
 
       {#if menuOpen}
-        <div class="dropdown">
+        <div class="dropdown" bind:this={dropdownEl}>
           {#if currentAccount}
             <div class="dropdown-current">
               <span class="active-dot"></span>
