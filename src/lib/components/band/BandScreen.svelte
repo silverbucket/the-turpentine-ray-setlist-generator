@@ -640,7 +640,8 @@
     .text-input.small {
         min-height: 2.2rem;
         padding: 0.4rem 0.7rem;
-        font-size: 0.85rem;
+        /* iOS zooms inputs <16px on focus — keep at 16px to prevent zoom. */
+        font-size: 16px;
     }
 
     .select-input {
@@ -649,7 +650,8 @@
         border-radius: var(--radius-md, 16px);
         border: 1px solid var(--line, rgba(27, 49, 80, 0.12));
         background: var(--surface);
-        font-size: 0.9rem;
+        /* iOS zooms selects <16px on focus — keep at 16px to prevent zoom. */
+        font-size: 16px;
         font-weight: 600;
         color: var(--ink, #182230);
         cursor: pointer;
