@@ -12,9 +12,20 @@
     import { createAppStore } from "./lib/stores/app.svelte.js";
     import { DEFAULT_DIE_COLOR, darkenHex, hexToRgb, hexToRgba } from "./lib/utils.js";
 
-    const repo = createRemoteStorageRepository();
+    // Test escape hatch: tests inject a fake in-memory repo via window
+    // before the app boots. Production code path is unchanged.
+    const repo =
+        (typeof window !== "undefined" && typeof window.__SR_TEST_REPO_FACTORY__ === "function"
+            ? window.__SR_TEST_REPO_FACTORY__()
+            : null) || createRemoteStorageRepository();
     const store = createAppStore(repo);
     setContext("app", store);
+
+    if (typeof window !== "undefined" && window.__SR_TEST__) {
+        // Expose store to tests for state-based assertions and seeding helpers.
+        window.__SR_STORE__ = store;
+        window.__SR_REPO__ = repo;
+    }
 
     onMount(() => {
         return store.init();

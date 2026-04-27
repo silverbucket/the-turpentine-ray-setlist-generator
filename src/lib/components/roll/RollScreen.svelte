@@ -968,7 +968,8 @@
     border: 1px solid var(--line);
     border-radius: var(--radius-md, 12px);
     background: var(--surface);
-    font-size: 0.85rem;
+    /* iOS zooms inputs <16px on focus — keep at 16px to prevent zoom. */
+    font-size: 16px;
     font-weight: 600;
     -moz-appearance: textfield;
   }
@@ -1256,7 +1257,8 @@
     padding: 0.5rem 0.75rem;
     border: 1px solid var(--line, rgba(27, 49, 80, 0.12));
     border-radius: var(--radius-md, 12px);
-    font-size: 0.88rem;
+    /* iOS zooms inputs <16px on focus — keep at 16px to prevent zoom. */
+    font-size: 16px;
     outline: none;
     box-sizing: border-box;
   }

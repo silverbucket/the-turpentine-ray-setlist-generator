@@ -8,7 +8,6 @@ import { migrator } from "../migrations.js";
 import { clone, deepMerge, formatDelimitedList, getByPath, nowIso, parseDelimitedList, setByPath, titleForBand, tryParseJson, uid } from "../utils.js";
 
 const STORAGE_PREFIX = "setlist-roller";
-const MAX_SAVED_SETS = 5;
 
 // Toast tone vocabulary. Values are the CSS class names that style the pill;
 // callers go through the typed toastInfo/toastWarn/toastError helpers so a
@@ -87,6 +86,35 @@ export function createAppStore(repo) {
     // a single failed swap would lock out future swap attempts via the
     // `isSwitching` re-entry guard.
     let switchingWatchdog = null;
+    // Post-swap "straggler" guard. Even after `connected` fires for the new
+    // account and we release `isSwitching`, rs.js can still emit the OLD
+    // account's `disconnected` event a moment later — it was queued behind
+    // repo.swap()'s 3 s safety timeout, which sometimes lets the swap
+    // promise resolve before the underlying disconnect actually finishes.
+    // Without this flag, the late event takes the wipe path against the
+    // newly-connected account. We arm it at swap entry, leave it set across
+    // the `connected` boundary, and let either the late disconnect itself
+    // or a 5 s timeout consume it (5 s is generous vs swap()'s 3 s, but
+    // small enough that a real user-initiated disconnect right after a
+    // swap isn't accidentally swallowed).
+    let pendingSwapDisconnect = false;
+    let pendingSwapDisconnectTimer = null;
+    function expectSwapDisconnect() {
+        pendingSwapDisconnect = true;
+        if (pendingSwapDisconnectTimer) clearTimeout(pendingSwapDisconnectTimer);
+        pendingSwapDisconnectTimer = setTimeout(() => {
+            pendingSwapDisconnectTimer = null;
+            pendingSwapDisconnect = false;
+        }, 5000);
+    }
+    function consumePendingSwapDisconnect() {
+        if (!pendingSwapDisconnect && !pendingSwapDisconnectTimer) return;
+        pendingSwapDisconnect = false;
+        if (pendingSwapDisconnectTimer) {
+            clearTimeout(pendingSwapDisconnectTimer);
+            pendingSwapDisconnectTimer = null;
+        }
+    }
     function releaseSwitching(reason) {
         if (!isSwitching && !switchingWatchdog) return;
         isSwitching = false;
@@ -125,7 +153,6 @@ export function createAppStore(repo) {
     let loadError = $state("");
     let busyMessage = $state("");
     let toastMessages = $state([]);
-    let showFirstRunPrompt = $state(false);
     let initialSyncComplete = $state(false);
     let firstRunBandName = $state("");
 
@@ -216,6 +243,19 @@ export function createAppStore(repo) {
 
     // ---- derived ----
     let appTitle = $derived(titleForBand(appConfig?.bandName));
+    // First-run modal visibility is derived, not stored. Tying it to the
+    // connection state (rather than scattering imperative `showFirstRunPrompt
+    // = true/false` writes across reloadAll, restoreSnapshot, deleteAllData,
+    // finishFirstRun, and the disconnected handler) prevents a class of drift
+    // bugs where a partial auth failure leaves the modal visible after
+    // connectionStatus has already flipped back to "disconnected" — which
+    // surfaced as the user seeing the band-name prompt instead of the login
+    // page after a failed authorization. The modal only makes sense when
+    // we're actually connected, the initial sync has landed, and there's no
+    // appConfig yet — so encode exactly that.
+    let showFirstRunPrompt = $derived(
+        connectionStatus === "connected" && initialSyncComplete && !appConfig,
+    );
     let emptyCatalog = $derived(connectionStatus === "connected" && songs.length === 0);
     let bandMemberEntries = $derived(
         Object.entries(bandMembers || {}).sort(([a], [b]) => a.localeCompare(b))
@@ -765,13 +805,33 @@ export function createAppStore(repo) {
         if (switchingWatchdog) clearTimeout(switchingWatchdog);
         switchingWatchdog = setTimeout(() => {
             switchingWatchdog = null;
-            if (isSwitching) {
-                isSwitching = false;
-                pushSyncLog("Swap watchdog: released isSwitching after 15s");
-            }
+            if (!isSwitching) return;
+            // Full reset — the re-entry guard at the top of connectToAccount
+            // checks BOTH isSwitching AND connectionStatus === "connecting",
+            // so just clearing isSwitching would leave the user locked out
+            // of retrying. Drop everything back to a clean disconnected
+            // state and surface the failure so they know what happened.
+            isSwitching = false;
+            consumePendingSwapDisconnect();
+            connectionStatus = "disconnected";
+            setSyncState("error");
+            loadError = "Account swap timed out. Try again.";
+            toastError(loadError);
+            pushSyncLog("Swap watchdog: released after 15s — neither connected nor error fired");
         }, 15000);
         try {
             if (repo.isConnected()) {
+                // rs.js will fire `disconnected` (for the old account) and
+                // then `connected` (for the new). Usually the disconnect
+                // lands first while isSwitching is true. But repo.swap()
+                // resolves via a 3 s safety timeout that doesn't wait for
+                // the underlying disconnect to actually fire, so the OLD
+                // account's `disconnected` can arrive AFTER the new
+                // account's `connected` — by which point isSwitching has
+                // already been released. Arm the straggler guard so that
+                // out-of-order late disconnect is swallowed instead of
+                // taking the wipe path against the new account.
+                expectSwapDisconnect();
                 await repo.swap(address, savedToken);
             } else {
                 // Not connected — straight connect, no swap dance needed.
@@ -781,6 +841,7 @@ export function createAppStore(repo) {
         } catch (error) {
             toastError(error?.message || "Could not switch accounts.");
             connectionStatus = "disconnected";
+            consumePendingSwapDisconnect();
             releaseSwitching("swap threw");
         }
     }
@@ -834,7 +895,6 @@ export function createAppStore(repo) {
             bandMembers = Object.fromEntries(
                 Object.entries(data.members || {}).map(([name, d]) => [name, normalizeMemberRecord(d)])
             );
-            showFirstRunPrompt = false;
             // generationOptions is intentionally not touched here:
             // currentUserAddress still points at the previous account. The
             // caller sets it after this returns, then loadUserLocalData()
@@ -899,7 +959,6 @@ export function createAppStore(repo) {
             }
 
             if (!appConfig) {
-                showFirstRunPrompt = true;
                 firstRunBandName = "";
                 navigate("roll");
                 generationOptions = defaultGenerationOptions(DEFAULT_APP_CONFIG);
@@ -907,7 +966,6 @@ export function createAppStore(repo) {
                 return;
             }
 
-            showFirstRunPrompt = false;
             generationOptions = deepMerge(defaultGenerationOptions(appConfig), generationOptions || {});
             persistGenerationOptions();
             scheduleSnapshot();
@@ -943,7 +1001,6 @@ export function createAppStore(repo) {
             appConfig = await withSync("Setting up", () => repo.ensureConfig(bandName));
             generationOptions = defaultGenerationOptions(appConfig);
             persistGenerationOptions();
-            showFirstRunPrompt = false;
             toastInfo(`Welcome, ${bandName}.`);
         } catch (error) {
             toastError(error?.message || "Could not save your band name.");
@@ -1179,12 +1236,8 @@ export function createAppStore(repo) {
             songCount: generatedSetlist.songs.length
         };
         try {
-            // Enforce limit: remove oldest if at max
-            if (currentSaved.length >= MAX_SAVED_SETS) {
-                await repo.deleteSetlist(currentSaved[currentSaved.length - 1].id);
-            }
             await withSync("Saving setlist", () => repo.putSetlist(entry));
-            savedSetlists = [entry, ...currentSaved].slice(0, MAX_SAVED_SETS);
+            savedSetlists = [entry, ...currentSaved];
             setlistSaved = true;
             loadedSavedId = entry.id;
         } catch (error) {
@@ -1555,8 +1608,9 @@ export function createAppStore(repo) {
             bandMembers = {};
             persistCurrentSetlist();
             if (editorSong) closeEditor();
-            // Trigger first-run experience
-            showFirstRunPrompt = true;
+            // Trigger first-run experience: with appConfig now null and the
+            // session still connected/synced, the derived showFirstRunPrompt
+            // will evaluate to true and the modal will render.
             firstRunBandName = "";
             navigate("roll");
             generationOptions = defaultGenerationOptions(DEFAULT_APP_CONFIG);
@@ -1961,7 +2015,7 @@ export function createAppStore(repo) {
                 }
                 // Import setlists
                 if (imported.savedSetlists && imported.savedSetlists.length > 0) {
-                    for (const entry of imported.savedSetlists.slice(0, MAX_SAVED_SETS)) {
+                    for (const entry of imported.savedSetlists) {
                         await repo.putSetlist(migrator.migrateDocument("setlists", entry));
                     }
                 }
@@ -2030,9 +2084,7 @@ export function createAppStore(repo) {
                 if (localSets.length > 0) {
                     // Normalize via rs-migrate before uploading
                     const remoteIds = new Set(savedSetlists.map((s) => s.id));
-                    const toMigrate = localSets
-                        .filter((s) => !remoteIds.has(s.id))
-                        .slice(0, MAX_SAVED_SETS - savedSetlists.length);
+                    const toMigrate = localSets.filter((s) => !remoteIds.has(s.id));
                     for (const entry of toMigrate) {
                         const normalized = migrator.migrateDocument("setlists", entry);
                         await repo.putSetlist(normalized);
@@ -2189,7 +2241,24 @@ export function createAppStore(repo) {
             // Don't wipe state — the snapshot we restored stays visible until
             // the next `connected` event fills in real data.
             if (isSwitching) {
+                // Consume the straggler flag too: the in-window disconnect
+                // satisfies the expectation set by expectSwapDisconnect(),
+                // and we don't want a stale flag living past this point.
+                consumePendingSwapDisconnect();
                 pushSyncLog("Disconnected (switching accounts)");
+                return;
+            }
+            // Post-swap straggler: rs.js's old-account `disconnected` event
+            // can arrive AFTER the new account's `connected` because
+            // repo.swap() resolves via a 3 s safety timeout that doesn't
+            // wait for the underlying disconnect to actually finish. By the
+            // time this lands, isSwitching has already been released by the
+            // connected handler — but we still need to skip the wipe, since
+            // it's the OLD account telling us about itself. The straggler
+            // flag was armed at swap entry exactly for this case.
+            if (pendingSwapDisconnect) {
+                consumePendingSwapDisconnect();
+                pushSyncLog("Disconnected (post-swap straggler from old account — ignored)");
                 return;
             }
             terminateWorker();
@@ -2217,7 +2286,6 @@ export function createAppStore(repo) {
             setlistSaved = false;
             savedSetlists = [];
             bandMembers = {};
-            showFirstRunPrompt = false;
             initialSyncComplete = false;
             selectedSongId = "";
             editorSong = null;
@@ -2244,8 +2312,13 @@ export function createAppStore(repo) {
             if (fatal) {
                 // If we're mid-swap, release the guard so the upcoming
                 // `disconnected` event runs the wipe instead of being
-                // swallowed by the swap-in-progress check.
+                // swallowed by the swap-in-progress check. Also consume
+                // the straggler flag — otherwise repo.disconnect() below
+                // would land a `disconnected` event that gets eaten by
+                // the post-swap branch instead of running the wipe we
+                // want for a fatal auth failure.
                 releaseSwitching("fatal error during swap");
+                consumePendingSwapDisconnect();
                 repo.disconnect();
             }
         });
@@ -2277,6 +2350,7 @@ export function createAppStore(repo) {
             if (syncStateTimer) clearTimeout(syncStateTimer);
             if (syncFlipTimer) clearTimeout(syncFlipTimer);
             if (switchingWatchdog) clearTimeout(switchingWatchdog);
+            if (pendingSwapDisconnectTimer) clearTimeout(pendingSwapDisconnectTimer);
             detachConnecting();
             detachAuthing();
             detachStandaloneRedirect();

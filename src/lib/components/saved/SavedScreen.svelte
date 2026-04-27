@@ -451,7 +451,8 @@
     border: 1px solid var(--line-strong);
     border-radius: var(--radius-md, 12px);
     background: var(--paper-strong);
-    font-size: 0.85rem;
+    /* iOS zooms inputs <16px on focus — keep at 16px to prevent zoom. */
+    font-size: 16px;
     font-weight: 600;
     color: var(--ink, #182230);
   }
@@ -463,7 +464,6 @@
   }
 
   .edit-input.date {
-    font-size: 0.8rem;
     color: var(--muted, #617086);
   }
 

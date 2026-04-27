@@ -1,0 +1,42 @@
+# Project rules
+
+Notes for anyone (human or AI) writing code in this repo.
+
+## CSS / UI
+
+### Inputs must never be smaller than 16px on iOS
+
+iOS Safari auto-zooms when you focus an `<input>`, `<select>`, or `<textarea>`
+whose computed `font-size` is below 16px, and it does **not** zoom back out
+cleanly afterwards. The user is left with a permanently magnified app until
+they pinch-out manually.
+
+**Rule:** every focusable text-style control must have a computed
+`font-size >= 16px`. This applies to:
+
+- `<input>` (text, search, email, url, tel, number, password, date, time, etc.)
+- `<select>`
+- `<textarea>`
+- Anything with `contenteditable`
+
+Range, checkbox, radio, file, color, button, submit, reset inputs do **not**
+trigger the zoom and can be smaller — but it's safest to default to 16px and
+only step down when you have a clear visual reason.
+
+**How:**
+
+- The base rule lives in `src/app.css`:
+  ```css
+  input, select, textarea { font-size: 16px; }
+  ```
+- Don't override it lower in component styles. If you must change the size,
+  keep it `>= 16px` and add a comment noting why.
+- Prefer `font-size: 16px` over `1rem`. If we ever change the root font-size,
+  rem-based controls drift below 16px silently.
+- Visually-hidden checkboxes inside custom chip/toggle components are exempt
+  (they never receive direct focus that triggers zoom), but the visible label
+  text still follows normal type rules.
+
+When adding a new input, take 30 seconds to confirm the rendered size in
+DevTools' computed styles panel. The bug is silent on desktop and only shows
+up the first time someone opens the app on an actual iPhone.
