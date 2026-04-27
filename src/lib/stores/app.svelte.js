@@ -28,6 +28,19 @@ export function normalizeAuthToken(token) {
     return typeof token === "string" && token.length > 0 ? token : undefined;
 }
 
+// Sanity-check a remoteStorage address before handing it to webfinger
+// discovery. Accepts either `user@host.tld` or a bare `host.tld`. We
+// can't validate that the host actually serves remoteStorage without a
+// network round-trip — this just rejects obvious typos so the user
+// gets immediate feedback instead of a 1–3 s spinner ending in a
+// confusing rs.js error.
+const CONNECT_ADDRESS_RE = /^([^\s@]+@)?[^\s@.]+\.[^\s@]+$/;
+
+export function isValidConnectAddress(address) {
+    if (typeof address !== "string") return false;
+    return CONNECT_ADDRESS_RE.test(address.trim());
+}
+
 export function syncSavedSongIntoSetlist(setlist, savedSong, appConfig, keyFlow = false) {
     if (!setlist?.songs?.length || !savedSong?.id) return setlist;
 
@@ -172,6 +185,10 @@ export function createAppStore(repo) {
     // Count of in-flight reloadAll calls. We can't mark "synced" while any
     // reload is mid-flight.
     let reloadInFlight = 0;
+    // Bumped when manual recovery abandons a stalled reload. Late completions
+    // from older epochs are still stale via reloadGen, and should not touch
+    // in-flight accounting for the fresh retry.
+    let reloadEpoch = 0;
     // Monotonic counter incremented on every reloadAll START. After a reload
     // completes, it only applies its results if its captured generation is
     // still the latest — older concurrent reloads (which captured an emptier
@@ -213,6 +230,15 @@ export function createAppStore(repo) {
     // Tracks whether we've ever flipped to "synced" since the last
     // (re)connect. Used to drive the one-time syncInterval relaxation.
     let initialSyncSettled = false;
+    // Watchdog for stalled reloads. If reloadAll runs longer than
+    // SYNC_STALL_TIMEOUT_MS (15 s) — flaky network, rs.js stuck mid-pull —
+    // surface a Retry / Disconnect CTA in the sync-shell so the user
+    // isn't trapped on a spinner. The init flow already has its own 10 s
+    // pending → disconnected fallback (init() below); this covers the
+    // gap once the connection has succeeded but the data load hangs.
+    const SYNC_STALL_TIMEOUT_MS = 15000;
+    let syncStalled = $state(false);
+    let syncStalledTimer = null;
 
     // ---- generation options (loaded properly on connect via loadUserLocalData) ----
     let generationOptions = $state(defaultGenerationOptions(DEFAULT_APP_CONFIG));
@@ -703,8 +729,15 @@ export function createAppStore(repo) {
 
     // ---- connection ----
     function connectStorage(token) {
-        if (!connectAddress.trim()) {
+        const trimmed = connectAddress.trim();
+        if (!trimmed) {
             toastError("Put in a remoteStorage address first.");
+            return;
+        }
+        if (!isValidConnectAddress(trimmed)) {
+            // Inline error — webfinger would otherwise spin 1–3 s before
+            // reporting a confusing DiscoveryError.
+            loadError = "That doesn't look like a remoteStorage address. Try user@host or host.tld.";
             return;
         }
         const normalizedToken = normalizeAuthToken(token);
@@ -712,8 +745,8 @@ export function createAppStore(repo) {
         connectionStatus = "connecting";
         loadError = "";
         syncStatusLabel = "Connecting to remoteStorage";
-        pushSyncLog(`Connecting to ${connectAddress.trim()}`);
-        repo.connect(connectAddress.trim(), normalizedToken);
+        pushSyncLog(`Connecting to ${trimmed}`);
+        repo.connect(trimmed, normalizedToken);
     }
 
     function disconnectStorage() {
@@ -906,6 +939,7 @@ export function createAppStore(repo) {
     // ---- data loading ----
     async function reloadAll({ quiet = false, session = activeSession } = {}) {
         const callId = Math.random().toString(36).slice(2, 6);
+        const myEpoch = reloadEpoch;
         // Capture this reload's generation. By the time we return, a newer
         // reload may have started; if so, that newer one captured a more
         // recent cache snapshot and ours is stale. We discard our results
@@ -919,6 +953,16 @@ export function createAppStore(repo) {
         bumpSyncActivity("reloadAll start");
         setSyncState("syncing");
         reloadInFlight += 1;
+        // Re-arm the stall watchdog. Cleared in `finally`, so each reload
+        // gets its own fresh window — long-running rs.js streams that
+        // emit progress through onChange (which kicks a new reload) keep
+        // resetting the timer instead of falsely tripping it.
+        if (syncStalledTimer) clearTimeout(syncStalledTimer);
+        syncStalled = false;
+        syncStalledTimer = setTimeout(() => {
+            syncStalledTimer = null;
+            if (reloadInFlight > 0) syncStalled = true;
+        }, SYNC_STALL_TIMEOUT_MS);
         try {
             busyMessage = quiet ? "" : "Loading your songs...";
             loadError = "";
@@ -978,16 +1022,45 @@ export function createAppStore(repo) {
             // the live session will resolve its own state.
             if (session === activeSession) setSyncState("error");
         } finally {
-            reloadInFlight = Math.max(0, reloadInFlight - 1);
-            busyMessage = "";
-            initialSyncComplete = true;
+            if (myEpoch === reloadEpoch) {
+                reloadInFlight = Math.max(0, reloadInFlight - 1);
+                busyMessage = "";
+                initialSyncComplete = true;
+                // Only the last in-flight reload should clear the watchdog —
+                // a fast one finishing while a slow one is still pulling
+                // shouldn't drop the stall guard.
+                if (reloadInFlight === 0) {
+                    if (syncStalledTimer) clearTimeout(syncStalledTimer);
+                    syncStalledTimer = null;
+                    syncStalled = false;
+                }
+            } else {
+                dbg(`reloadAll[${callId}] ignored stale epoch ${myEpoch} (current=${reloadEpoch})`);
+            }
             dbg(`reloadAll[${callId}] END gen=${myGen} songs=${songs.length} pending=${pendingBodies} reloadInFlight=${reloadInFlight}`);
             // Try to resolve the pill. Falls through silently if any of the
             // gates (pending bodies, in-flight reloads, sync round) aren't
             // satisfied yet — a later reload (triggered by an onChange when
             // the next body arrives) will check again.
-            if (session === activeSession) maybeMarkSynced();
+            if (session === activeSession && myEpoch === reloadEpoch) maybeMarkSynced();
         }
+    }
+
+    // Manual recovery for the stall watchdog. Invoked from the sync-shell's
+    // Retry button. We don't try to abort a stuck rs.js operation; instead
+    // we retire it from our accounting and start a fresh reload. If the
+    // underlying load finally resolves, its generation/epoch guards keep it
+    // from applying stale data or blocking the retry.
+    async function retrySync() {
+        reloadEpoch += 1;
+        reloadInFlight = 0;
+        syncStalled = false;
+        if (syncStalledTimer) {
+            clearTimeout(syncStalledTimer);
+            syncStalledTimer = null;
+        }
+        pushSyncLog("User triggered retry");
+        await reloadAll({ quiet: true });
     }
 
     async function finishFirstRun() {
@@ -2268,6 +2341,9 @@ export function createAppStore(repo) {
             pendingBodies = 0;
             syncRoundCompleted = false;
             initialSyncSettled = false;
+            if (syncStalledTimer) clearTimeout(syncStalledTimer);
+            syncStalledTimer = null;
+            syncStalled = false;
             bumpSyncActivity("disconnected");
             // Reset the pill's high-level state too. Without this, a
             // disconnect mid-bootstrap (or mid-swap that fell through the
@@ -2349,6 +2425,7 @@ export function createAppStore(repo) {
             if (syncIndicatorTimer) clearTimeout(syncIndicatorTimer);
             if (syncStateTimer) clearTimeout(syncStateTimer);
             if (syncFlipTimer) clearTimeout(syncFlipTimer);
+            if (syncStalledTimer) clearTimeout(syncStalledTimer);
             if (switchingWatchdog) clearTimeout(switchingWatchdog);
             if (pendingSwapDisconnectTimer) clearTimeout(pendingSwapDisconnectTimer);
             detachConnecting();
@@ -2395,6 +2472,8 @@ export function createAppStore(repo) {
         get syncActivelyRunning() { return syncActiveCount > 0; },
         get syncState() { return syncState; },
         get syncLogEntries() { return syncLogEntries; },
+        get syncStalled() { return syncStalled; },
+        retrySync,
         get generationOptions() { return generationOptions; },
         get editorSong() { return editorSong; },
         get selectedSongId() { return selectedSongId; },
