@@ -100,7 +100,7 @@
                 />
             </label>
 
-            <button type="button" class="btn primary" onclick={() => store.connectStorage()} disabled={store.connectionStatus === "connecting"}>
+            <button type="button" class="btn primary" onclick={() => store.connectStorage()} disabled={store.connectionStatus === "connecting" || !store.connectAddress.trim()}>
                 {store.connectionStatus === "connecting" ? "Connecting..." : "Connect"}
             </button>
 
@@ -146,6 +146,15 @@
                             <span>{entry.message}</span>
                         </div>
                     {/each}
+                </div>
+            {/if}
+            {#if store.syncStalled}
+                <div class="sync-recovery" role="alert">
+                    <p class="sync-recovery-text">This is taking longer than usual. The remote storage may be slow or unreachable.</p>
+                    <div class="sync-recovery-actions">
+                        <button type="button" class="btn primary" onclick={() => store.retrySync()}>Retry</button>
+                        <button type="button" class="btn" onclick={() => store.disconnectStorage()}>Disconnect</button>
+                    </div>
                 </div>
             {/if}
         </div>
@@ -323,6 +332,30 @@
         white-space: nowrap;
     }
 
+    .sync-recovery {
+        width: 100%;
+        display: grid;
+        gap: var(--space-3);
+        padding: var(--space-3);
+        border-radius: var(--radius-lg);
+        background: var(--paper-strong);
+        border: 1px solid var(--line);
+        text-align: center;
+    }
+
+    .sync-recovery-text {
+        margin: 0;
+        font-size: 0.85rem;
+        color: var(--muted);
+    }
+
+    .sync-recovery-actions {
+        display: flex;
+        gap: var(--space-2);
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
     @keyframes pulse-fade {
         0%, 100% { transform: scale(1); }
         50% { transform: scale(1.06); }
@@ -445,6 +478,11 @@
 
     .recent-account-btn {
         flex: 1;
+        /* min-width: 0 lets the flex item shrink below its content's intrinsic
+           width so a long .recent-address can be ellipsised instead of pushing
+           the row past the card. */
+        min-width: 0;
+        overflow: hidden;
         display: grid;
         gap: 0.15rem;
         padding: 0.6rem 0.75rem;
@@ -469,7 +507,9 @@
     .recent-address {
         font-size: 0.75rem;
         color: var(--muted);
-        word-break: break-all;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .recent-forget {
