@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
     accountSlot,
+    consumeKnownAccountsCorrupted,
     getAccountToken,
     getKnownAccounts,
     getKnownAccountsRaw,
@@ -151,8 +152,17 @@ describe("getKnownAccounts", () => {
     });
 
     it("returns empty array for corrupted localStorage", () => {
+        // Drain any leaked corruption flag from a prior test before asserting.
+        consumeKnownAccountsCorrupted();
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
         store[KNOWN_ACCOUNTS_KEY] = "not-json{{{";
         expect(getKnownAccounts()).toEqual([]);
+        // Corrupt blob is dropped so subsequent reads don't keep failing.
+        expect(store[KNOWN_ACCOUNTS_KEY]).toBeUndefined();
+        // Corruption flag is set for the app to surface a one-time toast.
+        expect(consumeKnownAccountsCorrupted()).toBe(true);
+        // The dev warning fires via console.warn.
+        expect(warnSpy).toHaveBeenCalled();
     });
 
     it("sorts by lastUsed descending", () => {
@@ -236,5 +246,33 @@ describe("removeKnownAccountEntry", () => {
         saveKnownAccount("alice@example.com", { bandName: "Band A" }, "tok_a");
         removeKnownAccountEntry("alice@example.com");
         expect(getKnownAccountsRaw()).toEqual([]);
+    });
+});
+
+// ===================================================================
+// consumeKnownAccountsCorrupted
+// ===================================================================
+describe("consumeKnownAccountsCorrupted", () => {
+    beforeEach(() => {
+        // Reset the module-level flag from any prior test that triggered it.
+        consumeKnownAccountsCorrupted();
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+    });
+
+    it("returns false when no corruption has been detected", () => {
+        expect(consumeKnownAccountsCorrupted()).toBe(false);
+    });
+
+    it("returns true exactly once after a corrupt registry read", () => {
+        store[KNOWN_ACCOUNTS_KEY] = "{not json";
+        getKnownAccountsRaw();
+        expect(consumeKnownAccountsCorrupted()).toBe(true);
+        // Subsequent calls return false until corruption happens again.
+        expect(consumeKnownAccountsCorrupted()).toBe(false);
+    });
+
+    it("does not flag a missing or empty registry as corrupt", () => {
+        getKnownAccountsRaw(); // missing entirely
+        expect(consumeKnownAccountsCorrupted()).toBe(false);
     });
 });

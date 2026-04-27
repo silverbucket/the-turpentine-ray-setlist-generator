@@ -48,16 +48,44 @@ function pruneMetadata(metadata) {
     return result;
 }
 
+// Set true the first time we encounter a corrupt accounts blob in this
+// session. The app polls this from `consumeKnownAccountsCorrupted()` at
+// startup so it can show a one-time toast — the registry itself can't
+// surface UI directly.
+let knownAccountsCorrupted = false;
+
+/** Returns true once if the registry was found corrupt since the last call. */
+export function consumeKnownAccountsCorrupted() {
+    if (!knownAccountsCorrupted) return false;
+    knownAccountsCorrupted = false;
+    return true;
+}
+
 export function getKnownAccountsRaw() {
     if (typeof localStorage === "undefined") return [];
+    const raw = localStorage.getItem(KNOWN_ACCOUNTS_KEY);
+    if (!raw) return [];
     try {
-        const raw = localStorage.getItem(KNOWN_ACCOUNTS_KEY);
-        const list = raw ? JSON.parse(raw) : [];
+        const list = JSON.parse(raw);
         return list
             .map(normalizeEntry)
             .filter(Boolean)
             .sort((a, b) => (b.lastUsed || "").localeCompare(a.lastUsed || ""));
-    } catch {
+    } catch (error) {
+        // Corrupt blob — could be a partial write or a foreign value. Drop it
+        // so subsequent reads don't keep failing, and flag for the app to
+        // surface a one-time toast.
+        if (import.meta.env?.DEV) {
+            console.warn("[accounts] could not parse known-accounts registry; dropping corrupt blob", error);
+        }
+        try {
+            localStorage.removeItem(KNOWN_ACCOUNTS_KEY);
+        } catch (_removeError) {
+            if (import.meta.env?.DEV) {
+                console.warn("[accounts] removeItem of corrupt registry also failed", _removeError);
+            }
+        }
+        knownAccountsCorrupted = true;
         return [];
     }
 }
