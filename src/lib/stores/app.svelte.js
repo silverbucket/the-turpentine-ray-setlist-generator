@@ -9,6 +9,20 @@ import { clone, deepMerge, formatDelimitedList, getByPath, nowIso, parseDelimite
 
 const STORAGE_PREFIX = "setlist-roller";
 
+// Toast tone vocabulary. Values are the CSS class names that style the pill;
+// callers go through the typed toastInfo/toastWarn/toastError helpers so a
+// typo can't silently fall back to the default style.
+const TOAST_TONE = Object.freeze({
+    INFO: "info",
+    WARN: "warning",
+    DANGER: "danger",
+});
+const VALID_TOAST_TONES = new Set(Object.values(TOAST_TONE));
+// Stack cap. New toasts past this drop the oldest so each one is visible.
+const MAX_TOASTS = 3;
+// Danger gets a longer dwell so multi-line error messages can actually be read.
+const TOAST_DURATION_MS = { default: 6000, danger: 12000 };
+
 function randomFrom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 export function normalizeAuthToken(token) {
     return typeof token === "string" && token.length > 0 ? token : undefined;
@@ -483,14 +497,22 @@ export function createAppStore(repo) {
     }
 
     // ---- toast ----
-    function addToast(message, tone = "info") {
+    function addToast(message, tone) {
+        // Unknown tones fall back to INFO instead of silently rendering as the
+        // default style with no semantic class (e.g. "warn" vs "warning").
+        const validTone = VALID_TOAST_TONES.has(tone) ? tone : TOAST_TONE.INFO;
         const id = uid("toast");
-        toastMessages = [...toastMessages, { id, message, tone }];
-        const duration = tone === "danger" ? 8000 : 6000;
+        // Cap the stack — drop oldest so a fresh toast is always visible.
+        const next = [...toastMessages, { id, message, tone: validTone }];
+        toastMessages = next.length > MAX_TOASTS ? next.slice(-MAX_TOASTS) : next;
+        const duration = validTone === TOAST_TONE.DANGER ? TOAST_DURATION_MS.danger : TOAST_DURATION_MS.default;
         setTimeout(() => {
             toastMessages = toastMessages.filter((t) => t.id !== id);
         }, duration);
     }
+    function toastInfo(message)  { addToast(message, TOAST_TONE.INFO); }
+    function toastWarn(message)  { addToast(message, TOAST_TONE.WARN); }
+    function toastError(message) { addToast(message, TOAST_TONE.DANGER); }
 
     function pushSyncLog(message) {
         if (!message) return;
@@ -682,7 +704,7 @@ export function createAppStore(repo) {
     // ---- connection ----
     function connectStorage(token) {
         if (!connectAddress.trim()) {
-            addToast("Put in a remoteStorage address first.", "danger");
+            toastError("Put in a remoteStorage address first.");
             return;
         }
         const normalizedToken = normalizeAuthToken(token);
@@ -706,7 +728,7 @@ export function createAppStore(repo) {
         // Refuse if a connect/swap is already in flight — clicking switch
         // mid-discovery used to take the wrong branch and double-connect.
         if (connectionStatus === "connecting" || isSwitching) {
-            addToast("Already connecting — hold on.", "warning");
+            toastWarn("Already connecting — hold on.");
             return;
         }
         if (!address) return;
@@ -794,7 +816,7 @@ export function createAppStore(repo) {
             connectionStatus = "disconnected";
             setSyncState("error");
             loadError = "Account swap timed out. Try again.";
-            addToast(loadError, "danger");
+            toastError(loadError);
             pushSyncLog("Swap watchdog: released after 15s — neither connected nor error fired");
         }, 15000);
         try {
@@ -817,7 +839,7 @@ export function createAppStore(repo) {
                 connectStorage(savedToken);
             }
         } catch (error) {
-            addToast(error?.message || "Could not switch accounts.", "danger");
+            toastError(error?.message || "Could not switch accounts.");
             connectionStatus = "disconnected";
             consumePendingSwapDisconnect();
             releaseSwitching("swap threw");
@@ -950,7 +972,7 @@ export function createAppStore(repo) {
             pushSyncLog("Initial data load finished");
         } catch (error) {
             loadError = error?.message || "Could not load remote data.";
-            addToast(loadError, "danger");
+            toastError(loadError);
             pushSyncLog(loadError);
             // Stale results from an old session shouldn't flip the indicator —
             // the live session will resolve its own state.
@@ -971,7 +993,7 @@ export function createAppStore(repo) {
     async function finishFirstRun() {
         const bandName = firstRunBandName.trim();
         if (!bandName) {
-            addToast("Your band needs a name.", "danger");
+            toastError("Your band needs a name.");
             return;
         }
         try {
@@ -979,9 +1001,9 @@ export function createAppStore(repo) {
             appConfig = await withSync("Setting up", () => repo.ensureConfig(bandName));
             generationOptions = defaultGenerationOptions(appConfig);
             persistGenerationOptions();
-            addToast(`Welcome, ${bandName}.`);
+            toastInfo(`Welcome, ${bandName}.`);
         } catch (error) {
-            addToast(error?.message || "Could not save your band name.", "danger");
+            toastError(error?.message || "Could not save your band name.");
         } finally {
             busyMessage = "";
         }
@@ -1064,13 +1086,13 @@ export function createAppStore(repo) {
     function generate(overrideOptions = {}) {
         if (isGenerating) return;
         if (!songs.length) {
-            addToast("Can't roll with no songs! Add a few first.", "danger");
+            toastError("Can't roll with no songs! Add a few first.");
             navigate("songs");
             return;
         }
         const eligibleSongs = songs.filter((s) => !s.unpracticed);
         if (!eligibleSongs.length) {
-            addToast("Every song is unpracticed. Time to rehearse!", "danger");
+            toastError("Every song is unpracticed. Time to rehearse!");
             return;
         }
 
@@ -1107,11 +1129,11 @@ export function createAppStore(repo) {
             }
             isGenerating = false;
             if (!result) {
-                addToast(randomFrom([
+                toastError(randomFrom([
                     "The generator tripped over a cable.",
                     "Something went sideways. Blame the bassist.",
                     "Critical fumble — try again?",
-                ]), "danger");
+                ]));
                 return;
             }
             replaceGeneratedSetlist(result);
@@ -1123,16 +1145,16 @@ export function createAppStore(repo) {
             }
             persistCurrentSetlist();
             if (result.summary?.minimumsRelaxed || !validateConstraintMinimums(result)) {
-                addToast("Couldn't meet every demand, but it got close.", "warning");
+                toastWarn("Couldn't meet every demand, but it got close.");
             }
             if (result.summary?.openerFilterRelaxed) {
-                addToast("No valid opener found in catalog.", "warning");
+                toastWarn("No valid opener found in catalog.");
             }
             if (result.summary?.closerFilterRelaxed) {
-                addToast("No valid closer found in catalog.", "warning");
+                toastWarn("No valid closer found in catalog.");
             }
             const n = generatedSetlist.songs.length;
-            addToast(randomFrom([
+            toastInfo(randomFrom([
                 `🎲 The dice have spoken. ${n} songs.`,
                 `${n} songs, rolled fresh. No refunds.`,
                 `Behold: ${n} tracks of pure destiny.`,
@@ -1144,11 +1166,11 @@ export function createAppStore(repo) {
             worker.terminate();
             if (worker === activeWorker) activeWorker = null;
             isGenerating = false;
-            addToast(randomFrom([
+            toastError(randomFrom([
                 "The generator tripped over a cable.",
                 "Something went sideways. Blame the bassist.",
                 "Critical fumble — try again?",
-            ]), "danger");
+            ]));
         };
     }
 
@@ -1157,7 +1179,7 @@ export function createAppStore(repo) {
         if (setlistLocked) return;
         setlistLocked = true;
         persistCurrentSetlist();
-        addToast(randomFrom([
+        toastInfo(randomFrom([
             "Setlist locked in. No take-backs.",
             "It's canon now.",
             "Sealed. This one's going on stage.",
@@ -1219,7 +1241,7 @@ export function createAppStore(repo) {
             setlistSaved = true;
             loadedSavedId = entry.id;
         } catch (error) {
-            addToast(error?.message || "Could not save setlist.", "danger");
+            toastError(error?.message || "Could not save setlist.");
         }
     }
 
@@ -1229,7 +1251,7 @@ export function createAppStore(repo) {
             savedSetlists = savedSetlists.filter((s) => s.id !== id);
             if (loadedSavedId === id) loadedSavedId = "";
         } catch (error) {
-            addToast(error?.message || "Could not remove setlist.", "danger");
+            toastError(error?.message || "Could not remove setlist.");
         }
     }
 
@@ -1241,7 +1263,7 @@ export function createAppStore(repo) {
             await withSync("Updating setlist", () => repo.putSetlist(merged));
             savedSetlists = savedSetlists.map((s) => s.id === id ? merged : s);
         } catch (error) {
-            addToast(error?.message || "Could not update setlist.", "danger");
+            toastError(error?.message || "Could not update setlist.");
         }
     }
 
@@ -1257,7 +1279,7 @@ export function createAppStore(repo) {
         setlistSaved = true;
         loadedSavedId = id;
         persistCurrentSetlist();
-        addToast(`Loaded ${saved.songs?.length || 0}-song set.`);
+        toastInfo(`Loaded ${saved.songs?.length || 0}-song set.`);
     }
 
     function reorderSetlistSong(fromIndex, toIndex) {
@@ -1463,7 +1485,7 @@ export function createAppStore(repo) {
 
     async function saveSong() {
         if (!editorSong || !String(editorSong.name || "").trim()) {
-            addToast("Songs need names.", "danger");
+            toastError("Songs need names.");
             return;
         }
         try {
@@ -1522,9 +1544,9 @@ export function createAppStore(repo) {
             }
 
             closeEditor();
-            addToast(`Saved "${saved.name}".`);
+            toastInfo(`Saved "${saved.name}".`);
         } catch (error) {
-            addToast(error?.message || "Could not save.", "danger");
+            toastError(error?.message || "Could not save.");
         } finally {
             busyMessage = "";
         }
@@ -1537,7 +1559,7 @@ export function createAppStore(repo) {
         });
         editorSong = copy;
         selectedSongId = "";
-        addToast(`Duplicated "${song.name}".`);
+        toastInfo(`Duplicated "${song.name}".`);
     }
 
     async function deleteSong(song) {
@@ -1547,9 +1569,9 @@ export function createAppStore(repo) {
             await withSync("Removing song", () => repo.deleteSong(song.id));
             songs = songs.filter((e) => e.id !== song.id);
             if (editorSong?.id === song.id) closeEditor();
-            addToast(`Deleted "${song.name}".`);
+            toastInfo(`Deleted "${song.name}".`);
         } catch (error) {
-            addToast(error?.message || "Could not delete.", "danger");
+            toastError(error?.message || "Could not delete.");
         } finally {
             busyMessage = "";
         }
@@ -1593,9 +1615,9 @@ export function createAppStore(repo) {
             navigate("roll");
             generationOptions = defaultGenerationOptions(DEFAULT_APP_CONFIG);
             persistGenerationOptions();
-            addToast("All data deleted. Name your band to start fresh.");
+            toastInfo("All data deleted. Name your band to start fresh.");
         } catch (error) {
-            addToast(error?.message || "Could not delete.", "danger");
+            toastError(error?.message || "Could not delete.");
         } finally {
             busyMessage = "";
         }
@@ -1635,9 +1657,9 @@ export function createAppStore(repo) {
                 saveKnownAccount(currentUserAddress, { bandName: appConfig.bandName }, repo.getToken());
                 knownAccounts = getKnownAccounts();
             }
-            addToast("Settings saved.");
+            toastInfo("Settings saved.");
         } catch (error) {
-            addToast(error?.message || "Could not save config.", "danger");
+            toastError(error?.message || "Could not save config.");
         } finally {
             busyMessage = "";
         }
@@ -1652,7 +1674,7 @@ export function createAppStore(repo) {
             persistGenerationOptions();
             return true;
         } catch (error) {
-            addToast(error?.message || errorMessage, "danger");
+            toastError(error?.message || errorMessage);
             return false;
         }
     }
@@ -1665,19 +1687,19 @@ export function createAppStore(repo) {
             await withSync("Saving member", () => repo.putMember(memberName, normalized));
             return true;
         } catch (error) {
-            addToast(error?.message || errorMessage, "danger");
+            toastError(error?.message || errorMessage);
             return false;
         }
     }
 
     async function addBandMember() {
         const clean = newMemberName.trim();
-        if (!clean) { addToast("Name the member first.", "danger"); return; }
-        if (bandMemberEntries.some(([n]) => n === clean)) { addToast("Already exists.", "danger"); return; }
+        if (!clean) { toastError("Name the member first."); return; }
+        if (bandMemberEntries.some(([n]) => n === clean)) { toastError("Already exists."); return; }
         if (await persistMemberEdit(clean, { instruments: [] }, "Could not add member.")) {
             expandedBandMember = clean;
             newMemberName = "";
-            addToast(`Added "${clean}".`);
+            toastInfo(`Added "${clean}".`);
         }
     }
 
@@ -1695,9 +1717,9 @@ export function createAppStore(repo) {
             next[clean] = data;
             bandMembers = next;
             if (expandedBandMember === oldName) expandedBandMember = clean;
-            addToast(`Renamed "${oldName}" to "${clean}".`);
+            toastInfo(`Renamed "${oldName}" to "${clean}".`);
         } catch (error) {
-            addToast(error?.message || "Could not rename member.", "danger");
+            toastError(error?.message || "Could not rename member.");
         }
     }
 
@@ -1744,22 +1766,22 @@ export function createAppStore(repo) {
             delete next[memberName];
             bandMembers = next;
             if (expandedBandMember === memberName) expandedBandMember = "";
-            addToast(`Removed "${memberName}".`);
+            toastInfo(`Removed "${memberName}".`);
         } catch (error) {
-            addToast(error?.message || "Could not remove member.", "danger");
+            toastError(error?.message || "Could not remove member.");
         }
     }
 
     async function addBandMemberInstrument(memberName) {
         const draft = (newInstrumentByMember[memberName] || "").trim();
-        if (!draft) { addToast("Type an instrument name first.", "danger"); return; }
+        if (!draft) { toastError("Type an instrument name first."); return; }
         const member = bandMembers[memberName] || { instruments: [] };
         const current = member.instruments || [];
-        if (current.some((i) => i.name === draft)) { addToast("Already on this member.", "danger"); return; }
+        if (current.some((i) => i.name === draft)) { toastError("Already on this member."); return; }
         const updated = { ...member, instruments: current.concat({ name: draft, tunings: [], defaultTuning: "", techniques: [], defaultTechnique: "" }) };
         if (await persistMemberEdit(memberName, updated)) {
             newInstrumentByMember = { ...newInstrumentByMember, [memberName]: "" };
-            addToast(`Added ${draft} for ${memberName}.`);
+            toastInfo(`Added ${draft} for ${memberName}.`);
         }
     }
 
@@ -1776,7 +1798,7 @@ export function createAppStore(repo) {
         }
         const member = bandMembers[memberName] || { instruments: [] };
         const updated = { ...member, instruments: (member.instruments || []).filter((i) => i.name !== instrumentName) };
-        if (await persistMemberEdit(memberName, updated)) addToast(`Removed ${instrumentName} from ${memberName}.`);
+        if (await persistMemberEdit(memberName, updated)) toastInfo(`Removed ${instrumentName} from ${memberName}.`);
     }
 
     function tuningDraftKey(memberName, instrumentName) {
@@ -1803,16 +1825,16 @@ export function createAppStore(repo) {
     async function addTuningChoice(memberName, instrumentName) {
         const draftKey = tuningDraftKey(memberName, instrumentName);
         const clean = (newTuningByInstrument[draftKey] || "").trim();
-        if (!clean) { addToast("Type a tuning name first.", "danger"); return; }
+        if (!clean) { toastError("Type a tuning name first."); return; }
         await ensureBandInstrument(memberName, instrumentName);
         const member = bandMembers[memberName] || { instruments: [] };
         const currentInstruments = member.instruments || [];
         const current = currentInstruments.find((i) => i.name === instrumentName);
-        if ((current?.tunings || []).includes(clean)) { addToast("Already exists.", "danger"); return; }
+        if ((current?.tunings || []).includes(clean)) { toastError("Already exists."); return; }
         const updated = { ...member, instruments: currentInstruments.map((i) => i.name !== instrumentName ? i : { ...i, tunings: (i.tunings || []).concat(clean) }) };
         if (await persistMemberEdit(memberName, updated)) {
             newTuningByInstrument = { ...newTuningByInstrument, [draftKey]: "" };
-            addToast(`Added "${clean}" to ${instrumentName}.`);
+            toastInfo(`Added "${clean}" to ${instrumentName}.`);
         }
         return clean;
     }
@@ -1832,7 +1854,7 @@ export function createAppStore(repo) {
             ...i, tunings: (i.tunings || []).filter((t) => t !== tuning),
             defaultTuning: i.defaultTuning === tuning ? "" : (i.defaultTuning || "")
         }) };
-        if (await persistMemberEdit(memberName, updated)) addToast(`Removed "${tuning}" from ${instrumentName}.`);
+        if (await persistMemberEdit(memberName, updated)) toastInfo(`Removed "${tuning}" from ${instrumentName}.`);
     }
 
     async function setMemberDefaultInstrument(memberName, instrumentName) {
@@ -1840,7 +1862,7 @@ export function createAppStore(repo) {
         if (!member) return;
         const updated = { ...member, defaultInstrument: instrumentName };
         if (await persistMemberEdit(memberName, updated)) {
-            addToast(instrumentName ? `Default instrument set to "${instrumentName}".` : `Cleared default instrument.`);
+            toastInfo(instrumentName ? `Default instrument set to "${instrumentName}".` : `Cleared default instrument.`);
         }
     }
 
@@ -1849,7 +1871,7 @@ export function createAppStore(repo) {
         const currentInstruments = member.instruments || [];
         const updated = { ...member, instruments: currentInstruments.map((i) => i.name !== instrumentName ? i : { ...i, defaultTuning }) };
         if (await persistMemberEdit(memberName, updated)) {
-            addToast(defaultTuning ? `Default set to "${defaultTuning}".` : `Cleared default tuning.`);
+            toastInfo(defaultTuning ? `Default set to "${defaultTuning}".` : `Cleared default tuning.`);
         }
     }
 
@@ -1860,16 +1882,16 @@ export function createAppStore(repo) {
     async function addTechniqueChoice(memberName, instrumentName) {
         const draftKey = techniqueDraftKey(memberName, instrumentName);
         const clean = (newTechniqueByInstrument[draftKey] || "").trim();
-        if (!clean) { addToast("Type a technique name first.", "danger"); return; }
+        if (!clean) { toastError("Type a technique name first."); return; }
         await ensureBandInstrument(memberName, instrumentName);
         const member = bandMembers[memberName] || { instruments: [] };
         const currentInstruments = member.instruments || [];
         const current = currentInstruments.find((i) => i.name === instrumentName);
-        if ((current?.techniques || []).includes(clean)) { addToast("Already exists.", "danger"); return; }
+        if ((current?.techniques || []).includes(clean)) { toastError("Already exists."); return; }
         const updated = { ...member, instruments: currentInstruments.map((i) => i.name !== instrumentName ? i : { ...i, techniques: (i.techniques || []).concat(clean) }) };
         if (await persistMemberEdit(memberName, updated)) {
             newTechniqueByInstrument = { ...newTechniqueByInstrument, [draftKey]: "" };
-            addToast(`Added "${clean}" technique to ${instrumentName}.`);
+            toastInfo(`Added "${clean}" technique to ${instrumentName}.`);
         }
         return clean;
     }
@@ -1889,7 +1911,7 @@ export function createAppStore(repo) {
             ...i, techniques: (i.techniques || []).filter((t) => t !== technique),
             defaultTechnique: i.defaultTechnique === technique ? "" : (i.defaultTechnique || "")
         }) };
-        if (await persistMemberEdit(memberName, updated)) addToast(`Removed "${technique}" technique from ${instrumentName}.`);
+        if (await persistMemberEdit(memberName, updated)) toastInfo(`Removed "${technique}" technique from ${instrumentName}.`);
     }
 
     async function setInstrumentDefaultTechnique(memberName, instrumentName, defaultTechnique) {
@@ -1897,7 +1919,7 @@ export function createAppStore(repo) {
         const currentInstruments = member.instruments || [];
         const updated = { ...member, instruments: currentInstruments.map((i) => i.name !== instrumentName ? i : { ...i, defaultTechnique }) };
         if (await persistMemberEdit(memberName, updated)) {
-            addToast(defaultTechnique ? `Default technique set to "${defaultTechnique}".` : `Cleared default technique.`);
+            toastInfo(defaultTechnique ? `Default technique set to "${defaultTechnique}".` : `Cleared default technique.`);
         }
     }
 
@@ -1930,7 +1952,7 @@ export function createAppStore(repo) {
         link.click();
         link.remove();
         URL.revokeObjectURL(url);
-        addToast("Exported the whole catalog.");
+        toastInfo("Exported the whole catalog.");
     }
 
     function normalizeImportPayload(payload) {
@@ -1968,7 +1990,7 @@ export function createAppStore(repo) {
     }
 
     async function importFromFile() {
-        if (!importFile) { addToast("Choose a JSON file first.", "danger"); return; }
+        if (!importFile) { toastError("Choose a JSON file first."); return; }
         try {
             busyMessage = "Importing...";
             const text = await importFile.text();
@@ -2007,9 +2029,9 @@ export function createAppStore(repo) {
             const parts = [`${ws} song${ws === 1 ? "" : "s"}`];
             if (imported.savedSetlists?.length) parts.push(`${imported.savedSetlists.length} saved setlist${imported.savedSetlists.length === 1 ? "" : "s"}`);
             if (imported.bandMembers) parts.push(`${Object.keys(imported.bandMembers).length} member${Object.keys(imported.bandMembers).length === 1 ? "" : "s"}`);
-            addToast(`Imported ${parts.join(", ")}.`);
+            toastInfo(`Imported ${parts.join(", ")}.`);
         } catch (error) {
-            addToast(error?.message || "Import failed.", "danger");
+            toastError(error?.message || "Import failed.");
         } finally {
             busyMessage = "";
         }
@@ -2193,7 +2215,7 @@ export function createAppStore(repo) {
                     await runMigrations({ skipReload: true });
                 } catch (err) {
                     console.error("Migration failed:", err);
-                    addToast("Data migration encountered an error. Some data may need re-syncing.", "danger");
+                    toastError("Data migration encountered an error. Some data may need re-syncing.");
                     pushSyncLog("Data migration encountered an error");
                 }
             } else {
@@ -2204,7 +2226,7 @@ export function createAppStore(repo) {
                     await runMigrations();
                 } catch (err) {
                     console.error("Migration/reload failed:", err);
-                    addToast("Data sync encountered an error. Some data may need re-syncing.", "danger");
+                    toastError("Data sync encountered an error. Some data may need re-syncing.");
                     pushSyncLog("Initial sync encountered an error");
                 } finally {
                     endSync();
@@ -2272,7 +2294,7 @@ export function createAppStore(repo) {
 
         const detachError = repo.on("error", (error) => {
             loadError = error?.message || "remoteStorage error.";
-            addToast(loadError, "danger");
+            toastError(loadError);
             pushSyncLog(loadError);
             // Surface the error in the pill/skeleton state. Without this,
             // setting `loadError` alone keeps maybeMarkSynced blocked while
@@ -2491,7 +2513,9 @@ export function createAppStore(repo) {
         exportAllData,
         importFromFile,
         performanceSummary,
-        addToast,
+        toastInfo,
+        toastWarn,
+        toastError,
         songsUsingMember,
         songsUsingInstrument,
         songsUsingTuning,

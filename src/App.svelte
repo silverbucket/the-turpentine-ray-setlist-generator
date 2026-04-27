@@ -202,9 +202,12 @@
 {/if}
 
 {#if store.toastMessages.length > 0}
-    {@const latest = store.toastMessages[store.toastMessages.length - 1]}
-    <div class="toast-pill {latest.tone}" aria-live="polite">
-        {latest.message}
+    <div class="toast-stack" class:with-busy={!!store.busyMessage} aria-live="polite">
+        {#each store.toastMessages as toast (toast.id)}
+            <div class="toast-pill {toast.tone}">
+                {toast.message}
+            </div>
+        {/each}
     </div>
 {/if}
 
@@ -554,13 +557,30 @@
         flex-shrink: 0;
     }
 
-    /* ---- Toast pill ---- */
-    .toast-pill {
+    /* ---- Toast stack ---- */
+    .toast-stack {
         position: fixed;
         top: var(--top-bar-height);
         left: 50%;
         transform: translateX(-50%);
+        z-index: 300;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-1);
         max-width: calc(100vw - 2rem);
+        pointer-events: none;
+    }
+
+    /* When the busy chip is showing, drop the toast stack below it so they
+       don't sit on top of each other. The chip is anchored at top-bar +
+       space-2 and is roughly space-8 tall once padding/text are accounted for. */
+    .toast-stack.with-busy {
+        top: calc(var(--top-bar-height) + var(--space-8) + var(--space-2));
+    }
+
+    .toast-pill {
+        max-width: 100%;
         padding: 5px 14px;
         font-size: 0.78rem;
         font-weight: 600;
@@ -570,11 +590,10 @@
         border: none;
         border-radius: 0 0 var(--radius-md, 12px) var(--radius-md, 12px);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        z-index: 300;
-        pointer-events: none;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        /* Allow long error/info messages to wrap instead of getting truncated
+           with an ellipsis — the user needs to read the whole error. */
+        white-space: normal;
+        overflow-wrap: anywhere;
         animation: toast-slide-down 200ms ease;
     }
 
@@ -593,7 +612,7 @@
     }
 
     @keyframes toast-slide-down {
-        from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
-        to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        from { opacity: 0; transform: translateY(-8px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 </style>
