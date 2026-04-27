@@ -2,12 +2,17 @@ import { readFileSync } from "node:fs";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { cspHashPlugin } from "./vite-plugin-csp-hash.js";
 
 const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
 
 export default defineConfig({
     plugins: [
         svelte(),
+        // Auto-fills CSP sha256 hashes for inline <script>/<style> blocks in
+        // index.html and the listed public/* files. Edit a script body and
+        // the next dev refresh / build picks up the new hash; no manual step.
+        cspHashPlugin({ publicHtml: ["auth-relay.html"] }),
         VitePWA({
             registerType: "autoUpdate",
             manifest: false,
