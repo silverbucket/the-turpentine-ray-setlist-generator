@@ -383,64 +383,100 @@ export function createRemoteStorageRepository() {
         },
 
         async loadAll({ onStep } = {}) {
+            // Each slice loads independently so a single failed read (network
+            // hiccup, 5xx on a folder, malformed body) doesn't blank the UI.
+            // We use Promise.allSettled instead of Promise.all and surface
+            // failures through the returned `errors` map; the caller decides
+            // what to keep, what to warn about, and what to retry.
+            const slices = [
+                [
+                    "songs",
+                    () =>
+                        this.listSongs().then((result) => {
+                            onStep?.(
+                                `Loaded ${result.songs.length} songs${result.pending ? ` (${result.pending} pending)` : ""}`,
+                            );
+                            return result;
+                        }),
+                ],
+                [
+                    "config",
+                    () =>
+                        this.getConfig().then((config) => {
+                            onStep?.(config ? "Loaded settings" : "No settings found yet");
+                            return config;
+                        }),
+                ],
+                [
+                    "bootstrap",
+                    () =>
+                        this.getBootstrapMeta().then((bootstrap) => {
+                            onStep?.(bootstrap ? "Loaded bootstrap info" : "No bootstrap info found");
+                            return bootstrap;
+                        }),
+                ],
+                [
+                    "setlists",
+                    () =>
+                        this.listSetlists().then((result) => {
+                            onStep?.(
+                                `Loaded ${result.setlists.length} saved setlists${result.pending ? ` (${result.pending} pending)` : ""}`,
+                            );
+                            return result;
+                        }),
+                ],
+                [
+                    "members",
+                    () =>
+                        this.listMembers().then((result) => {
+                            onStep?.(
+                                `Loaded ${Object.keys(result.members || {}).length} band members${result.pending ? ` (${result.pending} pending)` : ""}`,
+                            );
+                            return result;
+                        }),
+                ],
+            ];
+
             onStep?.("Loading songs");
-            const songsPromise = this.listSongs().then((result) => {
-                onStep?.(`Loaded ${result.songs.length} songs${result.pending ? ` (${result.pending} pending)` : ""}`);
-                return result;
-            });
-
             onStep?.("Loading settings");
-            const configPromise = this.getConfig().then((config) => {
-                onStep?.(config ? "Loaded settings" : "No settings found yet");
-                return config;
-            });
-
             onStep?.("Loading bootstrap info");
-            const bootstrapPromise = this.getBootstrapMeta().then((bootstrap) => {
-                onStep?.(bootstrap ? "Loaded bootstrap info" : "No bootstrap info found");
-                return bootstrap;
-            });
-
             onStep?.("Loading saved setlists");
-            const setlistsPromise = this.listSetlists().then((result) => {
-                onStep?.(
-                    `Loaded ${result.setlists.length} saved setlists${result.pending ? ` (${result.pending} pending)` : ""}`,
-                );
-                return result;
-            });
-
             onStep?.("Loading band members");
-            const membersPromise = this.listMembers().then((result) => {
-                onStep?.(
-                    `Loaded ${Object.keys(result.members || {}).length} band members${result.pending ? ` (${result.pending} pending)` : ""}`,
-                );
-                return result;
-            });
 
-            const [songsResult, config, bootstrap, setlistsResult, membersResult] = await Promise.all([
-                songsPromise,
-                configPromise,
-                bootstrapPromise,
-                setlistsPromise,
-                membersPromise,
-            ]);
+            const settled = await Promise.allSettled(slices.map(([, run]) => run()));
+
+            const values = {};
+            const errors = {};
+            settled.forEach((outcome, i) => {
+                const [name] = slices[i];
+                if (outcome.status === "fulfilled") {
+                    values[name] = outcome.value;
+                } else {
+                    const reason = outcome.reason instanceof Error ? outcome.reason : new Error(String(outcome.reason));
+                    errors[name] = reason;
+                    onStep?.(`Could not load ${name}: ${reason.message}`);
+                }
+            });
 
             // pendingBodies: total documents whose bodies haven't yet arrived
             // from the remote. rs.js's getAll(path, false) returns stub
             // entries (`true` / `{}` / object without id) for items it knows
             // exist (folder ETag) but whose bodies are not yet in the local
             // cache. As long as this is > 0, more onChange events will fire
-            // and the UI is not yet in a settled state.
+            // and the UI is not yet in a settled state. Slices that rejected
+            // contribute 0 — we'll find out about their bodies on the next
+            // successful load.
             const pendingBodies =
-                (songsResult.pending || 0) + (setlistsResult.pending || 0) + (membersResult.pending || 0);
+                (values.songs?.pending || 0) + (values.setlists?.pending || 0) + (values.members?.pending || 0);
 
             return {
-                songs: songsResult.songs,
-                config,
-                bootstrap,
-                setlists: setlistsResult.setlists,
-                members: membersResult.members,
+                songs: values.songs?.songs,
+                config: values.config,
+                bootstrap: values.bootstrap,
+                setlists: values.setlists?.setlists,
+                members: values.members?.members,
                 pendingBodies,
+                errors,
             };
         },
 

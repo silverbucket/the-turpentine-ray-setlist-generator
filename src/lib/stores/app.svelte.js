@@ -989,20 +989,49 @@ export function createAppStore(repo) {
             // Update the pending count even if we early-return below — the
             // pill state depends on it being current.
             pendingBodies = data.pendingBodies || 0;
-            dbg(`reloadAll[${callId}] data: ${data.songs.length} songs, pendingBodies=${pendingBodies}, hasConfig=${!!data.config}`);
-            songs = data.songs.map(normalizeSongRecord);
-            bootstrapMeta = data.bootstrap;
-            appConfig = data.config ? normalizeAppConfig(data.config) : null;
-            if (data.setlists) {
+            const errors = data.errors || {};
+            const errorEntries = Object.entries(errors);
+            dbg(
+                `reloadAll[${callId}] data: ${data.songs?.length ?? "—"} songs, pendingBodies=${pendingBodies}, hasConfig=${!!data.config}, errors=${errorEntries.length}`,
+            );
+            // Apply each slice only when its load actually succeeded. A
+            // rejected slice leaves the prior in-memory value intact rather
+            // than blanking the UI — partial offline-first loads are the
+            // whole point of allSettled. `data.<slice>` is undefined when
+            // that slice rejected.
+            if (data.songs !== undefined) {
+                songs = data.songs.map(normalizeSongRecord);
+            }
+            if (!errors.bootstrap) {
+                bootstrapMeta = data.bootstrap;
+            }
+            if (!errors.config) {
+                appConfig = data.config ? normalizeAppConfig(data.config) : null;
+            }
+            if (data.setlists !== undefined) {
                 savedSetlists = stripEnergy(data.setlists);
             }
-            if (data.members) {
+            if (data.members !== undefined) {
                 bandMembers = Object.fromEntries(
-                    Object.entries(data.members).map(([name, data]) => [name, normalizeMemberRecord(data)])
+                    Object.entries(data.members).map(([name, data]) => [name, normalizeMemberRecord(data)]),
                 );
             }
 
-            if (!appConfig) {
+            // Surface partial-failure warnings without short-circuiting. We
+            // skip a toast for `bootstrap` because the metadata is already
+            // optional (callers treat missing bootstrap as "none yet").
+            for (const [slice, error] of errorEntries) {
+                pushSyncLog(`Could not load ${slice}: ${error.message}`);
+                if (slice === "bootstrap") continue;
+                if (!quiet) toastWarn(`Couldn't load ${slice} — keeping last known data.`);
+            }
+
+            // First-run prompt: only when we *know* the config is truly
+            // absent (the slice loaded successfully and returned null), not
+            // when the config slice failed and we kept the previous value.
+            // Without this guard a transient config read failure would push
+            // a returning user into first-run, risking a duplicate config.
+            if (!errors.config && !appConfig) {
                 firstRunBandName = "";
                 navigate("roll");
                 generationOptions = defaultGenerationOptions(DEFAULT_APP_CONFIG);
@@ -1010,9 +1039,11 @@ export function createAppStore(repo) {
                 return;
             }
 
-            generationOptions = deepMerge(defaultGenerationOptions(appConfig), generationOptions || {});
-            persistGenerationOptions();
-            scheduleSnapshot();
+            if (appConfig) {
+                generationOptions = deepMerge(defaultGenerationOptions(appConfig), generationOptions || {});
+                persistGenerationOptions();
+                scheduleSnapshot();
+            }
             pushSyncLog("Initial data load finished");
         } catch (error) {
             loadError = error?.message || "Could not load remote data.";
@@ -1780,19 +1811,42 @@ export function createAppStore(repo) {
         const clean = newName.trim();
         if (!clean || clean === oldName || bandMemberEntries.some(([n]) => n === clean)) return;
         const data = bandMembers[oldName] || { instruments: [] };
+
+        // Put the new key first so a failure leaves the original member
+        // intact — songs that reference `oldName` still resolve, and we
+        // bail out without touching local state.
         try {
-            await withSync("Renaming member", async () => {
-                await repo.deleteMember(oldName);
-                await repo.putMember(clean, data);
-            });
-            const next = { ...bandMembers };
-            delete next[oldName];
-            next[clean] = data;
-            bandMembers = next;
-            if (expandedBandMember === oldName) expandedBandMember = clean;
-            toastInfo(`Renamed "${oldName}" to "${clean}".`);
+            await withSync("Renaming member", () => repo.putMember(clean, data));
         } catch (error) {
             toastError(error?.message || "Could not rename member.");
+            return;
+        }
+
+        // Apply the local rename now: the new key exists remotely, so the
+        // UI must switch over even if the follow-up delete fails. The
+        // caller (BandScreen) moves `editingMemberName` to `clean` without
+        // awaiting this function; without the local mutation here the
+        // edit-view filter would match nothing and the pane would go blank.
+        const next = { ...bandMembers };
+        delete next[oldName];
+        next[clean] = data;
+        bandMembers = next;
+        if (expandedBandMember === oldName) expandedBandMember = clean;
+
+        // Best-effort delete of the old key. A failure here leaves a
+        // temporary duplicate in remoteStorage; rs.js retries on the next
+        // sync round and the next reloadAll reconciles. This is the
+        // explicit "duplicate member that resolves on next sync" failure
+        // mode #70 accepts — surface it as a warning, not a hard error.
+        try {
+            await withSync("Cleaning up old member name", () => repo.deleteMember(oldName));
+            toastInfo(`Renamed "${oldName}" to "${clean}".`);
+        } catch (error) {
+            toastWarn(
+                `Renamed to "${clean}". Old name will clear on the next sync.${
+                    error?.message ? ` (${error.message})` : ""
+                }`,
+            );
         }
     }
 

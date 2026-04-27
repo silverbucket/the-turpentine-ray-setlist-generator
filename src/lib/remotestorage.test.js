@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const remoteStorageMockState = vi.hoisted(() => ({
     instance: null,
+    client: null,
     defaultAuthorize: null,
 }));
 
@@ -22,6 +23,19 @@ let originalWindow;
 
 beforeEach(() => {
     const defaultAuthorize = vi.fn();
+    // The client is exposed as a stable singleton on the mock state so tests
+    // can stub `getAll` / `getObject` / etc. without having to fish the
+    // returned object out of `scope.mock.results`. The repository only calls
+    // `scope()` once per construction, so a singleton matches real usage.
+    const client = {
+        declareType: vi.fn(),
+        on: vi.fn(),
+        removeEventListener: vi.fn(),
+        getAll: vi.fn(),
+        getObject: vi.fn(),
+        storeObject: vi.fn(),
+        remove: vi.fn(),
+    };
     const remoteStorage = {
         access: {
             claim: vi.fn(),
@@ -32,11 +46,7 @@ beforeEach(() => {
             enable: vi.fn(),
             reset: vi.fn(),
         },
-        scope: vi.fn(() => ({
-            declareType: vi.fn(),
-            on: vi.fn(),
-            removeEventListener: vi.fn(),
-        })),
+        scope: vi.fn(() => client),
         remote: {
             storageApi: "webdav",
             configure: vi.fn(),
@@ -54,6 +64,7 @@ beforeEach(() => {
     };
 
     remoteStorageMockState.instance = remoteStorage;
+    remoteStorageMockState.client = client;
     remoteStorageMockState.defaultAuthorize = defaultAuthorize;
     originalWindow = globalThis.window;
 });
@@ -61,6 +72,7 @@ beforeEach(() => {
 afterEach(() => {
     vi.restoreAllMocks();
     remoteStorageMockState.instance = null;
+    remoteStorageMockState.client = null;
     remoteStorageMockState.defaultAuthorize = null;
     if (typeof originalWindow === "undefined") {
         delete globalThis.window;
@@ -571,6 +583,213 @@ describe("createRemoteStorageRepository", () => {
             rs.connected = false;
             await repo.swap("other@example.com", { type: "click" });
             expect(rs.connect).toHaveBeenCalledWith("other@example.com", undefined);
+        });
+    });
+
+    // Regression coverage for the cold-start path.
+    //
+    // rs.js v2.0.0-beta.* documents `client.getAll(path, false)` as a "list
+    // ETags only, skip bodies" optimisation. On a cold IndexedDB the listing
+    // therefore returns stub entries — `true`, `{}`, or partial objects
+    // missing the discriminator field — for items the library knows exist
+    // but hasn't fetched yet. Our list* helpers rely on a discriminator
+    // field per type (`id` for songs, `savedAt` for setlists, `name` for
+    // members) to separate real records from stubs and report the rest as
+    // `pending`. These tests pin that contract so a future schema change
+    // doesn't silently start counting empty placeholders as real records,
+    // which would briefly flash empty UI on first connect to a new device.
+    describe("cold-start stub handling", () => {
+        it("listSongs treats stub entries as pending bodies", async () => {
+            const repo = createRemoteStorageRepository();
+            remoteStorageMockState.client.getAll.mockResolvedValue({
+                "song-1": { id: "song-1", name: "Real", updatedAt: "2025-01-01T00:00:00Z" },
+                "song-2": true,
+                "song-3": {},
+                "song-4": null,
+                "song-5": { name: "Missing id" },
+            });
+
+            const result = await repo.listSongs();
+
+            expect(remoteStorageMockState.client.getAll).toHaveBeenCalledWith("songs/", false);
+            expect(result.songs).toHaveLength(1);
+            expect(result.songs[0].id).toBe("song-1");
+            expect(result.pending).toBe(4);
+        });
+
+        it("listSongs returns empty + zero pending when getAll has no data", async () => {
+            const repo = createRemoteStorageRepository();
+            remoteStorageMockState.client.getAll.mockResolvedValue(undefined);
+            const result = await repo.listSongs();
+            expect(result.songs).toEqual([]);
+            expect(result.pending).toBe(0);
+        });
+
+        it("listSetlists treats entries without savedAt as pending bodies", async () => {
+            const repo = createRemoteStorageRepository();
+            remoteStorageMockState.client.getAll.mockResolvedValue({
+                "set-1": { id: "set-1", savedAt: "2025-02-01T00:00:00Z", songs: [] },
+                "set-2": true,
+                "set-3": { id: "set-3" },
+            });
+
+            const result = await repo.listSetlists();
+
+            expect(result.setlists).toHaveLength(1);
+            expect(result.setlists[0].id).toBe("set-1");
+            expect(result.pending).toBe(2);
+        });
+
+        it("listSetlists sorts loaded setlists by savedAt descending", async () => {
+            const repo = createRemoteStorageRepository();
+            remoteStorageMockState.client.getAll.mockResolvedValue({
+                a: { id: "a", savedAt: "2025-01-01T00:00:00Z" },
+                b: { id: "b", savedAt: "2025-03-01T00:00:00Z" },
+                c: { id: "c", savedAt: "2025-02-01T00:00:00Z" },
+            });
+            const result = await repo.listSetlists();
+            expect(result.setlists.map((s) => s.id)).toEqual(["b", "c", "a"]);
+            expect(result.pending).toBe(0);
+        });
+
+        it("listMembers treats entries without name as pending bodies", async () => {
+            const repo = createRemoteStorageRepository();
+            remoteStorageMockState.client.getAll.mockResolvedValue({
+                Alice: { name: "Alice", instruments: [] },
+                Bob: true,
+                Carol: {},
+                Drew: { instruments: [] },
+            });
+
+            const result = await repo.listMembers();
+
+            expect(Object.keys(result.members)).toEqual(["Alice"]);
+            expect(result.pending).toBe(3);
+        });
+    });
+
+    // The cold-start tests above cover what each list* helper does when its
+    // own getAll call returns stubs. These tests cover what `loadAll` does
+    // when one of the five slices fails outright — the partial-failure path
+    // that motivated switching from Promise.all to Promise.allSettled.
+    describe("loadAll partial-failure handling", () => {
+        function configureClient({ songs, setlists, members, config, bootstrap }) {
+            const { client } = remoteStorageMockState;
+            client.getAll.mockImplementation((path) => {
+                if (path === "songs/") return songs;
+                if (path === "setlists/") return setlists;
+                if (path === "members/") return members;
+                return Promise.resolve({});
+            });
+            client.getObject.mockImplementation((path) => {
+                if (path === "settings/app-config") return config;
+                if (path === "meta/bootstrap") return bootstrap;
+                return Promise.resolve(null);
+            });
+        }
+
+        it("returns successfully-loaded slices and an empty errors map on full success", async () => {
+            const repo = createRemoteStorageRepository();
+            configureClient({
+                songs: Promise.resolve({
+                    "s-1": { id: "s-1", name: "Song", updatedAt: "2025-01-01T00:00:00Z" },
+                }),
+                setlists: Promise.resolve({}),
+                members: Promise.resolve({ Alice: { name: "Alice" } }),
+                config: Promise.resolve({ bandName: "Tunesmith" }),
+                bootstrap: Promise.resolve(null),
+            });
+
+            const result = await repo.loadAll();
+
+            expect(result.songs).toHaveLength(1);
+            // getConfig normalizes the raw record (defaults, schemaVersion);
+            // the test only cares that the user-provided field round-trips.
+            expect(result.config).toMatchObject({ bandName: "Tunesmith" });
+            expect(result.setlists).toEqual([]);
+            expect(result.members).toEqual({ Alice: { name: "Alice" } });
+            expect(result.bootstrap).toBeNull();
+            expect(result.errors).toEqual({});
+        });
+
+        it("does not short-circuit when a single slice rejects", async () => {
+            const repo = createRemoteStorageRepository();
+            configureClient({
+                songs: Promise.resolve({
+                    "s-1": { id: "s-1", name: "Song", updatedAt: "2025-01-01T00:00:00Z" },
+                }),
+                setlists: Promise.resolve({}),
+                members: Promise.reject(new Error("network down")),
+                config: Promise.resolve({ bandName: "Tunesmith" }),
+                bootstrap: Promise.resolve(null),
+            });
+
+            const result = await repo.loadAll();
+
+            expect(result.songs).toHaveLength(1);
+            expect(result.setlists).toEqual([]);
+            // getConfig normalizes the raw record (defaults, schemaVersion);
+            // the test only cares that the user-provided field round-trips.
+            expect(result.config).toMatchObject({ bandName: "Tunesmith" });
+            expect(result.members).toBeUndefined();
+            expect(result.errors.members).toBeInstanceOf(Error);
+            expect(result.errors.members.message).toContain("network down");
+            expect(result.errors.config).toBeUndefined();
+        });
+
+        it("distinguishes a missing config from a failed config read", async () => {
+            const repo = createRemoteStorageRepository();
+            configureClient({
+                songs: Promise.resolve({}),
+                setlists: Promise.resolve({}),
+                members: Promise.resolve({}),
+                config: Promise.reject(new Error("403")),
+                bootstrap: Promise.resolve(null),
+            });
+
+            const result = await repo.loadAll();
+
+            expect(result.config).toBeUndefined();
+            expect(result.errors.config).toBeInstanceOf(Error);
+            expect(result.errors.config.message).toBe("403");
+        });
+
+        it("forwards onStep messages for both successes and failures", async () => {
+            const repo = createRemoteStorageRepository();
+            configureClient({
+                songs: Promise.resolve({}),
+                setlists: Promise.resolve({}),
+                members: Promise.reject(new Error("boom")),
+                config: Promise.resolve(null),
+                bootstrap: Promise.resolve(null),
+            });
+
+            const onStep = vi.fn();
+            await repo.loadAll({ onStep });
+
+            const messages = onStep.mock.calls.map(([m]) => m);
+            expect(messages).toContain("Loading band members");
+            expect(messages.some((m) => m.startsWith("Could not load members"))).toBe(true);
+        });
+
+        it("counts pending bodies only from successful slices", async () => {
+            const repo = createRemoteStorageRepository();
+            configureClient({
+                songs: Promise.resolve({
+                    "s-1": true,
+                    "s-2": { id: "s-2", name: "Song", updatedAt: "2025-01-01T00:00:00Z" },
+                }),
+                setlists: Promise.resolve({ "set-1": true, "set-2": true }),
+                members: Promise.reject(new Error("offline")),
+                config: Promise.resolve(null),
+                bootstrap: Promise.resolve(null),
+            });
+
+            const result = await repo.loadAll();
+
+            // 1 stub from songs + 2 stubs from setlists; members rejected,
+            // so its pending count contributes nothing rather than NaN.
+            expect(result.pendingBodies).toBe(3);
         });
     });
 });
