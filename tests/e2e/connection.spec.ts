@@ -38,11 +38,11 @@ test.describe("Connection screen", () => {
         await expect(shell.rollTab).toBeVisible({ timeout: 10_000 });
     });
 
-    test("rejects empty address (button stays disabled-ish, no app shell appears)", async ({ page, app }) => {
+    test("Connect button is disabled when address is empty", async ({ page, app }) => {
         await app.goto();
         const connect = new ConnectPage(page);
         await connect.waitForVisible();
-        await connect.connectButton.click();
+        await expect(connect.connectButton).toBeDisabled();
         // App shell never appears
         await expect(page.locator("nav.bottom-nav")).toHaveCount(0);
     });
