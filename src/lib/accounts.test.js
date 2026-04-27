@@ -276,3 +276,23 @@ describe("consumeKnownAccountsCorrupted", () => {
         expect(consumeKnownAccountsCorrupted()).toBe(false);
     });
 });
+
+// ===================================================================
+// getKnownAccountsRaw — storage access failures
+// ===================================================================
+describe("getKnownAccountsRaw under blocked storage", () => {
+    it("falls back to [] without throwing when getItem throws", () => {
+        // Safari "Block all cookies", iOS private mode, policy-disabled
+        // storage all surface as a throw on getItem.
+        consumeKnownAccountsCorrupted();
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+        globalThis.localStorage.getItem = () => {
+            throw new DOMException("SecurityError", "SecurityError");
+        };
+        expect(() => getKnownAccountsRaw()).not.toThrow();
+        expect(getKnownAccountsRaw()).toEqual([]);
+        // A blocked read is not corruption — no toast should fire.
+        expect(consumeKnownAccountsCorrupted()).toBe(false);
+        expect(warnSpy).toHaveBeenCalled();
+    });
+});

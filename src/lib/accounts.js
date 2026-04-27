@@ -63,7 +63,21 @@ export function consumeKnownAccountsCorrupted() {
 
 export function getKnownAccountsRaw() {
     if (typeof localStorage === "undefined") return [];
-    const raw = localStorage.getItem(KNOWN_ACCOUNTS_KEY);
+    // Reading localStorage can throw even when `localStorage` itself is
+    // defined — Safari "Block all cookies", iOS private browsing, and
+    // policy-disabled storage all surface as SecurityError / QuotaExceeded
+    // on getItem. Catch separately from the parse path so a blocked read
+    // falls back silently (no fake "corrupt blob" toast — there's nothing
+    // to reset; storage is just unavailable).
+    let raw;
+    try {
+        raw = localStorage.getItem(KNOWN_ACCOUNTS_KEY);
+    } catch (error) {
+        if (import.meta.env?.DEV) {
+            console.warn("[accounts] localStorage read blocked", error);
+        }
+        return [];
+    }
     if (!raw) return [];
     try {
         const list = JSON.parse(raw);

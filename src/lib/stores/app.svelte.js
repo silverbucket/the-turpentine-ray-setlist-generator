@@ -944,7 +944,20 @@ export function createAppStore(repo) {
     function restoreSnapshot(address) {
         if (typeof localStorage === "undefined") return false;
         const key = accountSlot(address).key("snapshot");
-        const raw = localStorage.getItem(key);
+        // Reading localStorage can throw even when the global is defined —
+        // Safari "Block all cookies", iOS private browsing, etc. Catch
+        // separately from the parse path so a blocked read just falls back
+        // to the full sync path; only an actual corrupt blob triggers the
+        // cleanup-and-toast branch.
+        let raw;
+        try {
+            raw = localStorage.getItem(key);
+        } catch (error) {
+            if (import.meta.env?.DEV) {
+                console.warn("[app] restoreSnapshot: localStorage read blocked", error);
+            }
+            return false;
+        }
         if (!raw) return false;
         try {
             const data = JSON.parse(raw);
