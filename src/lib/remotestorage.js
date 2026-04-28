@@ -38,12 +38,35 @@ import { clone, nowIso } from "./utils.js";
     const PLAIN_HTTP_HOST_RE = /^(localhost|127\.[0-9.]+|\[?::1\]?|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/;
 
     const customDiscover = (userAddress) => {
+        // rs.js's `connect()` accepts both `user@host` AND bare-host /
+        // URL forms (it prefixes bare hosts with `https://` upstream),
+        // so we have to handle both shapes here. webfinger.js's
+        // `parseAddress` distinguishes them by looking for `@`; we
+        // mirror that. The resource= query also differs: `acct:` prefix
+        // for user@host, the URL itself for URL form (per RFC 7033).
+        let host;
+        let resource;
         const at = userAddress.lastIndexOf("@");
-        if (at < 0) return Promise.reject(new Error("Invalid user address"));
-        const host = userAddress.slice(at + 1);
+        if (at >= 0) {
+            host = userAddress.slice(at + 1);
+            resource = `acct:${userAddress}`;
+        } else if (userAddress.includes("://")) {
+            try {
+                host = new URL(userAddress).host;
+            } catch {
+                return Promise.reject(new Error(`Invalid user address: ${userAddress}`));
+            }
+            resource = userAddress;
+        } else {
+            // Bare host (rs.js should have prefixed with https:// already, but
+            // keep this defensive for callers that bypass connect()).
+            host = userAddress;
+            resource = `https://${userAddress}`;
+        }
+        if (!host) return Promise.reject(new Error(`Invalid user address: ${userAddress}`));
         const hostNoPort = host.split(":")[0];
         const scheme = PLAIN_HTTP_HOST_RE.test(host) || PLAIN_HTTP_HOST_RE.test(hostNoPort) ? "http" : "https";
-        const url = `${scheme}://${host}/.well-known/webfinger?resource=acct:${encodeURIComponent(userAddress)}`;
+        const url = `${scheme}://${host}/.well-known/webfinger?resource=${encodeURIComponent(resource)}`;
 
         return fetch(url).then(async (resp) => {
             if (!resp.ok) throw new Error(`WebFinger failed: ${resp.status}`);
