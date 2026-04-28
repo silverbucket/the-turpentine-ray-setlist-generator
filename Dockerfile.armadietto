@@ -1,0 +1,12 @@
+# Lightweight armadietto container for local real-backend e2e tests.
+# Both node and armadietto are pinned so a CI build today and a CI build
+# in 6 months produce the same backend — the test suite asserts on
+# armadietto's HTML form fields and OAuth/storage behavior, so an
+# upstream publish silently failing unrelated PRs is exactly the failure
+# mode this pin defends against. To bump: bump the version below and
+# rebuild with `docker compose build --no-cache`.
+FROM node:20-alpine
+RUN npm install -g armadietto@0.6.4
+COPY armadietto.conf.json /etc/armadietto/config.json
+EXPOSE 8000
+CMD ["armadietto", "-c", "/etc/armadietto/config.json"]

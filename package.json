@@ -13,6 +13,9 @@
         "test:e2e:mobile": "playwright test --project=mobile",
         "test:e2e:all": "playwright test",
         "test:e2e:ui": "playwright test --ui",
+        "armadietto:up": "docker compose up -d",
+        "armadietto:down": "docker compose down",
+        "armadietto:reset": "docker compose down -v && docker compose up -d",
         "lint": "biome check .",
         "lint:fix": "biome check --write .",
         "format": "biome format --write ."

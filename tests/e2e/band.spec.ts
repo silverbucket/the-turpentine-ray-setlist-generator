@@ -270,12 +270,15 @@ test.describe("Band screen — account section", () => {
     });
 
     test("connected address is shown in account section", async ({ page, app }) => {
-        await app.seed(buildSeed({ autoConnectAs: "alice@example.com" }));
+        // The seed return gives us the freshly-provisioned address;
+        // arbitrary "alice@example.com"-style strings can't work here
+        // because the account has to exist on armadietto.
+        const { primary } = await app.seed(buildSeed());
         await app.goto();
         await new AppShell(page).gotoBand();
 
         const band = new BandPage(page);
-        await expect(band.screen.locator(".connect-address")).toContainText("alice@example.com");
+        await expect(band.screen.locator(".connect-address")).toContainText(primary?.address ?? "");
     });
 });
 

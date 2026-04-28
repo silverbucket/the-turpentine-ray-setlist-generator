@@ -12,17 +12,18 @@
     import { createAppStore } from "./lib/stores/app.svelte.js";
     import { DEFAULT_DIE_COLOR, darkenHex, hexToRgb, hexToRgba } from "./lib/utils.js";
 
-    // Test escape hatch: tests inject a fake in-memory repo via window
-    // before the app boots. Production code path is unchanged.
-    const repo =
-        (typeof window !== "undefined" && typeof window.__SR_TEST_REPO_FACTORY__ === "function"
-            ? window.__SR_TEST_REPO_FACTORY__()
-            : null) || createRemoteStorageRepository();
+    const repo = createRemoteStorageRepository();
     const store = createAppStore(repo);
     setContext("app", store);
 
     if (typeof window !== "undefined" && window.__SR_TEST__) {
-        // Expose store to tests for state-based assertions and seeding helpers.
+        // Test-mode escape hatch: expose the store + repo on window so
+        // e2e tests can read state directly (`__SR_STORE__.songs`, etc.)
+        // and drive store methods that don't have a UI surface
+        // (`__SR_STORE__.retrySync()`). The flag is set by Playwright's
+        // `addInitScript` in tests/fixtures/test-fixtures.ts and is
+        // never set in production builds. Both stays gated by the
+        // window check so SSR contexts (if we ever add any) don't trip.
         window.__SR_STORE__ = store;
         window.__SR_REPO__ = repo;
     }

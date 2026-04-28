@@ -6,10 +6,16 @@ const remoteStorageMockState = vi.hoisted(() => ({
     defaultAuthorize: null,
 }));
 
+// Mock the rs.js default export. The constructor returns whatever the
+// per-test beforeEach put in `instance`. The constructor function ITSELF
+// is what `import RemoteStorage from "remotestoragejs"` resolves to —
+// that's also where our custom Discover override lands, so the override
+// is observable through this same mock function.
 vi.mock("remotestoragejs", () => ({
     default: vi.fn(() => remoteStorageMockState.instance),
 }));
 
+import RemoteStorage from "remotestoragejs";
 import {
     authorizeWithStandalonePopup,
     buildAuthorizeUrl,
@@ -791,5 +797,113 @@ describe("createRemoteStorageRepository", () => {
             // so its pending count contributes nothing rather than NaN.
             expect(result.pendingBodies).toBe(3);
         });
+    });
+});
+
+describe("custom RemoteStorage.Discover override", () => {
+    // The override is installed at module-load time when remotestorage.js
+    // runs `RemoteStorage.Discover = customDiscover`. We assert against
+    // the mocked rs.js export — same object the override mutated.
+    function makeFetchStub(impl) {
+        const stub = vi.fn(impl);
+        globalThis.fetch = stub;
+        return stub;
+    }
+
+    function jsonResponse(body, { ok = true, status = 200 } = {}) {
+        return {
+            ok,
+            status,
+            json: async () => body,
+        };
+    }
+
+    const VALID_WEBFINGER = {
+        links: [
+            {
+                rel: "remotestorage",
+                href: "https://storage.example.com/me",
+                type: "draft-dejong-remotestorage-10",
+                properties: {
+                    "http://remotestorage.io/spec/version": "draft-dejong-remotestorage-10",
+                    "http://tools.ietf.org/html/rfc6749#section-4.2": "https://storage.example.com/oauth/me",
+                },
+            },
+        ],
+    };
+
+    let originalFetch;
+    beforeEach(() => {
+        originalFetch = globalThis.fetch;
+    });
+    afterEach(() => {
+        globalThis.fetch = originalFetch;
+    });
+
+    it("resolves user@host with an acct: webfinger resource", async () => {
+        const fetchStub = makeFetchStub(() => Promise.resolve(jsonResponse(VALID_WEBFINGER)));
+        const info = await RemoteStorage.Discover("nick@example.com");
+        expect(fetchStub).toHaveBeenCalledTimes(1);
+        const url = fetchStub.mock.calls[0][0];
+        // Public host ⇒ https. Resource is encoded `acct:nick@example.com`.
+        expect(url).toBe(
+            "https://example.com/.well-known/webfinger?resource=" + encodeURIComponent("acct:nick@example.com"),
+        );
+        expect(info.href).toBe("https://storage.example.com/me");
+        expect(info.authURL).toBe("https://storage.example.com/oauth/me");
+        expect(info.storageApi).toBe("draft-dejong-remotestorage-10");
+    });
+
+    it("resolves URL-form input (rs.js prefixes bare hosts upstream) with the URL itself as the webfinger resource", async () => {
+        // rs.js's `connect("5apps.com")` rewrites the address to
+        // `"https://5apps.com"` before calling Discover, so this is the
+        // shape Discover actually receives. The previous override
+        // rejected anything without `@` outright; this test pins the
+        // fix.
+        const fetchStub = makeFetchStub(() => Promise.resolve(jsonResponse(VALID_WEBFINGER)));
+        await RemoteStorage.Discover("https://5apps.com");
+        const url = fetchStub.mock.calls[0][0];
+        expect(url).toBe("https://5apps.com/.well-known/webfinger?resource=" + encodeURIComponent("https://5apps.com"));
+    });
+
+    it("uses http (not https) for localhost-style private hosts to avoid TLS-required failures in dev", async () => {
+        const fetchStub = makeFetchStub(() => Promise.resolve(jsonResponse(VALID_WEBFINGER)));
+        await RemoteStorage.Discover("user@localhost:8000");
+        expect(fetchStub.mock.calls[0][0]).toMatch(/^http:\/\/localhost:8000\/\.well-known\/webfinger/);
+    });
+
+    it("uses http for 127.0.0.1 too — RFC1918 / loopback, never TLS in practice", async () => {
+        const fetchStub = makeFetchStub(() => Promise.resolve(jsonResponse(VALID_WEBFINGER)));
+        await RemoteStorage.Discover("user@127.0.0.1:8000");
+        expect(fetchStub.mock.calls[0][0]).toMatch(/^http:\/\/127\.0\.0\.1:8000/);
+    });
+
+    it("rejects with a non-DiscoveryError when the webfinger HTTP response is non-2xx", async () => {
+        // The error class doesn't matter for the user-facing state machine —
+        // rs.js's connect() catches our rejection and emits its own
+        // `RemoteStorage.DiscoveryError("No storage information found...")`,
+        // which the app's error handler treats as fatal and unwinds the
+        // connecting state via repo.disconnect(). What matters here is
+        // that we DO reject (i.e. don't swallow the failure into a
+        // resolved Promise).
+        makeFetchStub(() => Promise.resolve(jsonResponse({}, { ok: false, status: 404 })));
+        await expect(RemoteStorage.Discover("user@example.com")).rejects.toThrow(/WebFinger failed: 404/);
+    });
+
+    it("rejects when the webfinger JSON has no remoteStorage link", async () => {
+        makeFetchStub(() => Promise.resolve(jsonResponse({ links: [{ rel: "avatar", href: "x" }] })));
+        await expect(RemoteStorage.Discover("user@example.com")).rejects.toThrow(/No remoteStorage link/);
+    });
+
+    it("rejects when the input has neither @ nor :// (defensive — rs.js prefixes upstream so this shouldn't happen, but if a caller bypasses connect()…)", async () => {
+        // No fetch stub — should reject before any network call.
+        const fetchStub = makeFetchStub(() => {
+            throw new Error("fetch should not be called");
+        });
+        // Bare hosts go through the URL-form branch (resource = `https://${address}`),
+        // so the rejection here is for the case where URL parsing fails. We
+        // test that path with input the URL constructor refuses to parse.
+        await expect(RemoteStorage.Discover("https://")).rejects.toThrow(/Invalid user address/);
+        expect(fetchStub).not.toHaveBeenCalled();
     });
 });
