@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { saveKnownAccount, scopedKey } from "../accounts.js";
+import { accountSlot, saveKnownAccount } from "../accounts.js";
 import { createAppStore } from "./app.svelte.js";
 
 /**
@@ -260,7 +260,7 @@ describe("connectToAccount — snapshot path", () => {
     it("paints the new account's data instantly when a snapshot exists", async () => {
         saveKnownAccount("user-b@example.com", { bandName: "B" }, "token-b");
         localStorage.setItem(
-            scopedKey("snapshot", "user-b@example.com"),
+            accountSlot("user-b@example.com").key("snapshot"),
             JSON.stringify({
                 songs: [{ id: "s1", name: "Snapshot Song" }],
                 config: { bandName: "Band B (snapshot)", schemaVersion: 2 },
@@ -298,7 +298,7 @@ describe("connectToAccount — snapshot path", () => {
         // overwritten by an empty cache read on the same account.
         saveKnownAccount("user-b@example.com", { bandName: "B" }, "token-b");
         localStorage.setItem(
-            scopedKey("snapshot", "user-b@example.com"),
+            accountSlot("user-b@example.com").key("snapshot"),
             JSON.stringify({
                 songs: [],
                 config: { bandName: "Band B (snapshot)", schemaVersion: 2 },
