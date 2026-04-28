@@ -173,3 +173,93 @@ export function isStorageRequest(req: Request): boolean {
     const url = req.url();
     return url.startsWith(`${ARMADIETTO_BASE}/storage/`);
 }
+
+/**
+ * Build the absolute storage URL for a path inside the app's
+ * `/setlist-roller/` scope. `path` is the segment after the scope —
+ * e.g. `songs/abc-123` or `settings/app-config`.
+ */
+function storageUrl(username: string, path: string): string {
+    return `${ARMADIETTO_BASE}/storage/${username}/setlist-roller/${path}`;
+}
+
+/**
+ * PUT a JSON document to the user's storage at the given path. The
+ * content-type matches what rs.js's `storeObject` writes
+ * (`application/json; charset=UTF-8`) so on the round-trip rs.js sees
+ * a doc indistinguishable from one its own client wrote.
+ */
+async function putDoc(username: string, token: string, path: string, doc: unknown): Promise<void> {
+    const resp = await fetch(storageUrl(username, path), {
+        method: "PUT",
+        headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json; charset=UTF-8",
+        },
+        body: JSON.stringify(doc),
+    });
+    if (resp.status !== 200 && resp.status !== 201 && resp.status !== 204) {
+        const text = await resp.text();
+        throw new Error(`armadietto PUT ${path} returned ${resp.status}: ${text.slice(0, 200)}`);
+    }
+}
+
+/** Schema-version we're seeding — matches `SCHEMA_VERSION` in src/lib/defaults.js. */
+const SCHEMA_VERSION = 2;
+
+/**
+ * Pre-seed an armadietto user with songs by PUTing each doc to the
+ * storage backend directly. Bypasses the app entirely — these docs
+ * appear on the server before the user even connects, which lets a
+ * test verify the cold-load → first-sync → catalog populated round
+ * trip end-to-end. The seeded shape matches `normalizeSongRecord` in
+ * src/lib/defaults.js so the app accepts the doc verbatim instead of
+ * fixing up missing fields.
+ */
+export async function seedRemoteSongs(
+    user: { username: string; token: string },
+    songs: { id: string; name: string; key?: string }[],
+): Promise<void> {
+    const now = new Date().toISOString();
+    for (const seed of songs) {
+        const doc = {
+            "@context": "http://remotestorage.io/spec/modules/setlist-roller/song",
+            id: seed.id,
+            name: seed.name,
+            cover: false,
+            instrumental: false,
+            notGoodOpener: false,
+            notGoodCloser: false,
+            unpracticed: false,
+            key: seed.key || "",
+            notes: "",
+            schemaVersion: SCHEMA_VERSION,
+            createdAt: now,
+            updatedAt: now,
+            members: {},
+        };
+        await putDoc(user.username, user.token, `songs/${seed.id}`, doc);
+    }
+}
+
+/**
+ * Pre-seed an armadietto user with a band-config doc. Without one the
+ * app cold-loads into first-run, which masks every catalog/roll
+ * assertion that follows — so any roll-related real-backend test
+ * needs this AND `seedRemoteSongs` to land BEFORE the connect.
+ */
+export async function seedRemoteConfig(user: { username: string; token: string }, bandName: string): Promise<void> {
+    const now = new Date().toISOString();
+    const config = {
+        "@context": "http://remotestorage.io/spec/modules/setlist-roller/config",
+        bandName,
+        schemaVersion: SCHEMA_VERSION,
+        createdAt: now,
+        updatedAt: now,
+        ui: { dieColor: null },
+        general: {},
+        show: {},
+        props: {},
+    };
+    await putDoc(user.username, user.token, "settings/app-config", config);
+}

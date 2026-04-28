@@ -43,6 +43,24 @@ export type RealAppContext = {
     goto: (path?: string) => Promise<void>;
     /** Wait for the app shell to render (post-sync). */
     waitForReady: () => Promise<void>;
+    /**
+     * Wait for the store to settle into syncState === "synced" — that's
+     * the public signal the store flips after the first round completes
+     * with no pending body fetches and no in-flight reloads. Use before
+     * asserting catalog contents or driving Roll, so the test doesn't
+     * race the post-connect onChange burst.
+     */
+    waitForSynced: (timeoutMs?: number) => Promise<void>;
+    /** Read a snapshot of the live store for assertions. */
+    getStoreState: () => Promise<{
+        connectionStatus: string;
+        syncState: string;
+        initialSyncComplete: boolean;
+        connectAddress: string;
+        songs: { id: string; name: string }[];
+        appConfig: { bandName?: string } | null;
+        generatedSetlist: { songs?: { id: string; name: string }[] } | null;
+    } | null>;
 };
 
 export const test = base.extend<{ app: RealAppContext }>({
@@ -172,6 +190,42 @@ export const test = base.extend<{ app: RealAppContext }>({
                     hasNavigated = true;
                 }
                 await page.locator("nav.bottom-nav").waitFor({ state: "visible", timeout: 30_000 });
+            },
+            async waitForSynced(timeoutMs = 30_000) {
+                // The store flips syncState → "synced" after a settle
+                // window once reloadInFlight === 0, pendingBodies === 0,
+                // and at least one full sync round has fired sync-done.
+                // That's the public signal we want — gates everything
+                // that asserts on catalog contents or drives Roll.
+                await page.waitForFunction(
+                    () => {
+                        const s = (window as unknown as { __SR_STORE__?: { syncState?: string } }).__SR_STORE__;
+                        return s?.syncState === "synced";
+                    },
+                    null,
+                    { timeout: timeoutMs },
+                );
+            },
+            async getStoreState() {
+                return page.evaluate(() => {
+                    const s = (window as unknown as { __SR_STORE__?: Record<string, unknown> }).__SR_STORE__;
+                    if (!s) return null;
+                    return {
+                        connectionStatus: s.connectionStatus as string,
+                        syncState: s.syncState as string,
+                        initialSyncComplete: s.initialSyncComplete as boolean,
+                        connectAddress: s.connectAddress as string,
+                        songs: JSON.parse(JSON.stringify(s.songs)) as { id: string; name: string }[],
+                        appConfig: s.appConfig
+                            ? (JSON.parse(JSON.stringify(s.appConfig)) as { bandName?: string })
+                            : null,
+                        generatedSetlist: s.generatedSetlist
+                            ? (JSON.parse(JSON.stringify(s.generatedSetlist)) as {
+                                  songs?: { id: string; name: string }[];
+                              })
+                            : null,
+                    };
+                });
             },
         };
 
