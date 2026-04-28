@@ -10,6 +10,8 @@ export class SavedPage {
     readonly emptyState: Locator;
     readonly savedCards: Locator;
     readonly modal: Locator;
+    readonly modalContent: Locator;
+    readonly modalActions: Locator;
     readonly modalCloseButton: Locator;
     readonly printButton: Locator;
     readonly loadToRollButton: Locator;
@@ -20,6 +22,10 @@ export class SavedPage {
         this.emptyState = this.screen.locator(".empty-state");
         this.savedCards = this.screen.locator(".saved-card");
         this.modal = page.locator(".modal-sheet");
+        // The scrollable region holding the song list. Action buttons live
+        // outside this element so they stay pinned while the list scrolls.
+        this.modalContent = this.modal.locator(".modal-content");
+        this.modalActions = this.modal.locator(".modal-actions");
         this.modalCloseButton = this.modal.getByRole("button", { name: "Close" });
         this.printButton = this.modal.getByRole("button", { name: /Print/ });
         this.loadToRollButton = this.modal.getByRole("button", { name: "Load to Roll" });

@@ -228,50 +228,52 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="modal-backdrop" onclick={handleClose}>
     <div class="modal-sheet" onclick={(e) => e.stopPropagation()}>
-      <div class="print-setlist" bind:this={printEl}>
-        <div class="print-top">
-          <button type="button" class="modal-close no-print" onclick={handleClose} aria-label="Close">&times;</button>
-          <h2 class="print-band">{store.appTitle.replace(/ — Setlist Roller$/, "")}</h2>
-          <p class="print-subtitle">{viewingSet.name || "Setlist"} &middot; {formatDate(viewingSet.savedAt)}</p>
-        </div>
+      <div class="modal-content">
+        <div class="print-setlist" bind:this={printEl}>
+          <div class="print-top">
+            <button type="button" class="modal-close no-print" onclick={handleClose} aria-label="Close">&times;</button>
+            <h2 class="print-band">{store.appTitle.replace(/ — Setlist Roller$/, "")}</h2>
+            <p class="print-subtitle">{viewingSet.name || "Setlist"} &middot; {formatDate(viewingSet.savedAt)}</p>
+          </div>
 
-        <div class="print-songs">
-          {#each viewingSet.songs as song, i}
-            {@const prevSong = i > 0 ? viewingSet.songs[i - 1] : null}
-            {@const changes = allChanges(song, prevSong)}
-            <div class="print-song">
-              <div class="print-song-row">
-                <span class="print-num">{i + 1}.</span>
-                <span class="print-song-name">{song.name || song.title || "Untitled"}</span>
-                {#if song.key}
-                  <span class="print-song-key">{song.key}</span>
+          <div class="print-songs">
+            {#each viewingSet.songs as song, i}
+              {@const prevSong = i > 0 ? viewingSet.songs[i - 1] : null}
+              {@const changes = allChanges(song, prevSong)}
+              <div class="print-song">
+                <div class="print-song-row">
+                  <span class="print-num">{i + 1}.</span>
+                  <span class="print-song-name">{song.name || song.title || "Untitled"}</span>
+                  {#if song.key}
+                    <span class="print-song-key">{song.key}</span>
+                  {/if}
+                </div>
+                {#if changes.length > 0}
+                  <div class="print-changes">
+                    {#each changes as line}
+                      <div class="print-change" class:setup={line.isSetup}>
+                        <span class="print-change-member">{line.member}:</span>
+                        <span class="print-change-detail">{line.changes.join(", ")}</span>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+                {#if song.notes?.trim()}
+                  <div class="print-notes">{song.notes}</div>
                 {/if}
               </div>
-              {#if changes.length > 0}
-                <div class="print-changes">
-                  {#each changes as line}
-                    <div class="print-change" class:setup={line.isSetup}>
-                      <span class="print-change-member">{line.member}:</span>
-                      <span class="print-change-detail">{line.changes.join(", ")}</span>
-                    </div>
-                  {/each}
-                </div>
-              {/if}
-              {#if song.notes?.trim()}
-                <div class="print-notes">{song.notes}</div>
-              {/if}
-            </div>
-          {/each}
-        </div>
-
-        {#if viewingSet.summary?.anxiety}
-          {@const anxiety = viewingSet.summary.anxiety}
-          <div class="print-anxiety">
-            <span class="print-anxiety-title">Bass Player Anxiety:</span>
-            <span class="print-anxiety-score">{anxiety.scaled}/10</span>
-            <span class="print-anxiety-label">{anxietyLabel(anxiety)}</span>
+            {/each}
           </div>
-        {/if}
+
+          {#if viewingSet.summary?.anxiety}
+            {@const anxiety = viewingSet.summary.anxiety}
+            <div class="print-anxiety">
+              <span class="print-anxiety-title">Bass Player Anxiety:</span>
+              <span class="print-anxiety-score">{anxiety.scaled}/10</span>
+              <span class="print-anxiety-label">{anxietyLabel(anxiety)}</span>
+            </div>
+          {/if}
+        </div>
       </div>
 
       <div class="modal-actions">
@@ -488,13 +490,26 @@
   .modal-sheet {
     width: min(100%, 420px);
     max-height: calc(100dvh - 2rem);
-    overflow-y: auto;
     background: var(--paper-strong);
     border-radius: var(--radius-xl, 20px);
     box-shadow: var(--shadow);
-    display: grid;
-    gap: 0;
+    /* flex column lets the inner .modal-content take the remaining space and
+       scroll, while .modal-actions stays pinned as a sticky-style footer. */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     animation: pop-in 200ms ease;
+  }
+
+  .modal-content {
+    /* The actual scroll container — songs scroll here, action buttons stay
+       pinned outside this element. min-height: 0 is required so flex children
+       respect overflow on iOS Safari. */
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
 
   .modal-close {
@@ -521,25 +536,29 @@
     background: var(--hover-strong);
   }
 
-  /* ---- Print-friendly setlist (black & white) ---- */
+  /* ---- Setlist viewer (theme-aware on screen) ----
+     The class names start with "print-" for historical reasons (the same DOM
+     was originally cloned into a popup window for printing). The actual print
+     popup now injects its own black-on-white CSS in handlePrint(), so these
+     rules only style the on-screen viewer and are free to follow the theme. */
   .print-setlist {
     padding: 0.75rem;
     display: grid;
     gap: 0;
-    color: #000;
+    color: var(--ink);
     position: relative;
   }
 
   .print-top {
     padding-bottom: 0.5rem;
-    border-bottom: 2px solid #000;
+    border-bottom: 2px solid var(--ink);
     margin-bottom: 0.35rem;
   }
 
   .print-band {
     font-size: 1.15rem;
     font-weight: 800;
-    color: #000;
+    color: var(--ink);
     margin: 0;
     line-height: 1.2;
   }
@@ -547,7 +566,7 @@
   .print-subtitle {
     font-size: 0.78rem;
     font-weight: 400;
-    color: #555;
+    color: var(--muted);
     margin: 0.1rem 0 0;
   }
 
@@ -558,7 +577,7 @@
 
   .print-song {
     padding: 0.45rem 0;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid var(--line);
   }
 
   .print-song-row {
@@ -570,7 +589,7 @@
   .print-num {
     font-size: 0.78rem;
     font-weight: 700;
-    color: #666;
+    color: var(--muted);
     min-width: 1.6rem;
     text-align: right;
     flex-shrink: 0;
@@ -579,17 +598,17 @@
   .print-song-name {
     font-size: 0.9rem;
     font-weight: 600;
-    color: #000;
+    color: var(--ink);
     flex: 1;
   }
 
   .print-song-key {
     font-size: 0.72rem;
     font-weight: 700;
-    color: #444;
+    color: var(--ink);
     flex-shrink: 0;
     padding: 0.05rem 0.35rem;
-    border: 1px solid #ccc;
+    border: 1px solid var(--line-strong);
     border-radius: 4px;
   }
 
@@ -605,11 +624,11 @@
     align-items: baseline;
     gap: 0.3rem;
     font-size: 0.72rem;
-    color: #333;
+    color: var(--ink);
   }
 
   .print-change.setup {
-    color: #666;
+    color: var(--muted);
   }
 
   .print-change-member {
@@ -626,7 +645,7 @@
     padding-top: 0.15rem;
     font-size: 0.72rem;
     font-style: italic;
-    color: #666;
+    color: var(--muted);
     line-height: 1.45;
     white-space: pre-line;
     font-weight: 500;
@@ -635,22 +654,26 @@
   .print-anxiety {
     margin-top: 0.5rem;
     padding-top: 0.5rem;
-    border-top: 2px solid #000;
+    border-top: 2px solid var(--ink);
     display: flex;
     align-items: baseline;
     gap: 0.4rem;
     font-size: 0.82rem;
+    color: var(--ink);
   }
 
   .print-anxiety-title { font-weight: 700; }
   .print-anxiety-score { font-weight: 800; }
-  .print-anxiety-label { font-weight: 400; color: #555; }
+  .print-anxiety-label { font-weight: 400; color: var(--muted); }
 
   .modal-actions {
     display: flex;
     gap: 0.5rem;
     padding: 0.5rem 0.75rem 0.75rem;
     border-top: 1px solid var(--line);
+    /* Pinned footer: stays in place while .modal-content scrolls. */
+    flex-shrink: 0;
+    background: var(--paper-strong);
   }
 
   .modal-btn {

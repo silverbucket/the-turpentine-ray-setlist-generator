@@ -213,6 +213,227 @@ test.describe("Saved screen — delete with confirm", () => {
     });
 });
 
+test.describe("Saved screen — dark mode legibility", () => {
+    /**
+     * Regression: prior to the fix the .print-* viewer styles used hardcoded
+     * black/grey colors meant for the printed PDF. In dark mode the modal
+     * background is dark, so the song names and rules rendered as
+     * black-on-near-black — completely illegible. The viewer now reads from
+     * theme tokens (--ink, --muted, --line). This test asserts that the
+     * visible text actually contrasts with the modal background.
+     */
+    test("setlist text contrasts with the modal background in dark mode", async ({ page, app }) => {
+        await app.seed(
+            buildSeed({
+                setlists: { s: setlistFixture({ id: "s", name: "After Dark" }) },
+            }),
+        );
+        await app.goto();
+        await app.waitForReady();
+        const shell = new AppShell(page);
+
+        // System → light → dark.
+        await shell.cycleTheme();
+        await shell.cycleTheme();
+        expect(await shell.getTheme()).toBe("dark");
+
+        await shell.gotoSaved();
+        const saved = new SavedPage(page);
+        await saved.openCard("After Dark");
+
+        const songName = saved.modal.locator(".print-song-name").first();
+
+        // Compute relative luminance of the rendered text vs the modal sheet
+        // background. We need a meaningful gap between them, otherwise dark
+        // text would silently be invisible against a dark background again.
+        const contrast = await page.evaluate(
+            ({ textSel, bgSel }) => {
+                function lum(rgb: string): number {
+                    const m = rgb.match(/(\d+(?:\.\d+)?)/g);
+                    if (!m || m.length < 3) return 0;
+                    const [r, g, b] = m.slice(0, 3).map((v) => Number(v) / 255);
+                    return 0.299 * r + 0.587 * g + 0.114 * b;
+                }
+                const textEl = document.querySelector(textSel);
+                const bgEl = document.querySelector(bgSel);
+                if (!textEl || !bgEl) return null;
+                const textColor = getComputedStyle(textEl).color;
+                const bgColor = getComputedStyle(bgEl).backgroundColor;
+                return {
+                    textLum: lum(textColor),
+                    bgLum: lum(bgColor),
+                    textColor,
+                    bgColor,
+                };
+            },
+            { textSel: ".modal-sheet .print-song-name", bgSel: ".modal-sheet" },
+        );
+        expect(contrast).not.toBeNull();
+        if (!contrast) return;
+        // In dark mode the background should be dark, the text should be
+        // light. We just need a meaningful gap (>0.4 luminance delta) — the
+        // exact ink token is `#e2e6ec` which sits ~0.88, the paper-strong
+        // token is rgba(26,30,38,0.96) which sits ~0.12.
+        const delta = Math.abs(contrast.textLum - contrast.bgLum);
+        expect(delta).toBeGreaterThan(0.4);
+        // And the song name itself should be visibly rendered.
+        await expect(songName).toBeVisible();
+    });
+
+    test("setlist text remains legible in light mode", async ({ page, app }) => {
+        await app.seed(
+            buildSeed({
+                setlists: { s: setlistFixture({ id: "s", name: "Daylight" }) },
+            }),
+        );
+        await app.goto();
+        await app.waitForReady();
+        const shell = new AppShell(page);
+        await shell.cycleTheme();
+        expect(await shell.getTheme()).toBe("light");
+
+        await shell.gotoSaved();
+        const saved = new SavedPage(page);
+        await saved.openCard("Daylight");
+
+        const contrast = await page.evaluate(
+            ({ textSel, bgSel }) => {
+                function lum(rgb: string): number {
+                    const m = rgb.match(/(\d+(?:\.\d+)?)/g);
+                    if (!m || m.length < 3) return 0;
+                    const [r, g, b] = m.slice(0, 3).map((v) => Number(v) / 255);
+                    return 0.299 * r + 0.587 * g + 0.114 * b;
+                }
+                const textEl = document.querySelector(textSel);
+                const bgEl = document.querySelector(bgSel);
+                if (!textEl || !bgEl) return null;
+                return {
+                    textLum: lum(getComputedStyle(textEl).color),
+                    bgLum: lum(getComputedStyle(bgEl).backgroundColor),
+                };
+            },
+            { textSel: ".modal-sheet .print-song-name", bgSel: ".modal-sheet" },
+        );
+        expect(contrast).not.toBeNull();
+        if (!contrast) return;
+        expect(Math.abs(contrast.textLum - contrast.bgLum)).toBeGreaterThan(0.4);
+    });
+});
+
+test.describe("Saved screen — tall setlist scrolling", () => {
+    /**
+     * Regression: prior to the fix the modal-sheet was the scroll container
+     * but combined with `display: grid; place-items: center` on the backdrop
+     * the content could end up clipped above the viewport on tall lists. The
+     * fix splits the sheet into a flex column with .modal-content as the
+     * scroll region and .modal-actions pinned outside it.
+     */
+    function tallSetlistFixture(songCount = 40): SeedSetlist {
+        const songs = Array.from({ length: songCount }, (_, i) => ({
+            id: `tall-${i}`,
+            name: `Marathon Track ${i + 1}`,
+            key: "C",
+        }));
+        return setlistFixture({
+            id: "tall",
+            name: "The Marathon",
+            songs,
+            songCount,
+        });
+    }
+
+    test("the song list scrolls when the setlist is taller than the viewport", async ({ page, app }) => {
+        await app.seed(buildSeed({ setlists: { tall: tallSetlistFixture(40) } }));
+        await page.setViewportSize({ width: 390, height: 600 });
+        await app.goto();
+        await app.waitForReady();
+        await new AppShell(page).gotoSaved();
+
+        const saved = new SavedPage(page);
+        await saved.openCard("The Marathon");
+
+        const scrollState = await saved.modalContent.evaluate((el) => ({
+            overflowing: el.scrollHeight > el.clientHeight,
+            initialScrollTop: el.scrollTop,
+            scrollHeight: el.scrollHeight,
+            clientHeight: el.clientHeight,
+        }));
+        expect(scrollState.overflowing).toBe(true);
+        expect(scrollState.initialScrollTop).toBe(0);
+
+        // Scroll to the bottom and confirm the scrollTop actually moved —
+        // proving this element really is the scroll container.
+        await saved.modalContent.evaluate((el) => {
+            el.scrollTop = el.scrollHeight;
+        });
+        const finalScrollTop = await saved.modalContent.evaluate((el) => el.scrollTop);
+        expect(finalScrollTop).toBeGreaterThan(0);
+    });
+
+    test("action buttons stay visible while the song list is scrolled", async ({ page, app }) => {
+        await app.seed(buildSeed({ setlists: { tall: tallSetlistFixture(40) } }));
+        await page.setViewportSize({ width: 390, height: 600 });
+        await app.goto();
+        await app.waitForReady();
+        await new AppShell(page).gotoSaved();
+
+        const saved = new SavedPage(page);
+        await saved.openCard("The Marathon");
+
+        // Both action buttons live outside .modal-content (the scroll
+        // container), inside .modal-actions. Confirm DOM relationship.
+        const actionsContainScrollContent = await saved.modalContent.evaluate((content) => {
+            const actions = document.querySelector(".modal-actions");
+            if (!actions) return false;
+            return content.contains(actions);
+        });
+        expect(actionsContainScrollContent).toBe(false);
+
+        // Visible before scroll.
+        await expect(saved.printButton).toBeVisible();
+        await expect(saved.loadToRollButton).toBeVisible();
+
+        // Scroll the list to the bottom; buttons must still be in viewport.
+        await saved.modalContent.evaluate((el) => {
+            el.scrollTop = el.scrollHeight;
+        });
+        await expect(saved.printButton).toBeInViewport();
+        await expect(saved.loadToRollButton).toBeInViewport();
+    });
+
+    test("the last song in a tall setlist can be scrolled into view", async ({ page, app }) => {
+        await app.seed(buildSeed({ setlists: { tall: tallSetlistFixture(40) } }));
+        await page.setViewportSize({ width: 390, height: 600 });
+        await app.goto();
+        await app.waitForReady();
+        await new AppShell(page).gotoSaved();
+
+        const saved = new SavedPage(page);
+        await saved.openCard("The Marathon");
+
+        const lastSong = saved.modal.locator(".print-song").last();
+        // Without scrolling the last song is offscreen.
+        const visibleBefore = await lastSong.isVisible();
+        // isVisible() returns true even for offscreen elements in Playwright,
+        // so we go further: assert it's not in the viewport, then scroll it.
+        const inViewportBefore = await lastSong.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            return r.top < window.innerHeight && r.bottom > 0;
+        });
+        expect(visibleBefore).toBe(true);
+        expect(inViewportBefore).toBe(false);
+
+        await saved.modalContent.evaluate((el) => {
+            el.scrollTop = el.scrollHeight;
+        });
+        const inViewportAfter = await lastSong.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            return r.top < window.innerHeight && r.bottom > 0;
+        });
+        expect(inViewportAfter).toBe(true);
+    });
+});
+
 test.describe("Saved screen — modal contents", () => {
     test("anxiety summary appears in the modal when present", async ({ page, app }) => {
         await app.seed(

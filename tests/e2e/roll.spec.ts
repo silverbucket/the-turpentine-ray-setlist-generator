@@ -285,6 +285,85 @@ test.describe("Roll screen — add song dialog", () => {
     });
 });
 
+test.describe("Roll screen — hero scroll behavior", () => {
+    /**
+     * Regression: the .hero block (Songs stepper + Roll button + Settings
+     * drawer) used to be `position: sticky` with its own internal scroll
+     * (max-height + overflow-y: auto). On tall setlists this pinned the
+     * controls to the top of the viewport and trapped settings inside a
+     * second scroll context. The fix removes the sticky pinning and the
+     * inner scroll so the hero flows naturally with the page.
+     */
+    test("the hero is not sticky and has no internal scroll", async ({ page, app }) => {
+        await app.seed(seedWithCatalog());
+        await app.goto();
+        await app.waitForReady();
+        await new AppShell(page).gotoRoll();
+
+        const hero = page.locator(".hero");
+        const styles = await hero.evaluate((el) => {
+            const cs = getComputedStyle(el);
+            return {
+                position: cs.position,
+                overflowY: cs.overflowY,
+                maxHeight: cs.maxHeight,
+            };
+        });
+        expect(styles.position).not.toBe("sticky");
+        // overflow-y default is "visible". Anything that allows internal
+        // scrolling (auto, scroll) would re-introduce the original bug.
+        expect(["visible", "clip"]).toContain(styles.overflowY);
+        // max-height should be unset ("none") — pinning a height is what
+        // forced the inner scroll previously.
+        expect(styles.maxHeight).toBe("none");
+    });
+
+    test("the hero scrolls off the top of the viewport with the page", async ({ page, app }) => {
+        // Seed plenty of songs and roll a longer-than-viewport setlist so
+        // the page has enough content to actually scroll.
+        const extraSongs: SeedSong[] = Array.from({ length: 20 }, (_, i) => ({
+            id: `extra-${i}`,
+            name: `Extra Track ${i + 1}`,
+            key: "C",
+        }));
+        await app.seed(seedWithCatalog(extraSongs));
+        // Smallish viewport so the rolled setlist is guaranteed to overflow.
+        await page.setViewportSize({ width: 390, height: 600 });
+        await app.goto();
+        await app.waitForReady();
+        await new AppShell(page).gotoRoll();
+
+        const roll = new RollPage(page);
+        await roll.setSongCount(20);
+        await roll.clickRoll();
+        await roll.waitForRollResult();
+
+        const hero = page.locator(".hero");
+        const initialBox = await hero.boundingBox();
+        expect(initialBox).not.toBeNull();
+        const initialTop = initialBox?.y ?? 0;
+
+        // The app shell uses body/window scrolling (.main-content has no
+        // overflow:auto). Scroll the window down a chunk and confirm the
+        // hero's viewport-relative top actually moved.
+        await page.evaluate(() => window.scrollTo({ top: 600, behavior: "instant" as ScrollBehavior }));
+        await page.waitForFunction(
+            (initial) => {
+                const h = document.querySelector(".hero") as HTMLElement | null;
+                if (!h) return false;
+                return h.getBoundingClientRect().top < initial;
+            },
+            initialTop,
+            { timeout: 2_000 },
+        );
+
+        const afterBox = await hero.boundingBox();
+        // If hero were sticky (position: sticky; top: var(--top-bar-height)),
+        // it would stay at the same y. We assert it actually moved up.
+        expect(afterBox?.y ?? 0).toBeLessThan(initialTop);
+    });
+});
+
 test.describe("Roll screen — pre-conditions", () => {
     test("rolling with all songs unpracticed shows a toast and bails", async ({ page, app }) => {
         await app.seed(
