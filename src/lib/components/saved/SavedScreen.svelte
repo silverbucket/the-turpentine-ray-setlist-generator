@@ -483,13 +483,22 @@
     display: grid;
     place-items: center;
     z-index: 300;
-    padding: 1rem;
+    /* Inset the centered sheet from the iOS status bar / home indicator.
+       Without this, on notched iPhones the modal-close (X) button at the
+       top-right of the sheet sits under the translucent status bar. The
+       max() keeps the existing 1rem gutter on devices without insets. */
+    padding-top: max(1rem, var(--safe-top, 0px));
+    padding-right: 1rem;
+    padding-bottom: max(1rem, var(--safe-bottom, 0px));
+    padding-left: 1rem;
     animation: fade-in 150ms ease;
   }
 
   .modal-sheet {
     width: min(100%, 420px);
-    max-height: calc(100dvh - 2rem);
+    /* Match the backdrop padding so the sheet never extends behind the
+       status bar / home indicator even when its content is tall. */
+    max-height: calc(100dvh - max(1rem, var(--safe-top, 0px)) - max(1rem, var(--safe-bottom, 0px)));
     background: var(--paper-strong);
     border-radius: var(--radius-xl, 20px);
     box-shadow: var(--shadow);

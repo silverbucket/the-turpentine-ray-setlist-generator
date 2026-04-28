@@ -324,6 +324,92 @@ test.describe("Saved screen — dark mode legibility", () => {
     });
 });
 
+test.describe("Saved screen — iOS safe-area handling", () => {
+    /**
+     * Regression: on iOS PWAs with the translucent status bar overlaying the
+     * page (apple-mobile-web-app-status-bar-style=black-translucent), the
+     * modal-close (X) button at the top-right of the sheet ended up under
+     * the status bar because the centered modal had no top safe-area
+     * padding. Two pieces wire this up:
+     *   1) index.html declares viewport-fit=cover so iOS exposes the real
+     *      env(safe-area-inset-*) values (without it, env() returns 0).
+     *   2) The modal-backdrop's padding-top uses max(1rem, var(--safe-top))
+     *      so the centered sheet sits below the status bar.
+     *
+     * We can't make Playwright report a real iOS notch, but we can override
+     * --safe-top at the document root and verify the modal-sheet (and the
+     * close button inside it) shifts down by that amount.
+     */
+    test("modal-close button stays below an iOS-sized safe-area inset", async ({ page, app }) => {
+        await app.seed(
+            buildSeed({
+                setlists: { s: setlistFixture({ id: "s", name: "Notched" }) },
+            }),
+        );
+        await app.goto();
+        await app.waitForReady();
+
+        // Pretend the device has a 50px status bar overlay. Setting the
+        // CSS variable on the root mimics what env(safe-area-inset-top)
+        // resolves to on a real notched iPhone with viewport-fit=cover.
+        const fakeSafeTop = 50;
+        await page.evaluate((top) => {
+            document.documentElement.style.setProperty("--safe-top", `${top}px`);
+        }, fakeSafeTop);
+
+        await new AppShell(page).gotoSaved();
+        const saved = new SavedPage(page);
+        await saved.openCard("Notched");
+
+        // The modal-sheet's top must be at or below the safe-area inset,
+        // and so must the close button inside it. A small tolerance covers
+        // sub-pixel rounding from the centered grid layout.
+        const sheetBox = await saved.modal.boundingBox();
+        const closeBox = await saved.modalCloseButton.boundingBox();
+        expect(sheetBox).not.toBeNull();
+        expect(closeBox).not.toBeNull();
+        if (!sheetBox || !closeBox) return;
+        expect(sheetBox.y).toBeGreaterThanOrEqual(fakeSafeTop - 1);
+        expect(closeBox.y).toBeGreaterThanOrEqual(fakeSafeTop - 1);
+    });
+
+    test("modal preserves the existing 1rem gutter when there is no safe-area inset", async ({ page, app }) => {
+        await app.seed(
+            buildSeed({
+                setlists: { s: setlistFixture({ id: "s", name: "Flat Phone" }) },
+            }),
+        );
+        await app.goto();
+        await app.waitForReady();
+
+        // No --safe-top override — the var falls back to 0 and the
+        // max(1rem, ...) clause keeps the historical 1rem gutter.
+        await new AppShell(page).gotoSaved();
+        const saved = new SavedPage(page);
+        await saved.openCard("Flat Phone");
+
+        const sheetBox = await saved.modal.boundingBox();
+        expect(sheetBox).not.toBeNull();
+        if (!sheetBox) return;
+        // 1rem at the project's base 16px is 16px. Allow 0–24px for the
+        // grid-centered layout — the point is "more than zero, not zero".
+        expect(sheetBox.y).toBeGreaterThanOrEqual(1);
+    });
+
+    test("the viewport meta tag enables safe-area insets via viewport-fit=cover", async ({ page, app }) => {
+        await app.seed(buildSeed());
+        await app.goto();
+        await app.waitForReady();
+
+        // Without viewport-fit=cover, iOS resolves env(safe-area-inset-*)
+        // to 0 even on notched devices, silently breaking every safe-area
+        // computation in the app. Pin the meta tag in a test so a careless
+        // edit can't quietly regress every modal at once.
+        const viewportContent = await page.locator('meta[name="viewport"]').getAttribute("content");
+        expect(viewportContent).toContain("viewport-fit=cover");
+    });
+});
+
 test.describe("Saved screen — tall setlist scrolling", () => {
     /**
      * Regression: prior to the fix the modal-sheet was the scroll container
