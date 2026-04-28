@@ -213,33 +213,113 @@ const SCHEMA_VERSION = 2;
  * appear on the server before the user even connects, which lets a
  * test verify the cold-load → first-sync → catalog populated round
  * trip end-to-end. The seeded shape matches `normalizeSongRecord` in
- * src/lib/defaults.js so the app accepts the doc verbatim instead of
- * fixing up missing fields.
+ * src/lib/defaults.js; missing fields fall back to the same defaults
+ * the app would apply on a fresh write, so a seeded doc is round-trip
+ * indistinguishable from one the UI saved.
  */
 export async function seedRemoteSongs(
     user: { username: string; token: string },
-    songs: { id: string; name: string; key?: string }[],
+    songs: Record<string, unknown>[] | Record<string, Record<string, unknown>>,
 ): Promise<void> {
+    const list = Array.isArray(songs) ? songs : Object.values(songs);
     const now = new Date().toISOString();
-    for (const seed of songs) {
+    for (const seed of list) {
+        const id = String(seed.id ?? "");
+        if (!id) throw new Error("seedRemoteSongs: each song needs an id");
         const doc = {
             "@context": "http://remotestorage.io/spec/modules/setlist-roller/song",
-            id: seed.id,
-            name: seed.name,
-            cover: false,
-            instrumental: false,
-            notGoodOpener: false,
-            notGoodCloser: false,
-            unpracticed: false,
-            key: seed.key || "",
-            notes: "",
+            id,
+            name: seed.name ?? "",
+            cover: Boolean(seed.cover),
+            instrumental: Boolean(seed.instrumental),
+            notGoodOpener: Boolean(seed.notGoodOpener),
+            notGoodCloser: Boolean(seed.notGoodCloser),
+            unpracticed: Boolean(seed.unpracticed),
+            key: seed.key ?? "",
+            notes: seed.notes ?? "",
             schemaVersion: SCHEMA_VERSION,
-            createdAt: now,
-            updatedAt: now,
-            members: {},
+            createdAt: seed.createdAt ?? now,
+            updatedAt: seed.updatedAt ?? now,
+            members: seed.members ?? {},
+            // Pass-through anything else (e.g. anxiety summaries) the test
+            // wants to seed without us listing every optional field.
+            ...seed,
         };
-        await putDoc(user.username, user.token, `songs/${seed.id}`, doc);
+        await putDoc(user.username, user.token, `songs/${id}`, doc);
     }
+}
+
+/**
+ * Pre-seed an armadietto user with saved setlists. Setlist docs live at
+ * `setlists/<id>` and store the full song list inline plus optional
+ * anxiety summary, savedAt, etc. — the SavedScreen tests want the same
+ * shape the app's `saveCurrentSetlist` would write, so the same
+ * pass-through approach as seedRemoteSongs.
+ */
+export async function seedRemoteSetlists(
+    user: { username: string; token: string },
+    setlists: Record<string, unknown>[] | Record<string, Record<string, unknown>>,
+): Promise<void> {
+    const list = Array.isArray(setlists) ? setlists : Object.values(setlists);
+    const now = new Date().toISOString();
+    for (const seed of list) {
+        const id = String(seed.id ?? "");
+        if (!id) throw new Error("seedRemoteSetlists: each setlist needs an id");
+        const doc = {
+            "@context": "http://remotestorage.io/spec/modules/setlist-roller/setlist",
+            id,
+            schemaVersion: SCHEMA_VERSION,
+            createdAt: seed.createdAt ?? now,
+            updatedAt: seed.updatedAt ?? now,
+            savedAt: seed.savedAt ?? now,
+            ...seed,
+        };
+        await putDoc(user.username, user.token, `setlists/${id}`, doc);
+    }
+}
+
+/**
+ * Pre-seed an armadietto user with band members. Members are keyed by
+ * `name` (rs.js stores them at `members/<name>`) and carry an
+ * instrument list plus optional default-instrument hint.
+ */
+export async function seedRemoteMembers(
+    user: { username: string; token: string },
+    members: Record<string, Record<string, unknown>>,
+): Promise<void> {
+    const now = new Date().toISOString();
+    for (const [name, seed] of Object.entries(members)) {
+        const memberName = String(seed.name ?? name);
+        const doc = {
+            "@context": "http://remotestorage.io/spec/modules/setlist-roller/member",
+            name: memberName,
+            instruments: seed.instruments ?? [],
+            defaultInstrument: seed.defaultInstrument ?? "",
+            schemaVersion: SCHEMA_VERSION,
+            createdAt: seed.createdAt ?? now,
+            updatedAt: seed.updatedAt ?? now,
+            ...seed,
+        };
+        await putDoc(user.username, user.token, `members/${memberName}`, doc);
+    }
+}
+
+/**
+ * Pre-seed an armadietto user with bootstrap metadata. Used by tests
+ * that exercise the migration / first-run boundary.
+ */
+export async function seedRemoteBootstrap(
+    user: { username: string; token: string },
+    bootstrap: Record<string, unknown>,
+): Promise<void> {
+    const now = new Date().toISOString();
+    await putDoc(user.username, user.token, "meta/bootstrap", {
+        "@context": "http://remotestorage.io/spec/modules/setlist-roller/meta",
+        schemaVersion: SCHEMA_VERSION,
+        createdAt: now,
+        updatedAt: now,
+        ...bootstrap,
+    });
 }
 
 /**

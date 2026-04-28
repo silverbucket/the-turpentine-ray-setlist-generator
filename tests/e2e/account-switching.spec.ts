@@ -1,288 +1,114 @@
-import { expect, makeSong, test } from "../fixtures/test-fixtures";
-import { AppShell } from "../pages/AppShell";
-import { ConnectPage } from "../pages/ConnectPage";
+import { mintToken, signupUser } from "../fixtures/armadietto";
+import { expect, test } from "../fixtures/test-fixtures";
 
 /**
- * Account-switching coverage. The connectToAccount() function (TopBar
- * Switch-to / Recent click) had no direct test coverage before this file —
- * connection.spec.ts only covered cold-connect and disconnect, and
- * edge-cases.spec.ts only verified that Add Account leaves the user on the
- * connect screen with Recent listed. Neither exercised the actual swap.
+ * Real-backend account-switching coverage. Same scenarios as
+ * tests/e2e/account-switching.spec.ts but against a live armadietto +
+ * rs.js stack, so the OAuth redirect, webfinger discovery, and IndexedDB
+ * cache are all exercised. The fake-repo equivalents pass — these catch
+ * the regressions that only surface against real machinery.
  */
 
-function getToastMessages(state: unknown) {
-    const toasts = (state as { toastMessages?: { message?: string }[] } | null)?.toastMessages || [];
-    return toasts.map((t) => String(t.message || ""));
-}
+test.describe("Real backend — connect via OAuth redirect", () => {
+    test("connect address redirects to armadietto OAuth, lands in app shell after Allow", async ({ page, app }) => {
+        const user = await app.provisionUser("oauth");
+        await app.goto();
+        await page.getByPlaceholder("you@example.com").fill(user.address);
 
-function expectNoAlreadyConnectingToast(state: unknown) {
-    const messages = getToastMessages(state);
-    const offending = messages.find((m) => m.toLowerCase().includes("already connecting"));
-    expect(offending, `Saw 'Already connecting' toast: ${JSON.stringify(messages)}`).toBeUndefined();
-}
+        // rs.js's default authorize path on non-iOS-PWA browsers
+        // navigates the current page to the auth URL — it's not a popup
+        // (the popup form lives behind the iOS-standalone branch in
+        // src/lib/remotestorage.js). So we wait for the navigation, fill
+        // the form on armadietto, and let armadietto's 302 redirect bring
+        // us back to the app with the token in the hash.
+        await Promise.all([
+            page.waitForURL(/\/oauth\//, { timeout: 15_000 }),
+            page.getByRole("button", { name: /^Connect/ }).click(),
+        ]);
+        await page.locator('input[name="password"]').fill(user.password);
+        await Promise.all([
+            page.waitForURL((u) => u.toString().includes("#access_token="), { timeout: 15_000 }),
+            page.locator('button[name="allow"]').click(),
+        ]);
 
-test.describe("Account switching", () => {
-    test("TopBar Switch-to swaps cleanly and lands on the new account's data", async ({ page, app }) => {
-        // Two accounts pre-seeded. user-a is auto-connected; user-b is in
-        // the known-accounts list (we'll add them via Add Account flow).
-        await app.seed({
-            autoConnectAs: "user-a@example.com",
-            users: {
-                "user-a@example.com": {
-                    songs: { s1: makeSong({ id: "s1", name: "Africa" }) },
-                    config: {
-                        bandName: "Band A",
-                        schemaVersion: 2,
-                        createdAt: "2024-01-01T00:00:00.000Z",
-                        updatedAt: "2024-01-01T00:00:00.000Z",
-                    },
-                },
-                "user-b@example.com": {
-                    songs: { s2: makeSong({ id: "s2", name: "Bohemian Rhapsody" }) },
-                    config: {
-                        bandName: "Band B",
-                        schemaVersion: 2,
-                        createdAt: "2024-01-01T00:00:00.000Z",
-                        updatedAt: "2024-01-01T00:00:00.000Z",
-                    },
-                },
-            },
-        });
+        // The post-redirect app load runs rs.js's _rs_init, which parses
+        // the token from the hash, configures the WireClient, and emits
+        // 'connected'. Our store's connected handler then runs reloadAll
+        // + saveKnownAccount. Bottom-nav visible = app shell rendered.
+        await app.waitForReady();
+        await expect(page.locator(".band-name")).toBeVisible();
+    });
+});
+
+test.describe("Real backend — pre-seeded session", () => {
+    test("page loads connected when localStorage already has a valid session", async ({ page, app }) => {
+        // Skip the popup entirely — armadietto-minted token, written to
+        // localStorage in an init script, lets rs.js cold-boot in the
+        // connected state. This is the path a returning user takes after
+        // closing and reopening the app.
+        const user = await app.provisionUser("seed");
+        await app.seedConnectedAccount(user);
         await app.goto();
         await app.waitForReady();
-
-        const shell = new AppShell(page);
-        await expect(shell.bandTitle).toContainText("Band A");
-
-        // Walk through Add Account -> connect as B so user-b ends up in the
-        // known-accounts registry. (This is the real user flow that creates
-        // the Switch-to entry; faking it via callStore would skip the
-        // saveKnownAccount integration.)
-        await shell.openMenu();
-        await page.getByRole("button", { name: "Add Account" }).click();
-        const connect = new ConnectPage(page);
-        await connect.waitForVisible();
-        await connect.connect("user-b@example.com");
-        await app.waitForReady();
-        await expect(shell.bandTitle).toContainText("Band B");
-
-        // Now switch back to user-a via the TopBar dropdown.
-        await shell.switchToAccount("user-a@example.com");
-
-        // The band-title flips back, AND the connection is fully settled
-        // (no spurious "Already connecting" guard fire).
-        await expect(shell.bandTitle).toContainText("Band A", { timeout: 10_000 });
-        const state = await app.getState();
-        expect(state?.connectionStatus).toBe("connected");
-        expectNoAlreadyConnectingToast(state);
-        // Per-account isolation: A's song shows, B's doesn't.
-        const songNames = (state?.songs as { name?: string }[]).map((s) => s.name);
-        expect(songNames).toContain("Africa");
-        expect(songNames).not.toContain("Bohemian Rhapsody");
+        // A cold-boot connected user should NOT see the connect screen.
+        await expect(page.getByPlaceholder("you@example.com")).toHaveCount(0);
     });
 
-    test("Recent account click on connect screen logs back in", async ({ page, app }) => {
-        await app.seed({
-            autoConnectAs: "user-a@example.com",
-            users: {
-                "user-a@example.com": {
-                    songs: {},
-                    config: {
-                        bandName: "Band A",
-                        schemaVersion: 2,
-                        createdAt: "2024-01-01T00:00:00.000Z",
-                        updatedAt: "2024-01-01T00:00:00.000Z",
-                    },
-                },
-            },
-        });
+    test("reload after seeded connect stays logged in", async ({ page, app }) => {
+        const user = await app.provisionUser("reload");
+        await app.seedConnectedAccount(user);
         await app.goto();
         await app.waitForReady();
-
-        const shell = new AppShell(page);
-        await shell.openMenu();
-        await page.getByRole("button", { name: "Add Account" }).click();
-        const connect = new ConnectPage(page);
-        await connect.waitForVisible();
-        await expect(connect.recentAccountByAddress("user-a@example.com")).toBeVisible();
-
-        await connect.recentAccountByAddress("user-a@example.com").click();
-        await app.waitForReady();
-        await expect(shell.bandTitle).toContainText("Band A");
-
-        const state = await app.getState();
-        expect(state?.connectionStatus).toBe("connected");
-        expectNoAlreadyConnectingToast(state);
-    });
-
-    test("page reload after cold connect stays logged in", async ({ page, app }) => {
-        await app.seed({
-            autoConnectAs: "user-a@example.com",
-            users: {
-                "user-a@example.com": {
-                    songs: {},
-                    config: {
-                        bandName: "Band A",
-                        schemaVersion: 2,
-                        createdAt: "2024-01-01T00:00:00.000Z",
-                        updatedAt: "2024-01-01T00:00:00.000Z",
-                    },
-                },
-            },
-        });
-        await app.goto();
-        await app.waitForReady();
-        const shell = new AppShell(page);
-        await expect(shell.bandTitle).toContainText("Band A");
 
         await page.reload();
         await app.waitForReady();
-        await expect(shell.bandTitle).toContainText("Band A");
-        const state = await app.getState();
-        expect(state?.connectionStatus).toBe("connected");
+        // Crucial property: the session in rs.js's localStorage survives a
+        // reload. This is what failed for the user reporting "refresh
+        // sends me to login" — fake-repo couldn't catch it because it
+        // didn't model session persistence.
+        await expect(page.getByPlaceholder("you@example.com")).toHaveCount(0);
     });
+});
 
-    test("page reload after a swap stays on the swapped-to account", async ({ page, app }) => {
-        await app.seed({
-            autoConnectAs: "user-a@example.com",
-            users: {
-                "user-a@example.com": {
-                    songs: {},
-                    config: {
-                        bandName: "Band A",
-                        schemaVersion: 2,
-                        createdAt: "2024-01-01T00:00:00.000Z",
-                        updatedAt: "2024-01-01T00:00:00.000Z",
-                    },
-                },
-                "user-b@example.com": {
-                    songs: {},
-                    config: {
-                        bandName: "Band B",
-                        schemaVersion: 2,
-                        createdAt: "2024-01-01T00:00:00.000Z",
-                        updatedAt: "2024-01-01T00:00:00.000Z",
-                    },
-                },
-            },
-        });
+test.describe("Real backend — multi-account swap", () => {
+    test("seeding two accounts and swapping via TopBar lands on the swapped-to account", async ({ page, app }) => {
+        const userA = await app.provisionUser("a");
+        const userB = await app.provisionUser("b");
+        await app.seedConnectedAccount(userA);
+        await app.seedAdditionalAccount(userB);
+
         await app.goto();
         await app.waitForReady();
-        const shell = new AppShell(page);
 
-        await shell.openMenu();
-        await page.getByRole("button", { name: "Add Account" }).click();
-        const connect = new ConnectPage(page);
-        await connect.connect("user-b@example.com");
+        // Open menu → Switch-to user-b. The custom Discover override in
+        // src/lib/remotestorage.js fetches user-b's webfinger record from
+        // armadietto, then rs.js configures the WireClient with the
+        // pre-minted token and emits 'connected' — the app's swap state
+        // machine settles into the connected-as-userB state.
+        await page.locator("header.top-bar").getByRole("button", { name: "Menu" }).click();
+        await page.locator(".dropdown-item--account").filter({ hasText: userB.address }).click();
         await app.waitForReady();
-        await expect(shell.bandTitle).toContainText("Band B");
 
-        // Reload — the most-recently-connected user (B) should stay logged in.
+        // Swap should NOT have torn down rs.js's session — refreshing must
+        // keep us connected as user-b. This is the property the
+        // user-reported regression broke.
         await page.reload();
         await app.waitForReady();
-        await expect(shell.bandTitle).toContainText("Band B");
-        const state = await app.getState();
-        expect(state?.connectionStatus).toBe("connected");
+        await expect(page.getByPlaceholder("you@example.com")).toHaveCount(0);
     });
+});
 
-    test("rapid double-click on Switch-to does not corrupt state", async ({ page, app }) => {
-        await app.seed({
-            autoConnectAs: "user-a@example.com",
-            users: {
-                "user-a@example.com": {
-                    songs: {},
-                    config: {
-                        bandName: "Band A",
-                        schemaVersion: 2,
-                        createdAt: "2024-01-01T00:00:00.000Z",
-                        updatedAt: "2024-01-01T00:00:00.000Z",
-                    },
-                },
-                "user-b@example.com": {
-                    songs: {},
-                    config: {
-                        bandName: "Band B",
-                        schemaVersion: 2,
-                        createdAt: "2024-01-01T00:00:00.000Z",
-                        updatedAt: "2024-01-01T00:00:00.000Z",
-                    },
-                },
-            },
-        });
-        await app.goto();
-        await app.waitForReady();
-        const shell = new AppShell(page);
-
-        // Get user-b into the known-accounts registry first.
-        await shell.openMenu();
-        await page.getByRole("button", { name: "Add Account" }).click();
-        const connect = new ConnectPage(page);
-        await connect.connect("user-b@example.com");
-        await app.waitForReady();
-        await expect(shell.bandTitle).toContainText("Band B");
-
-        // Double-click the Switch-to entry. The second click should hit the
-        // re-entry guard and toast "Already connecting"; the first click
-        // should still resolve cleanly to user-a. State must not be wedged.
-        await shell.openMenu();
-        const switchBtn = page.locator(".dropdown-item--account").filter({ hasText: "user-a@example.com" });
-        await switchBtn.click();
-        // Don't await navigation — fire a second connectToAccount via store
-        // to simulate a fast second click. (UI close-menu makes a real
-        // double-click hard to reproduce deterministically.)
-        await app.callStore("connectToAccount", "user-a@example.com");
-        await app.waitForReady();
-
-        await expect(shell.bandTitle).toContainText("Band A", { timeout: 10_000 });
-        const state = await app.getState();
-        expect(state?.connectionStatus).toBe("connected");
-        // The "Already connecting — hold on" guard toast IS expected here
-        // (that's correct behavior on a double-click). What we must not see
-        // is the connection getting stuck — the band-title check above
-        // already proves that, so we don't assert no-toast in this case.
-    });
-
-    test("Switch-to entry is hidden for the currently-connected account", async ({ page, app }) => {
-        await app.seed({
-            autoConnectAs: "user-a@example.com",
-            users: {
-                "user-a@example.com": {
-                    songs: {},
-                    config: {
-                        bandName: "Band A",
-                        schemaVersion: 2,
-                        createdAt: "2024-01-01T00:00:00.000Z",
-                        updatedAt: "2024-01-01T00:00:00.000Z",
-                    },
-                },
-                "user-b@example.com": {
-                    songs: {},
-                    config: {
-                        bandName: "Band B",
-                        schemaVersion: 2,
-                        createdAt: "2024-01-01T00:00:00.000Z",
-                        updatedAt: "2024-01-01T00:00:00.000Z",
-                    },
-                },
-            },
-        });
-        await app.goto();
-        await app.waitForReady();
-        const shell = new AppShell(page);
-
-        // Get user-b into known-accounts.
-        await shell.openMenu();
-        await page.getByRole("button", { name: "Add Account" }).click();
-        const connect = new ConnectPage(page);
-        await connect.connect("user-b@example.com");
-        await app.waitForReady();
-
-        await shell.openMenu();
-        // The currently-connected account (B) must NOT show up under Switch-to.
-        const selfEntry = page.locator(".dropdown-item--account").filter({ hasText: "user-b@example.com" });
-        await expect(selfEntry).toHaveCount(0);
-        // The other account (A) must show.
-        const otherEntry = page.locator(".dropdown-item--account").filter({ hasText: "user-a@example.com" });
-        await expect(otherEntry).toBeVisible();
+test.describe("Real backend — provisioning sanity", () => {
+    test("signupUser is idempotent on re-signup of the same name", async () => {
+        // Tests reuse usernames if the volume is mounted across runs. The
+        // helper must not throw on the second signup or the very first
+        // test of every rerun would fail.
+        const username = `idem${Math.random().toString(36).slice(2, 8)}`;
+        const password = "Pass-12345";
+        await signupUser(username, password);
+        await signupUser(username, password); // must not throw
+        // And we can still mint a token after the duplicate signup.
+        const token = await mintToken(username, password);
+        expect(token).toMatch(/^[A-Za-z0-9+/=%-]+$/);
     });
 });

@@ -32,7 +32,7 @@ jobs:
       - run: npm test
 
   e2e:
-    name: E2E (Playwright)
+    name: E2E (Playwright + armadietto)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +41,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+
+      - name: Start armadietto
+        # Real-backend e2e: bring up the local remoteStorage server the
+        # suite talks to. The image build is small (node:20-alpine +
+        # `npm i -g armadietto`) and Docker layer caching keeps reruns
+        # cheap. The fixture's `waitForArmadietto` polls the HTTP root
+        # before the first test, so no explicit health-check step here.
+        run: docker compose up -d
 
       - name: Resolve Playwright version
         id: pw-version
@@ -82,3 +90,19 @@ jobs:
           name: test-results
           path: test-results/
           retention-days: 14
+
+      - name: Capture armadietto logs on failure
+        if: failure()
+        run: docker compose logs armadietto > armadietto.log 2>&1 || true
+
+      - name: Upload armadietto logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: armadietto-logs
+          path: armadietto.log
+          retention-days: 14
+
+      - name: Stop armadietto
+        if: always()
+        run: docker compose down

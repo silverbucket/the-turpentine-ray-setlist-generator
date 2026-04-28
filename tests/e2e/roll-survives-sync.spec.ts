@@ -1,5 +1,5 @@
-import { seedRemoteConfig, seedRemoteSongs } from "./fixtures/armadietto";
-import { expect, test } from "./fixtures/test-fixtures";
+import { seedRemoteConfig, seedRemoteSongs } from "../fixtures/armadietto";
+import { expect, test } from "../fixtures/test-fixtures";
 
 /**
  * The full-fat real-backend integration test the user-reported regression
@@ -68,7 +68,7 @@ test.describe("Real backend — roll survives sync, swap retains roll-readiness"
 
         // ---- Phase 2: sync settles, catalog matches the server ----
         await app.waitForSynced();
-        let state = await app.getStoreState();
+        let state = await app.getState();
         expect(state?.syncState).toBe("synced");
         expect(state?.appConfig?.bandName).toBe("Band A");
         expect(names(state)).toEqual(A_SONGS.map((s) => s.name).sort());
@@ -81,11 +81,9 @@ test.describe("Real backend — roll survives sync, swap retains roll-readiness"
         await rollButton.click();
         // Generation runs in a Web Worker — poll the store until the
         // setlist materialises rather than waiting on a fixed delay.
-        await expect
-            .poll(async () => (await app.getStoreState())?.generatedSetlist?.songs?.length ?? 0)
-            .toBeGreaterThan(0);
+        await expect.poll(async () => (await app.getState())?.generatedSetlist?.songs?.length ?? 0).toBeGreaterThan(0);
 
-        state = await app.getStoreState();
+        state = await app.getState();
         const rolledIdsBefore = setlistIds(state);
         expect(rolledIdsBefore.length).toBeGreaterThan(0);
         // Every song in the rolled setlist must come from A's catalog.
@@ -104,7 +102,7 @@ test.describe("Real backend — roll survives sync, swap retains roll-readiness"
             return s?.retrySync?.();
         });
         await app.waitForSynced();
-        state = await app.getStoreState();
+        state = await app.getState();
         const rolledIdsAfter = setlistIds(state);
         expect(rolledIdsAfter, "rolled setlist was dropped by re-sync").toEqual(rolledIdsBefore);
 
@@ -126,7 +124,7 @@ test.describe("Real backend — roll survives sync, swap retains roll-readiness"
 
         // ---- Phase 6: post-swap, every Phase 2-4 check holds for B ----
         await app.waitForSynced();
-        state = await app.getStoreState();
+        state = await app.getState();
         expect(state?.syncState).toBe("synced");
         expect(state?.appConfig?.bandName).toBe("Band B");
         expect(names(state)).toEqual(B_SONGS.map((s) => s.name).sort());
@@ -135,10 +133,8 @@ test.describe("Real backend — roll survives sync, swap retains roll-readiness"
         // Roll on B.
         await expect(rollButton).toBeEnabled();
         await rollButton.click();
-        await expect
-            .poll(async () => (await app.getStoreState())?.generatedSetlist?.songs?.length ?? 0)
-            .toBeGreaterThan(0);
-        state = await app.getStoreState();
+        await expect.poll(async () => (await app.getState())?.generatedSetlist?.songs?.length ?? 0).toBeGreaterThan(0);
+        state = await app.getState();
         const bRolledBefore = setlistIds(state);
         const bIds = new Set(B_SONGS.map((s) => s.id));
         for (const id of bRolledBefore) {
@@ -150,7 +146,7 @@ test.describe("Real backend — roll survives sync, swap retains roll-readiness"
             return s?.retrySync?.();
         });
         await app.waitForSynced();
-        state = await app.getStoreState();
+        state = await app.getState();
         expect(setlistIds(state)).toEqual(bRolledBefore);
     });
 });

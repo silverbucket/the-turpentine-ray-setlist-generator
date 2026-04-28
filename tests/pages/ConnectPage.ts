@@ -39,6 +39,25 @@ export class ConnectPage {
         await this.submit();
     }
 
+    /**
+     * Drive the full OAuth redirect flow against armadietto: type the
+     * address, click Connect, fill the password on armadietto's auth
+     * page, click Allow, and wait for the 302 redirect back to the app
+     * with the access_token in the URL hash. After this resolves, the
+     * caller can `await app.waitForReady()` and assert on the in-app
+     * state. The user must already be provisioned (signup'd) — see
+     * `app.provisionUser()`.
+     */
+    async connectViaOAuth(user: { address: string; password: string }) {
+        await this.fillAddress(user.address);
+        await Promise.all([this.page.waitForURL(/\/oauth\//, { timeout: 15_000 }), this.connectButton.click()]);
+        await this.page.locator('input[name="password"]').fill(user.password);
+        await Promise.all([
+            this.page.waitForURL((u) => u.toString().includes("#access_token="), { timeout: 15_000 }),
+            this.page.locator('button[name="allow"]').click(),
+        ]);
+    }
+
     recentAccountByAddress(address: string): Locator {
         return this.page.locator(".recent-account").filter({
             has: this.page.getByText(address, { exact: true }),

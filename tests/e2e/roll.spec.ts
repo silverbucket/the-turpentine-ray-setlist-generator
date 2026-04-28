@@ -1,4 +1,4 @@
-import type { SeedSong } from "../fixtures/fake-repo";
+import type { SeedSong } from "../fixtures/test-fixtures";
 import { buildSeed, expect, makeSong, test } from "../fixtures/test-fixtures";
 import { AppShell } from "../pages/AppShell";
 import { RollPage } from "../pages/RollPage";

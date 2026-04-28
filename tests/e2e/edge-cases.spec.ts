@@ -1,4 +1,4 @@
-import type { SeedSong } from "../fixtures/fake-repo";
+import type { SeedSong } from "../fixtures/test-fixtures";
 import { buildSeed, expect, makeSong, test } from "../fixtures/test-fixtures";
 import { AppShell } from "../pages/AppShell";
 import { BandPage } from "../pages/BandPage";
@@ -14,18 +14,21 @@ import { SongsPage } from "../pages/SongsPage";
 
 test.describe("First-run experience", () => {
     test("connecting with no config shows the band-name modal", async ({ page, app }) => {
+        // No config seeded ⇒ first-run modal triggers post-OAuth.
+        const user = await app.provisionUser("newuser");
         await app.goto();
         const connect = new ConnectPage(page);
-        await connect.connect("newuser@example.com");
+        await connect.connectViaOAuth(user);
         const shell = new AppShell(page);
-        await expect(shell.firstRunModal).toBeVisible({ timeout: 10_000 });
+        await expect(shell.firstRunModal).toBeVisible({ timeout: 15_000 });
     });
 
     test("submitting an empty band name shows an error toast", async ({ page, app }) => {
+        const user = await app.provisionUser("newuser2");
         await app.goto();
-        await new ConnectPage(page).connect("newuser2@example.com");
+        await new ConnectPage(page).connectViaOAuth(user);
         const shell = new AppShell(page);
-        await expect(shell.firstRunModal).toBeVisible({ timeout: 10_000 });
+        await expect(shell.firstRunModal).toBeVisible({ timeout: 15_000 });
         // Click Save without filling the input
         await shell.firstRunSaveButton.click();
         await expect(shell.toast).toContainText(/needs a name/i);
@@ -34,8 +37,9 @@ test.describe("First-run experience", () => {
     });
 
     test("completing first-run dismisses the modal and shows the roll screen", async ({ page, app }) => {
+        const user = await app.provisionUser("newuser3");
         await app.goto();
-        await new ConnectPage(page).connect("newuser3@example.com");
+        await new ConnectPage(page).connectViaOAuth(user);
         const shell = new AppShell(page);
         await shell.completeFirstRun("Brand New Band");
         await expect(shell.bandTitle).toContainText("Brand New Band");
@@ -55,10 +59,12 @@ test.describe("Multi-account switching", () => {
     });
 
     test("the Add Account flow returns the user to the connect screen with Recent listed", async ({ page, app }) => {
-        // First, complete a connect+firstRun so an account ends up under "Recent"
+        // Cold-connect via OAuth so the address ends up in known-accounts
+        // through the same path a real user would take.
+        const user = await app.provisionUser("usera");
         await app.goto();
         const connect = new ConnectPage(page);
-        await connect.connect("user-a@example.com");
+        await connect.connectViaOAuth(user);
         const shell = new AppShell(page);
         await shell.completeFirstRun("Band A");
         await expect(shell.bandTitle).toContainText("Band A");
@@ -69,7 +75,7 @@ test.describe("Multi-account switching", () => {
         await page.getByRole("button", { name: "Add Account" }).click();
         await connect.waitForVisible();
         await expect(connect.recentAccountsLabel).toBeVisible();
-        await expect(connect.recentAccountByAddress("user-a@example.com")).toBeVisible();
+        await expect(connect.recentAccountByAddress(user.address)).toBeVisible();
     });
 });
 
@@ -83,6 +89,9 @@ test.describe("Large datasets", () => {
         await app.seed(buildSeed({ songs }));
         await app.goto();
         await app.waitForReady();
+        // 50 individual GETs over real HTTP take a moment to land — wait
+        // for the sync indicator to flip "synced" before counting rows.
+        await app.waitForSynced();
         await new AppShell(page).gotoSongs();
 
         const songsPage = new SongsPage(page);
@@ -102,6 +111,7 @@ test.describe("Large datasets", () => {
         await app.seed(buildSeed({ songs }));
         await app.goto();
         await app.waitForReady();
+        await app.waitForSynced();
 
         const roll = new RollPage(page);
         await roll.clickRoll();

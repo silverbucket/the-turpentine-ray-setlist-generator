@@ -1,4 +1,4 @@
-import type { SeedSetlist } from "../fixtures/fake-repo";
+import type { SeedSetlist } from "../fixtures/test-fixtures";
 import { buildSeed, expect, test } from "../fixtures/test-fixtures";
 import { AppShell } from "../pages/AppShell";
 import { RollPage } from "../pages/RollPage";

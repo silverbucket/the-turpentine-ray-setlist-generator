@@ -17,25 +17,35 @@ test.describe("Connection screen", () => {
     });
 
     test("connects with an address and shows app shell", async ({ page, app }) => {
+        const user = await app.provisionUser("alice");
         await app.goto();
         const connect = new ConnectPage(page);
         await connect.waitForVisible();
-        await connect.connect("alice@example.com");
+        await connect.connectViaOAuth(user);
 
         // After connect, the app shell should appear (BottomNav is the marker)
         const shell = new AppShell(page);
-        await expect(shell.rollTab).toBeVisible({ timeout: 10_000 });
+        await expect(shell.rollTab).toBeVisible({ timeout: 15_000 });
     });
 
     test("Enter key submits the connect form", async ({ page, app }) => {
+        // The Enter-to-submit shortcut is what we want to verify, not
+        // the full OAuth round-trip. Drive the form via keyboard up to
+        // the navigation start, then continue with the same OAuth dance
+        // the explicit Connect-click test runs.
+        const user = await app.provisionUser("bob");
         await app.goto();
         const connect = new ConnectPage(page);
         await connect.waitForVisible();
-        await connect.fillAddress("bob@example.com");
-        await connect.addressInput.press("Enter");
-
+        await connect.fillAddress(user.address);
+        await Promise.all([page.waitForURL(/\/oauth\//, { timeout: 15_000 }), connect.addressInput.press("Enter")]);
+        await page.locator('input[name="password"]').fill(user.password);
+        await Promise.all([
+            page.waitForURL((u) => u.toString().includes("#access_token="), { timeout: 15_000 }),
+            page.locator('button[name="allow"]').click(),
+        ]);
         const shell = new AppShell(page);
-        await expect(shell.rollTab).toBeVisible({ timeout: 10_000 });
+        await expect(shell.rollTab).toBeVisible({ timeout: 15_000 });
     });
 
     test("Connect button is disabled when address is empty", async ({ page, app }) => {
@@ -48,32 +58,35 @@ test.describe("Connection screen", () => {
     });
 
     test("known accounts appear in Recent list after connecting", async ({ page, app }) => {
+        const user = await app.provisionUser("recurring");
         await app.goto();
         const connect = new ConnectPage(page);
         await connect.waitForVisible();
-        await connect.connect("recurring@example.com");
+        await connect.connectViaOAuth(user);
         const shell = new AppShell(page);
-        await expect(shell.rollTab).toBeVisible({ timeout: 10_000 });
+        await expect(shell.rollTab).toBeVisible({ timeout: 15_000 });
 
         // Disconnect and verify the address shows up under Recent
         await shell.openMenu();
         await page.getByRole("button", { name: "Add Account" }).click();
         await connect.waitForVisible();
         await expect(connect.recentAccountsLabel).toBeVisible();
-        await expect(connect.recentAccountByAddress("recurring@example.com")).toBeVisible();
+        await expect(connect.recentAccountByAddress(user.address)).toBeVisible();
     });
 
     test("Recent account can be forgotten", async ({ page, app }) => {
+        // Skip the OAuth round-trip; staging the known-accounts entry
+        // directly is enough to exercise the Forget UI, which is the
+        // unit under test here.
+        const user = await app.provisionUser("forget");
+        await app.seedAdditionalAccount(user);
         await app.goto();
         const connect = new ConnectPage(page);
-        await connect.connect("forget@example.com");
-        const shell = new AppShell(page);
-        await expect(shell.rollTab).toBeVisible({ timeout: 10_000 });
+        await connect.waitForVisible();
+        await expect(connect.recentAccountByAddress(user.address)).toBeVisible();
 
-        await shell.openMenu();
-        await page.getByRole("button", { name: "Add Account" }).click();
-        await connect.forgetAccount("forget@example.com");
-        await expect(connect.recentAccountByAddress("forget@example.com")).toHaveCount(0);
+        await connect.forgetAccount(user.address);
+        await expect(connect.recentAccountByAddress(user.address)).toHaveCount(0);
     });
 });
 

@@ -38,6 +38,10 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: Start armadietto
+        # E2E runs against a real remoteStorage server.
+        run: docker compose up -d
+
       - name: Resolve Playwright version
         id: pw-version
         run: |
