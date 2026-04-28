@@ -223,6 +223,11 @@ test.describe("Saved screen — dark mode legibility", () => {
      * visible text actually contrasts with the modal background.
      */
     test("setlist text contrasts with the modal background in dark mode", async ({ page, app }) => {
+        // Drive theme via OS color-scheme emulation rather than clicking
+        // through the dropdown. cycleTheme() leaves the menu open and the
+        // .menu-backdrop intercepts the subsequent gotoSaved() click. The
+        // existing theme.spec.ts uses this same emulateMedia pattern.
+        await page.emulateMedia({ colorScheme: "dark" });
         await app.seed(
             buildSeed({
                 setlists: { s: setlistFixture({ id: "s", name: "After Dark" }) },
@@ -231,10 +236,6 @@ test.describe("Saved screen — dark mode legibility", () => {
         await app.goto();
         await app.waitForReady();
         const shell = new AppShell(page);
-
-        // System → light → dark.
-        await shell.cycleTheme();
-        await shell.cycleTheme();
         expect(await shell.getTheme()).toBe("dark");
 
         await shell.gotoSaved();
@@ -281,6 +282,10 @@ test.describe("Saved screen — dark mode legibility", () => {
     });
 
     test("setlist text remains legible in light mode", async ({ page, app }) => {
+        // Same rationale as the dark-mode test above: emulate color-scheme
+        // rather than clicking through cycleTheme(), which leaves the menu
+        // open and blocks subsequent navigation clicks.
+        await page.emulateMedia({ colorScheme: "light" });
         await app.seed(
             buildSeed({
                 setlists: { s: setlistFixture({ id: "s", name: "Daylight" }) },
@@ -289,7 +294,6 @@ test.describe("Saved screen — dark mode legibility", () => {
         await app.goto();
         await app.waitForReady();
         const shell = new AppShell(page);
-        await shell.cycleTheme();
         expect(await shell.getTheme()).toBe("light");
 
         await shell.gotoSaved();
