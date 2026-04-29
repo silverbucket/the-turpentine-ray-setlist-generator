@@ -340,60 +340,86 @@ test.describe("Saved screen — iOS safe-area handling", () => {
      * --safe-top at the document root and verify the modal-sheet (and the
      * close button inside it) shifts down by that amount.
      */
-    test("modal-close button stays below an iOS-sized safe-area inset", async ({ page, app }) => {
-        await app.seed(
-            buildSeed({
-                setlists: { s: setlistFixture({ id: "s", name: "Notched" }) },
-            }),
-        );
+    /**
+     * Build a setlist big enough that the modal hits its max-height. When
+     * the modal is clamped to max-height, the centered grid has no
+     * leftover vertical room and the sheet's top edge equals the
+     * backdrop's padding-top exactly. That makes the modal's y a direct
+     * readout of `max(1rem, var(--safe-top))` — observable rather than
+     * swallowed by `place-items: center` on a sub-viewport-height modal.
+     */
+    function tallNotchSetlist(name: string): SeedSetlist {
+        const songs = Array.from({ length: 60 }, (_, i) => ({
+            id: `n${i}`,
+            name: `Song ${i + 1}`,
+            key: "C",
+        }));
+        return setlistFixture({ id: "n", name, songs, songCount: 60 });
+    }
+
+    test("modal-close button shifts down by the safe-area inset on a notched device", async ({ page, app }) => {
+        // The reviewer's note is right: a small modal centered in a
+        // 600px viewport will be ~200px from the top regardless of
+        // safe-area padding, so an absolute-threshold assertion can't
+        // distinguish "fix in place" from "fix removed". Force the modal
+        // to its max-height (so y is determined by padding, not centering)
+        // and assert the y delta when --safe-top is overridden.
+        await app.seed(buildSeed({ setlists: { n: tallNotchSetlist("Notched") } }));
+        await page.setViewportSize({ width: 390, height: 600 });
         await app.goto();
         await app.waitForReady();
+        const shell = new AppShell(page);
+        const saved = new SavedPage(page);
 
-        // Pretend the device has a 50px status bar overlay. Setting the
-        // CSS variable on the root mimics what env(safe-area-inset-top)
-        // resolves to on a real notched iPhone with viewport-fit=cover.
-        const fakeSafeTop = 50;
+        // Baseline: --safe-top is 0 (env(safe-area-inset-top) on a
+        // non-notched device). max(1rem, 0) → 16px padding-top.
+        await shell.gotoSaved();
+        await saved.openCard("Notched");
+        const baselineSheetY = (await saved.modal.boundingBox())?.y;
+        const baselineCloseY = (await saved.modalCloseButton.boundingBox())?.y;
+        expect(baselineSheetY).toBeDefined();
+        expect(baselineCloseY).toBeDefined();
+        await saved.closeCard();
+
+        // Simulate a 80px status-bar overlay. With max(1rem, 80px) the
+        // padding-top jumps to 80px, a 64px increase from the 16px floor.
+        const FAKE_SAFE_TOP = 80;
+        const FALLBACK_PADDING = 16; // 1rem at the project base
         await page.evaluate((top) => {
             document.documentElement.style.setProperty("--safe-top", `${top}px`);
-        }, fakeSafeTop);
+        }, FAKE_SAFE_TOP);
 
-        await new AppShell(page).gotoSaved();
-        const saved = new SavedPage(page);
         await saved.openCard("Notched");
+        const insetSheetY = (await saved.modal.boundingBox())?.y;
+        const insetCloseY = (await saved.modalCloseButton.boundingBox())?.y;
+        expect(insetSheetY).toBeDefined();
+        expect(insetCloseY).toBeDefined();
+        if (
+            baselineSheetY === undefined ||
+            baselineCloseY === undefined ||
+            insetSheetY === undefined ||
+            insetCloseY === undefined
+        ) {
+            return;
+        }
 
-        // The modal-sheet's top must be at or below the safe-area inset,
-        // and so must the close button inside it. A small tolerance covers
-        // sub-pixel rounding from the centered grid layout.
-        const sheetBox = await saved.modal.boundingBox();
-        const closeBox = await saved.modalCloseButton.boundingBox();
-        expect(sheetBox).not.toBeNull();
-        expect(closeBox).not.toBeNull();
-        if (!sheetBox || !closeBox) return;
-        expect(sheetBox.y).toBeGreaterThanOrEqual(fakeSafeTop - 1);
-        expect(closeBox.y).toBeGreaterThanOrEqual(fakeSafeTop - 1);
-    });
+        // The sheet's top should have moved down by ~(FAKE_SAFE_TOP - 1rem)
+        // (the safe-area override displaces the centered modal by the
+        // amount the padding-top grew). The close button rides with the
+        // sheet, so its delta tracks the sheet's. ±10px slop covers
+        // sub-pixel rounding and any minor layout jitter cross-browser.
+        const expectedDelta = FAKE_SAFE_TOP - FALLBACK_PADDING;
+        const sheetDelta = insetSheetY - baselineSheetY;
+        const closeDelta = insetCloseY - baselineCloseY;
+        expect(sheetDelta).toBeGreaterThanOrEqual(expectedDelta - 10);
+        expect(sheetDelta).toBeLessThanOrEqual(expectedDelta + 10);
+        expect(closeDelta).toBeGreaterThanOrEqual(expectedDelta - 10);
+        expect(closeDelta).toBeLessThanOrEqual(expectedDelta + 10);
 
-    test("modal preserves the existing 1rem gutter when there is no safe-area inset", async ({ page, app }) => {
-        await app.seed(
-            buildSeed({
-                setlists: { s: setlistFixture({ id: "s", name: "Flat Phone" }) },
-            }),
-        );
-        await app.goto();
-        await app.waitForReady();
-
-        // No --safe-top override — the var falls back to 0 and the
-        // max(1rem, ...) clause keeps the historical 1rem gutter.
-        await new AppShell(page).gotoSaved();
-        const saved = new SavedPage(page);
-        await saved.openCard("Flat Phone");
-
-        const sheetBox = await saved.modal.boundingBox();
-        expect(sheetBox).not.toBeNull();
-        if (!sheetBox) return;
-        // 1rem at the project's base 16px is 16px. Allow 0–24px for the
-        // grid-centered layout — the point is "more than zero, not zero".
-        expect(sheetBox.y).toBeGreaterThanOrEqual(1);
+        // And the absolute position: the close button must be at or
+        // below the safe-area top (i.e., not under the simulated status
+        // bar). This catches the user-reported regression directly.
+        expect(insetCloseY).toBeGreaterThanOrEqual(FAKE_SAFE_TOP - 1);
     });
 
     test("the rendered viewport meta tag enables safe-area insets via viewport-fit=cover", async ({ page, app }) => {
@@ -406,18 +432,18 @@ test.describe("Saved screen — iOS safe-area handling", () => {
         // computation in the app. Pin this in a test so a careless edit
         // can't quietly regress every modal at once.
         //
-        // App.svelte injects the canonical viewport meta via <svelte:head>,
-        // and index.html ships its own at boot. Both end up in <head>, so
-        // we collect every matching tag and require at least one to opt
-        // into viewport-fit=cover. Browsers honor the last viewport meta
-        // tag in source order, and the svelte:head injection is appended
-        // after the index.html one, so as long as the svelte:head version
-        // carries the attribute we're covered at runtime.
+        // The repo enforces a single viewport meta tag — index.html owns
+        // it; App.svelte's <svelte:head> deliberately does NOT duplicate
+        // it. Asserting "some viewport tag has viewport-fit=cover" would
+        // be too loose: a stray duplicate without the attribute could be
+        // present and the test still pass while the runtime tag silently
+        // loses the attribute. So we assert exactly one tag exists and
+        // that tag carries viewport-fit=cover.
         const contents = await page
             .locator('meta[name="viewport"]')
             .evaluateAll((els) => els.map((el) => el.getAttribute("content") || ""));
-        expect(contents.length).toBeGreaterThan(0);
-        expect(contents.some((c) => c.includes("viewport-fit=cover"))).toBe(true);
+        expect(contents).toHaveLength(1);
+        expect(contents[0]).toContain("viewport-fit=cover");
     });
 });
 

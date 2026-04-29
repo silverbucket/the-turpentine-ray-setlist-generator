@@ -75,7 +75,9 @@
 <svelte:head>
     <title>{store.appTitle}</title>
     <link rel="icon" type="image/svg+xml" href={faviconHref} />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- The viewport meta lives in index.html (static, single source). It
+         needs to be present at first paint anyway, before svelte:head can
+         inject it; duplicating it here just causes two tags in the DOM. -->
 </svelte:head>
 
 {#if store.connectionStatus === "disconnected"}
