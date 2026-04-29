@@ -53,7 +53,19 @@
         {
             "includes": ["**/*.svelte"],
             "linter": {
-                "enabled": false
+                "enabled": true,
+                "rules": {
+                    "correctness": {
+                        "noUnusedVariables": "off",
+                        "noUnusedImports": "off",
+                        "noUnusedFunctionParameters": "off",
+                        "noUnusedPrivateClassMembers": "off"
+                    },
+                    "style": {
+                        "useConst": "off",
+                        "useImportType": "off"
+                    }
+                }
             },
             "formatter": {
                 "enabled": false
@@ -62,7 +74,17 @@
         {
             "includes": ["**/*.svelte.js"],
             "linter": {
-                "enabled": false
+                "enabled": true,
+                "rules": {
+                    "correctness": {
+                        "noUnusedVariables": "off",
+                        "noUnusedImports": "off",
+                        "noUnusedFunctionParameters": "off"
+                    },
+                    "style": {
+                        "useConst": "off"
+                    }
+                }
             },
             "formatter": {
                 "enabled": false

@@ -1,5 +1,6 @@
 <script>
   import { getContext } from "svelte";
+  import { flip } from "svelte/animate";
   import { anxietyLabel } from "../../anxiety.js";
   import { DEFAULT_DIE_COLOR, darkenHex, hexToRgb } from "../../utils.js";
   import ChipToggle from "../shared/ChipToggle.svelte";
@@ -130,44 +131,175 @@
     }
   }
 
+  // ---- drag-to-reorder state ----
+  // dragIndex     : the song currently being dragged (null when idle)
+  // dragOverIndex : the slot the dragged song would land in if released now
+  // dragArmingIndex: the song being long-pressed (touch only) before drag arms
+  // dragYOffset   : translateY on the dragged card so it follows the finger
   let dragIndex = $state(null);
   let dragOverIndex = $state(null);
+  let dragArmingIndex = $state(null);
+  let dragYOffset = $state(0);
   let songListEl = $state(null);
 
+  // Touch needs an intentional gesture to start a drag — otherwise users
+  // accidentally trigger reorders while scrolling. 350ms is short enough to
+  // feel responsive but long enough to distinguish from a scroll-flick.
+  const LONG_PRESS_MS = 350;
+  // If the finger drifts more than this during the press-hold window, treat
+  // it as a scroll attempt and bail out without arming the drag.
+  const PRESS_CANCEL_PX = 8;
+
+  function vibrate(pattern) {
+    // Best-effort haptic. iOS Safari ignores navigator.vibrate but we still
+    // try — Android + most mobile browsers honour it. Wrap in try/catch
+    // because some browsers throw on cross-origin iframes.
+    if (typeof navigator === "undefined" || !("vibrate" in navigator)) return;
+    try { navigator.vibrate(pattern); } catch { /* noop */ }
+  }
+
   function handleDragStart(e, index) {
-    e.preventDefault();
-    dragIndex = index;
-    dragOverIndex = index;
+    const isTouch = e.pointerType === "touch" || e.pointerType === "pen";
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const pointerId = e.pointerId;
+    const captureTarget = e.currentTarget;
+
+    let armed = false;
+    let cancelled = false;
+    let armTimer = null;
+
+    if (!isTouch) {
+      // Mouse: behaviour identical to before — drag begins on pointerdown.
+      // preventDefault stops text selection and the synthetic click.
+      e.preventDefault();
+      armDrag();
+    } else {
+      // Touch / pen: defer drag until the user holds still long enough.
+      // The handle's CSS uses `touch-action: pan-y`, so the page can still
+      // scroll if the user is actually flicking instead of pressing.
+      dragArmingIndex = index;
+      armTimer = setTimeout(() => {
+        if (cancelled) return;
+        armDrag();
+      }, LONG_PRESS_MS);
+    }
+
+    function armDrag() {
+      armed = true;
+      dragArmingIndex = null;
+      dragIndex = index;
+      dragOverIndex = index;
+      dragYOffset = 0;
+
+      // Heads-up haptic so the user knows drag mode just turned on. The card
+      // also pops up visually via .dragging styles.
+      if (isTouch) vibrate(18);
+
+      // Capture the pointer so subsequent pointer events are routed here even
+      // if the finger leaves the original element while dragging.
+      try { captureTarget?.setPointerCapture?.(pointerId); } catch { /* noop */ }
+
+      // Suppress the click event that would otherwise fire after pointerup
+      // and toggle the card's expanded state. Using capture phase + once so
+      // we only swallow the very next click from this gesture.
+      document.addEventListener("click", suppressClickOnce, { capture: true, once: true });
+      // Safety net in case the click never fires (e.g., gesture cancelled by
+      // the OS) — clean up the listener after a short window.
+      setTimeout(() => {
+        document.removeEventListener("click", suppressClickOnce, { capture: true });
+      }, 600);
+    }
+
+    function suppressClickOnce(ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      ev.stopImmediatePropagation();
+    }
+
+    function cancelArm() {
+      cancelled = true;
+      if (armTimer) { clearTimeout(armTimer); armTimer = null; }
+      dragArmingIndex = null;
+      cleanup();
+    }
 
     const onMove = (me) => {
-      if (dragIndex === null || !songListEl) return;
+      if (!armed) {
+        // Press-hold phase: any meaningful movement means the user is
+        // scrolling/flicking, not pressing. Bail out and let the browser
+        // handle the gesture natively.
+        const dx = Math.abs(me.clientX - startX);
+        const dy = Math.abs(me.clientY - startY);
+        if (dx + dy > PRESS_CANCEL_PX) cancelArm();
+        return;
+      }
+
+      if (!songListEl) return;
+
+      // Find the card whose midpoint is closest to the finger. We skip the
+      // dragged card itself because its translateY shifts its rect off the
+      // baseline — including it would create a feedback loop where the
+      // closest-match keeps snapping back to the dragged card.
       const cards = Array.from(songListEl.children);
       const y = me.clientY;
       let closest = dragIndex;
       let minDist = Infinity;
       cards.forEach((card, i) => {
+        if (i === dragIndex) return;
         const rect = card.getBoundingClientRect();
         const mid = rect.top + rect.height / 2;
         const dist = Math.abs(y - mid);
         if (dist < minDist) { minDist = dist; closest = i; }
       });
+
+      // Light haptic tick when the drop target changes — gives the user a
+      // tactile sense of "you've crossed into a new slot".
+      if (isTouch && closest !== dragOverIndex) vibrate(8);
+
       dragOverIndex = closest;
+      dragYOffset = me.clientY - startY;
     };
 
     const onUp = () => {
-      if (dragIndex !== null && dragOverIndex !== null && dragIndex !== dragOverIndex) {
+      if (armTimer) { clearTimeout(armTimer); armTimer = null; }
+
+      if (armed && dragIndex !== null && dragOverIndex !== null && dragIndex !== dragOverIndex) {
         store.reorderSetlistSong(dragIndex, dragOverIndex);
+        // Confirmation haptic — slightly different pattern than the arm tap
+        // so the two events feel distinct.
+        if (isTouch) vibrate([10, 30, 14]);
       }
+
+      cancelled = true;
+      dragArmingIndex = null;
       dragIndex = null;
       dragOverIndex = null;
+      dragYOffset = 0;
+      cleanup();
+    };
+
+    function preventScroll(ev) {
+      // Once drag is armed, block the browser from interpreting subsequent
+      // touchmove events as a scroll. Without this the page would scroll out
+      // from under the dragged card on devices that ignore pointer capture
+      // for scroll suppression.
+      if (armed && ev.cancelable) ev.preventDefault();
+    }
+
+    function cleanup() {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
-    };
+      window.removeEventListener("touchmove", preventScroll);
+      try { captureTarget?.releasePointerCapture?.(pointerId); } catch { /* noop */ }
+    }
 
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onUp);
+    // passive:false is required so preventScroll() can call preventDefault.
+    window.addEventListener("touchmove", preventScroll, { passive: false });
   }
 </script>
 
@@ -427,9 +559,19 @@
   <!-- Setlist result -->
   {#if store.generatedSetlist}
     <section class="result-section">
-      <div class="song-list" bind:this={songListEl}>
+      <div class="song-list" bind:this={songListEl} class:drag-active={dragIndex !== null}>
         {#each store.generatedSetlist.songs as song, i (song.id)}
-          <div class="song-list-item" class:drag-over={dragIndex !== null && dragOverIndex === i && dragIndex !== i}>
+          <div
+            class="song-list-item"
+            class:dragging={dragIndex === i}
+            class:arming={dragArmingIndex === i}
+            class:drop-target={dragIndex !== null && dragOverIndex === i && dragIndex !== i}
+            class:drop-above={dragIndex !== null && dragOverIndex === i && dragIndex > i}
+            class:drop-below={dragIndex !== null && dragOverIndex === i && dragIndex < i}
+            class:dimmed={dragIndex !== null && dragIndex !== i && dragOverIndex !== i}
+            style:transform={dragIndex === i ? `translateY(${dragYOffset}px)` : ""}
+            animate:flip={{ duration: 240 }}
+          >
             <SetlistSongCard
               {song}
               index={i}
@@ -437,6 +579,8 @@
               onDragStart={handleDragStart}
               onEdit={handleEditSong}
               onRemove={(idx) => store.removeSetlistSong(idx)}
+              arming={dragArmingIndex === i}
+              dragging={dragIndex === i}
             />
           </div>
         {/each}
@@ -1078,16 +1222,92 @@
   .song-list {
     display: grid;
     gap: 0.4rem;
+    /* When a drag is armed/active, prevent the list from being scrolled by
+       gestures originating inside the list. Pointer capture handles most
+       cases; this is belt-and-braces for older mobile browsers. */
+  }
+
+  .song-list.drag-active {
+    touch-action: none;
   }
 
   .song-list-item {
-    transition: transform 150ms ease;
+    position: relative;
+    transition:
+      opacity 180ms ease,
+      filter 180ms ease;
   }
 
-  .drag-over {
-    outline: 2px solid var(--accent, #e15b37);
-    outline-offset: -1px;
-    border-radius: var(--radius-md, 12px);
+  /* The dragged card floats above the list and follows the finger. The
+     translateY transform is applied inline (so JS can drive it without
+     fighting CSS), but the lift effects (z-index, rotation, willChange) live
+     here. The inner .song-card handles its own shadow/border via the
+     `dragging` class passed from RollScreen. */
+  .song-list-item.dragging {
+    z-index: 20;
+    will-change: transform;
+    /* Slight rotation on top of the JS-driven translateY adds a "lifted"
+       feel without making the drag feel chaotic. */
+    transition: none;
+  }
+
+  .song-list-item.dragging :global(.song-card) {
+    transform: scale(1.025) rotate(-0.6deg);
+    transform-origin: 12px 50%;
+  }
+
+  /* Cards that aren't the drag source or the drop target fade back so the
+     active interaction stands out clearly. The dimming is subtle — just
+     enough to push them visually behind the action. */
+  .song-list-item.dimmed :global(.song-card) {
+    opacity: 0.55;
+    filter: saturate(0.85);
+    transition: opacity 180ms ease, filter 180ms ease;
+  }
+
+  /* The drop target gets a strong accent treatment so the user is in no
+     doubt about where the song will land. Combined with the lifted dragged
+     card pointing at it, the relationship is clear. */
+  .song-list-item.drop-target :global(.song-card) {
+    border-color: var(--accent, #e15b37);
+    border-width: 2px;
+    padding: calc(0.65rem - 1px) calc(0.75rem - 1px);
+    background: var(--accent-soft);
+    box-shadow: 0 0 0 4px var(--accent-soft);
+  }
+
+  /* Insertion line — a fat accent bar between cards showing exactly where
+     the dragged card will slot in. The direction (above vs. below) tracks
+     whether the user is moving the song up or down the list. */
+  .song-list-item.drop-above::before,
+  .song-list-item.drop-below::after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    height: 4px;
+    background: var(--accent, #e15b37);
+    border-radius: 999px;
+    box-shadow:
+      0 0 0 3px var(--accent-soft),
+      0 2px 6px rgba(225, 91, 55, 0.35);
+    animation: drop-line-pulse 900ms ease-in-out infinite;
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  .song-list-item.drop-above::before { top: -6px; }
+  .song-list-item.drop-below::after { bottom: -6px; }
+
+  @keyframes drop-line-pulse {
+    0%, 100% { opacity: 0.85; transform: scaleX(0.985); }
+    50%      { opacity: 1;    transform: scaleX(1); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .song-list-item.drop-above::before,
+    .song-list-item.drop-below::after { animation: none; }
+    .song-list-item.dragging :global(.song-card) { transform: none; }
   }
 
   .setlist-actions {
