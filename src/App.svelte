@@ -113,11 +113,11 @@
                     <span class="recent-label">Recent</span>
                     {#each store.knownAccounts as account (account.address)}
                         <div class="recent-account">
-                            <button class="recent-account-btn" onclick={() => store.connectToAccount(account.address)}>
+                            <button type="button" class="recent-account-btn" onclick={() => store.connectToAccount(account.address)}>
                                 <span class="recent-band">{account.metadata?.bandName || "Unnamed"}</span>
                                 <span class="recent-address">{account.address}</span>
                             </button>
-                            <button class="recent-forget" onclick={() => store.forgetAccount(account.address)} aria-label="Forget account">&times;</button>
+                            <button type="button" class="recent-forget" onclick={() => store.forgetAccount(account.address)} aria-label="Forget account">&times;</button>
                         </div>
                     {/each}
                 </div>

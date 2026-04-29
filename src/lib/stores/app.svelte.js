@@ -393,7 +393,12 @@ export function createAppStore(repo) {
     function buildAllInstrumentNames() {
         const names = new Set();
         Object.values(memberInstrumentChoicesByMember || {}).forEach((instruments) => {
-            (instruments || []).forEach((name) => names.add(name));
+            // Wrap in a block so the arrow doesn't return Set#add's value —
+            // Biome's useIterableCallbackReturn flags implicit returns from
+            // forEach callbacks as a likely bug.
+            (instruments || []).forEach((name) => {
+                names.add(name);
+            });
         });
         return Array.from(names).sort();
     }
