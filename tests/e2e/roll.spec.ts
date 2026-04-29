@@ -319,48 +319,60 @@ test.describe("Roll screen — hero scroll behavior", () => {
     });
 
     test("the hero scrolls off the top of the viewport with the page", async ({ page, app }) => {
-        // Seed plenty of songs and roll a longer-than-viewport setlist so
-        // the page has enough content to actually scroll.
-        const extraSongs: SeedSong[] = Array.from({ length: 20 }, (_, i) => ({
-            id: `extra-${i}`,
-            name: `Extra Track ${i + 1}`,
-            key: "C",
-        }));
-        await app.seed(seedWithCatalog(extraSongs));
-        // Smallish viewport so the rolled setlist is guaranteed to overflow.
-        await page.setViewportSize({ width: 390, height: 600 });
+        // The fix removed `position: sticky` from .hero. We assert
+        // behaviorally: when the page scrolls, the hero's viewport-
+        // relative top moves up with it, instead of being pinned at
+        // top: var(--top-bar-height).
+        //
+        // Earlier iterations of this test depended on a rolled setlist's
+        // size to make the page tall enough to scroll. That was flaky on
+        // desktop chromium — a short rolled setlist plus a 600px viewport
+        // means scrollIntoViewIfNeeded sees nothing to do, and
+        // window.scrollTo silently no-ops. Decouple the test from
+        // generation entirely: inject a tall spacer at the bottom of the
+        // body so the document is guaranteed to overflow, then drive a
+        // known scroll amount via document.documentElement.scrollTop and
+        // confirm it committed before reading the hero's bbox.
+        await app.seed(seedWithCatalog());
         await app.goto();
         await app.waitForReady();
         await new AppShell(page).gotoRoll();
 
-        const roll = new RollPage(page);
-        await roll.setSongCount(20);
-        await roll.clickRoll();
-        await roll.waitForRollResult();
-
         const hero = page.locator(".hero");
+        await expect(hero).toBeVisible();
         const initialBox = await hero.boundingBox();
         expect(initialBox).not.toBeNull();
         const initialTop = initialBox?.y ?? 0;
 
-        // Scroll the page by asking the last setlist card to scroll into
-        // view. Playwright handles whichever scroll container the layout
-        // engine picked, which avoids the cross-browser flakiness of
-        // window.scrollTo (chromium with isMobile:false sometimes treats
-        // scrollTo as a no-op when the viewport fits the layout, even
-        // though programmatic scroll should always work). If the page
-        // really had no scrollable content, scrollIntoViewIfNeeded is a
-        // no-op too — we'd then catch the bug at the `toBeLessThan` step
-        // rather than at a 2-second timeout.
-        const lastCard = page.locator(".song-list .song-card").last();
-        await lastCard.scrollIntoViewIfNeeded();
+        // Force scrollable height on body.
+        await page.evaluate(() => {
+            const spacer = document.createElement("div");
+            spacer.id = "__hero_scroll_spacer";
+            spacer.style.cssText = "height: 2000px; pointer-events: none;";
+            document.body.appendChild(spacer);
+        });
+
+        const SCROLL_BY = 600;
+        await page.evaluate((y) => {
+            const se = (document.scrollingElement || document.documentElement) as HTMLElement;
+            se.scrollTop = y;
+        }, SCROLL_BY);
+        // Verify the scroll commit so we don't false-pass when scrollTop
+        // is silently rejected (would mean a scroll-trapping bug).
+        await page.waitForFunction(
+            (y) => {
+                const se = (document.scrollingElement || document.documentElement) as HTMLElement;
+                return se.scrollTop >= y - 1;
+            },
+            SCROLL_BY,
+            { timeout: 2_000 },
+        );
 
         const afterBox = await hero.boundingBox();
-        // If hero were sticky (position: sticky; top: var(--top-bar-height)),
-        // its viewport-relative top would stay the same. We assert it
-        // actually moved up. Use a 50px tolerance to absorb tiny layout
-        // differences between desktop chromium and mobile webkit.
-        expect(afterBox?.y ?? 0).toBeLessThan(initialTop - 50);
+        // Sticky hero would keep y === initialTop. We expect the hero to
+        // have moved up by close to SCROLL_BY (allowing 100px slop for
+        // layout deltas across browsers).
+        expect(afterBox?.y ?? 0).toBeLessThan(initialTop - SCROLL_BY + 100);
     });
 });
 
