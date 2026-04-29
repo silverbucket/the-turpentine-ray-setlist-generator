@@ -285,6 +285,97 @@ test.describe("Roll screen — add song dialog", () => {
     });
 });
 
+test.describe("Roll screen — hero scroll behavior", () => {
+    /**
+     * Regression: the .hero block (Songs stepper + Roll button + Settings
+     * drawer) used to be `position: sticky` with its own internal scroll
+     * (max-height + overflow-y: auto). On tall setlists this pinned the
+     * controls to the top of the viewport and trapped settings inside a
+     * second scroll context. The fix removes the sticky pinning and the
+     * inner scroll so the hero flows naturally with the page.
+     */
+    test("the hero is not sticky and has no internal scroll", async ({ page, app }) => {
+        await app.seed(seedWithCatalog());
+        await app.goto();
+        await app.waitForReady();
+        await new AppShell(page).gotoRoll();
+
+        const hero = page.locator(".hero");
+        const styles = await hero.evaluate((el) => {
+            const cs = getComputedStyle(el);
+            return {
+                position: cs.position,
+                overflowY: cs.overflowY,
+                maxHeight: cs.maxHeight,
+            };
+        });
+        expect(styles.position).not.toBe("sticky");
+        // overflow-y default is "visible". Anything that allows internal
+        // scrolling (auto, scroll) would re-introduce the original bug.
+        expect(["visible", "clip"]).toContain(styles.overflowY);
+        // max-height should be unset ("none") — pinning a height is what
+        // forced the inner scroll previously.
+        expect(styles.maxHeight).toBe("none");
+    });
+
+    test("the hero scrolls off the top of the viewport with the page", async ({ page, app }) => {
+        // The fix removed `position: sticky` from .hero. We assert
+        // behaviorally: when the page scrolls, the hero's viewport-
+        // relative top moves up with it, instead of being pinned at
+        // top: var(--top-bar-height).
+        //
+        // Earlier iterations of this test depended on a rolled setlist's
+        // size to make the page tall enough to scroll. That was flaky on
+        // desktop chromium — a short rolled setlist plus a 600px viewport
+        // means scrollIntoViewIfNeeded sees nothing to do, and
+        // window.scrollTo silently no-ops. Decouple the test from
+        // generation entirely: inject a tall spacer at the bottom of the
+        // body so the document is guaranteed to overflow, then drive a
+        // known scroll amount via document.documentElement.scrollTop and
+        // confirm it committed before reading the hero's bbox.
+        await app.seed(seedWithCatalog());
+        await app.goto();
+        await app.waitForReady();
+        await new AppShell(page).gotoRoll();
+
+        const hero = page.locator(".hero");
+        await expect(hero).toBeVisible();
+        const initialBox = await hero.boundingBox();
+        expect(initialBox).not.toBeNull();
+        const initialTop = initialBox?.y ?? 0;
+
+        // Force scrollable height on body.
+        await page.evaluate(() => {
+            const spacer = document.createElement("div");
+            spacer.id = "__hero_scroll_spacer";
+            spacer.style.cssText = "height: 2000px; pointer-events: none;";
+            document.body.appendChild(spacer);
+        });
+
+        const SCROLL_BY = 600;
+        await page.evaluate((y) => {
+            const se = (document.scrollingElement || document.documentElement) as HTMLElement;
+            se.scrollTop = y;
+        }, SCROLL_BY);
+        // Verify the scroll commit so we don't false-pass when scrollTop
+        // is silently rejected (would mean a scroll-trapping bug).
+        await page.waitForFunction(
+            (y) => {
+                const se = (document.scrollingElement || document.documentElement) as HTMLElement;
+                return se.scrollTop >= y - 1;
+            },
+            SCROLL_BY,
+            { timeout: 2_000 },
+        );
+
+        const afterBox = await hero.boundingBox();
+        // Sticky hero would keep y === initialTop. We expect the hero to
+        // have moved up by close to SCROLL_BY (allowing 100px slop for
+        // layout deltas across browsers).
+        expect(afterBox?.y ?? 0).toBeLessThan(initialTop - SCROLL_BY + 100);
+    });
+});
+
 test.describe("Roll screen — pre-conditions", () => {
     test("rolling with all songs unpracticed shows a toast and bails", async ({ page, app }) => {
         await app.seed(

@@ -529,11 +529,10 @@
     }
   }
 
-  /* Hero */
+  /* Hero — flows with the page (no sticky pinning, no internal scroll). The
+     dice button + Songs stepper + Settings drawer scroll along with the
+     setlist below them. */
   .hero {
-    position: sticky;
-    top: var(--top-bar-height);
-    z-index: 50;
     background: var(--paper, rgba(255, 255, 255, 0.96));
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
@@ -542,9 +541,6 @@
     padding: 0.6rem;
     display: grid;
     gap: 0.5rem;
-    max-height: calc(100vh - var(--top-bar-height) - var(--bottom-nav-height, 56px) - var(--safe-bottom, 0px) - 1rem);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
   }
 
   @media (min-width: 400px) {
