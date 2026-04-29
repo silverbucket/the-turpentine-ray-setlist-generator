@@ -340,86 +340,75 @@ test.describe("Saved screen — iOS safe-area handling", () => {
      * --safe-top at the document root and verify the modal-sheet (and the
      * close button inside it) shifts down by that amount.
      */
-    /**
-     * Build a setlist big enough that the modal hits its max-height. When
-     * the modal is clamped to max-height, the centered grid has no
-     * leftover vertical room and the sheet's top edge equals the
-     * backdrop's padding-top exactly. That makes the modal's y a direct
-     * readout of `max(1rem, var(--safe-top))` — observable rather than
-     * swallowed by `place-items: center` on a sub-viewport-height modal.
-     */
-    function tallNotchSetlist(name: string): SeedSetlist {
-        const songs = Array.from({ length: 60 }, (_, i) => ({
-            id: `n${i}`,
-            name: `Song ${i + 1}`,
-            key: "C",
-        }));
-        return setlistFixture({ id: "n", name, songs, songCount: 60 });
-    }
-
     test("modal-close button shifts down by the safe-area inset on a notched device", async ({ page, app }) => {
-        // The reviewer's note is right: a small modal centered in a
-        // 600px viewport will be ~200px from the top regardless of
-        // safe-area padding, so an absolute-threshold assertion can't
-        // distinguish "fix in place" from "fix removed". Force the modal
-        // to its max-height (so y is determined by padding, not centering)
-        // and assert the y delta when --safe-top is overridden.
-        await app.seed(buildSeed({ setlists: { n: tallNotchSetlist("Notched") } }));
-        await page.setViewportSize({ width: 390, height: 600 });
+        // The reviewer's note: a small modal centered in a 600px
+        // viewport sits ~200px from the top regardless of safe-area
+        // padding, so an absolute-threshold y >= 49 assertion is
+        // satisfied by grid centering alone — it can't tell "fix in
+        // place" from "fix removed".
+        //
+        // Earlier attempts to force the modal to its max-height and
+        // measure the y-delta worked on chromium but were fragile on
+        // mobile webkit, where 100dvh, env(safe-area-inset-top), and
+        // the iPhone 13 emulator's interaction with viewport-fit=cover
+        // shifted the baseline by browser-specific amounts.
+        //
+        // Cut through all that by reading the rule directly: query the
+        // backdrop's *computed* padding-top before and after overriding
+        // --safe-top. That's a one-line proof of
+        //   padding-top: max(1rem, var(--safe-top, 0px))
+        // and is layout-engine-agnostic. Then keep the user-facing
+        // assertion that the close button itself ends up at or below
+        // the simulated safe-area top.
+        await app.seed(
+            buildSeed({
+                setlists: { s: setlistFixture({ id: "s", name: "Notched" }) },
+            }),
+        );
         await app.goto();
         await app.waitForReady();
         const shell = new AppShell(page);
         const saved = new SavedPage(page);
-
-        // Baseline: --safe-top is 0 (env(safe-area-inset-top) on a
-        // non-notched device). max(1rem, 0) → 16px padding-top.
         await shell.gotoSaved();
         await saved.openCard("Notched");
-        const baselineSheetY = (await saved.modal.boundingBox())?.y;
-        const baselineCloseY = (await saved.modalCloseButton.boundingBox())?.y;
-        expect(baselineSheetY).toBeDefined();
-        expect(baselineCloseY).toBeDefined();
-        await saved.closeCard();
 
-        // Simulate a 80px status-bar overlay. With max(1rem, 80px) the
-        // padding-top jumps to 80px, a 64px increase from the 16px floor.
+        const readBackdropPaddingTop = () =>
+            page.evaluate(() => {
+                const bd = document.querySelector(".modal-backdrop") as HTMLElement | null;
+                return bd ? parseFloat(getComputedStyle(bd).paddingTop) : 0;
+            });
+
+        // Baseline. Without an override --safe-top resolves to
+        // env(safe-area-inset-top, 0px), which is 0 on every Playwright
+        // emulator we run, so padding-top falls back to the 1rem floor
+        // (16px at the project's base font size). On a real iPhone with
+        // a notch this would resolve to ~47px — still satisfying
+        // `>= 16`.
+        const baselinePadding = await readBackdropPaddingTop();
+        expect(baselinePadding).toBeGreaterThanOrEqual(16);
+
+        // Simulate an 80px status-bar overlay.
         const FAKE_SAFE_TOP = 80;
-        const FALLBACK_PADDING = 16; // 1rem at the project base
         await page.evaluate((top) => {
             document.documentElement.style.setProperty("--safe-top", `${top}px`);
         }, FAKE_SAFE_TOP);
 
-        await saved.openCard("Notched");
-        const insetSheetY = (await saved.modal.boundingBox())?.y;
-        const insetCloseY = (await saved.modalCloseButton.boundingBox())?.y;
-        expect(insetSheetY).toBeDefined();
-        expect(insetCloseY).toBeDefined();
-        if (
-            baselineSheetY === undefined ||
-            baselineCloseY === undefined ||
-            insetSheetY === undefined ||
-            insetCloseY === undefined
-        ) {
-            return;
-        }
+        const insetPadding = await readBackdropPaddingTop();
+        // If the CSS rule were simplified to a plain `padding: 1rem`,
+        // insetPadding would still be 16 — equal to baselinePadding —
+        // and this assertion would fail loudly. Catches the regression
+        // the reviewer asked us to catch.
+        expect(insetPadding).toBeCloseTo(FAKE_SAFE_TOP, 0);
+        expect(insetPadding).toBeGreaterThan(baselinePadding);
 
-        // The sheet's top should have moved down by ~(FAKE_SAFE_TOP - 1rem)
-        // (the safe-area override displaces the centered modal by the
-        // amount the padding-top grew). The close button rides with the
-        // sheet, so its delta tracks the sheet's. ±10px slop covers
-        // sub-pixel rounding and any minor layout jitter cross-browser.
-        const expectedDelta = FAKE_SAFE_TOP - FALLBACK_PADDING;
-        const sheetDelta = insetSheetY - baselineSheetY;
-        const closeDelta = insetCloseY - baselineCloseY;
-        expect(sheetDelta).toBeGreaterThanOrEqual(expectedDelta - 10);
-        expect(sheetDelta).toBeLessThanOrEqual(expectedDelta + 10);
-        expect(closeDelta).toBeGreaterThanOrEqual(expectedDelta - 10);
-        expect(closeDelta).toBeLessThanOrEqual(expectedDelta + 10);
-
-        // And the absolute position: the close button must be at or
-        // below the safe-area top (i.e., not under the simulated status
-        // bar). This catches the user-reported regression directly.
-        expect(insetCloseY).toBeGreaterThanOrEqual(FAKE_SAFE_TOP - 1);
+        // User-facing: the close button (X) must be at or below the
+        // safe-area top. With padding-top=80 pushing the sheet down to
+        // y >= 80, the X (top: 0.5rem inside the sheet) lands well
+        // below the simulated status bar.
+        const closeBox = await saved.modalCloseButton.boundingBox();
+        expect(closeBox).not.toBeNull();
+        if (!closeBox) return;
+        expect(closeBox.y).toBeGreaterThanOrEqual(FAKE_SAFE_TOP - 1);
     });
 
     test("the rendered viewport meta tag enables safe-area insets via viewport-fit=cover", async ({ page, app }) => {
