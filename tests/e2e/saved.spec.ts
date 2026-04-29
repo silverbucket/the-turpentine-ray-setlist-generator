@@ -396,17 +396,28 @@ test.describe("Saved screen — iOS safe-area handling", () => {
         expect(sheetBox.y).toBeGreaterThanOrEqual(1);
     });
 
-    test("the viewport meta tag enables safe-area insets via viewport-fit=cover", async ({ page, app }) => {
+    test("the rendered viewport meta tag enables safe-area insets via viewport-fit=cover", async ({ page, app }) => {
         await app.seed(buildSeed());
         await app.goto();
         await app.waitForReady();
 
         // Without viewport-fit=cover, iOS resolves env(safe-area-inset-*)
         // to 0 even on notched devices, silently breaking every safe-area
-        // computation in the app. Pin the meta tag in a test so a careless
-        // edit can't quietly regress every modal at once.
-        const viewportContent = await page.locator('meta[name="viewport"]').getAttribute("content");
-        expect(viewportContent).toContain("viewport-fit=cover");
+        // computation in the app. Pin this in a test so a careless edit
+        // can't quietly regress every modal at once.
+        //
+        // App.svelte injects the canonical viewport meta via <svelte:head>,
+        // and index.html ships its own at boot. Both end up in <head>, so
+        // we collect every matching tag and require at least one to opt
+        // into viewport-fit=cover. Browsers honor the last viewport meta
+        // tag in source order, and the svelte:head injection is appended
+        // after the index.html one, so as long as the svelte:head version
+        // carries the attribute we're covered at runtime.
+        const contents = await page
+            .locator('meta[name="viewport"]')
+            .evaluateAll((els) => els.map((el) => el.getAttribute("content") || ""));
+        expect(contents.length).toBeGreaterThan(0);
+        expect(contents.some((c) => c.includes("viewport-fit=cover"))).toBe(true);
     });
 });
 

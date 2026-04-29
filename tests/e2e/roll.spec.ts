@@ -343,24 +343,24 @@ test.describe("Roll screen — hero scroll behavior", () => {
         expect(initialBox).not.toBeNull();
         const initialTop = initialBox?.y ?? 0;
 
-        // The app shell uses body/window scrolling (.main-content has no
-        // overflow:auto). Scroll the window down a chunk and confirm the
-        // hero's viewport-relative top actually moved.
-        await page.evaluate(() => window.scrollTo({ top: 600, behavior: "instant" as ScrollBehavior }));
-        await page.waitForFunction(
-            (initial) => {
-                const h = document.querySelector(".hero") as HTMLElement | null;
-                if (!h) return false;
-                return h.getBoundingClientRect().top < initial;
-            },
-            initialTop,
-            { timeout: 2_000 },
-        );
+        // Scroll the page by asking the last setlist card to scroll into
+        // view. Playwright handles whichever scroll container the layout
+        // engine picked, which avoids the cross-browser flakiness of
+        // window.scrollTo (chromium with isMobile:false sometimes treats
+        // scrollTo as a no-op when the viewport fits the layout, even
+        // though programmatic scroll should always work). If the page
+        // really had no scrollable content, scrollIntoViewIfNeeded is a
+        // no-op too — we'd then catch the bug at the `toBeLessThan` step
+        // rather than at a 2-second timeout.
+        const lastCard = page.locator(".song-list .song-card").last();
+        await lastCard.scrollIntoViewIfNeeded();
 
         const afterBox = await hero.boundingBox();
         // If hero were sticky (position: sticky; top: var(--top-bar-height)),
-        // it would stay at the same y. We assert it actually moved up.
-        expect(afterBox?.y ?? 0).toBeLessThan(initialTop);
+        // its viewport-relative top would stay the same. We assert it
+        // actually moved up. Use a 50px tolerance to absorb tiny layout
+        // differences between desktop chromium and mobile webkit.
+        expect(afterBox?.y ?? 0).toBeLessThan(initialTop - 50);
     });
 });
 
