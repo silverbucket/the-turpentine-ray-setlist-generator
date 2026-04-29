@@ -1,5 +1,5 @@
 <script>
-  const { song, index, prevSong, onDragStart, onEdit, onRemove } = $props();
+  const { song, index, prevSong, onDragStart, onEdit, onRemove, arming = false, dragging = false } = $props();
 
   let expanded = $state(false);
 
@@ -55,14 +55,26 @@
   }
 </script>
 
-<div class="song-card" class:expanded>
+<div class="song-card" class:expanded class:dragging>
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="card-main" onclick={toggleExpand} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleExpand(); } }} role="button" tabindex="0">
     <span
       class="drag-handle"
-      aria-label="Drag to reorder"
+      class:arming
+      class:dragging
+      aria-label="Press and hold to reorder"
+      title="Press and hold to reorder"
       onpointerdown={(e) => { e.stopPropagation(); if (onDragStart) onDragStart(e, index); }}
-    >&#9776;</span>
+    >
+      <svg class="grip-icon" width="14" height="22" viewBox="0 0 14 22" aria-hidden="true">
+        <circle cx="3.5" cy="4" r="1.6"/>
+        <circle cx="10.5" cy="4" r="1.6"/>
+        <circle cx="3.5" cy="11" r="1.6"/>
+        <circle cx="10.5" cy="11" r="1.6"/>
+        <circle cx="3.5" cy="18" r="1.6"/>
+        <circle cx="10.5" cy="18" r="1.6"/>
+      </svg>
+    </span>
 
     <div class="card-body">
       <div class="title-row">
@@ -126,30 +138,121 @@
     border: 1px solid var(--line);
     border-radius: var(--radius-md, 12px);
     padding: 0.65rem 0.75rem;
-    transition: border-color 150ms ease;
+    transition:
+      border-color 150ms ease,
+      box-shadow 180ms ease,
+      background 180ms ease;
   }
 
   .song-card.expanded {
     border-color: var(--accent-line);
   }
 
+  /* When the parent wrapper marks this card as dragging, lift it visually so
+     the user can clearly see which card they are holding. The wrapper handles
+     the translateY follow-the-finger transform; the card itself only changes
+     elevation, border colour, and a subtle tilt. */
+  .song-card.dragging {
+    border-color: var(--accent, #e15b37);
+    border-width: 2px;
+    padding: calc(0.65rem - 1px) calc(0.75rem - 1px);
+    background: var(--paper-strong);
+    box-shadow:
+      0 18px 40px rgba(27, 39, 58, 0.22),
+      0 4px 12px rgba(225, 91, 55, 0.18);
+  }
+
   .card-main {
     display: flex;
     align-items: flex-start;
-    gap: 0.5rem;
+    gap: 0.4rem;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
 
+  /* Drag handle: bigger touch target, clearer visual.
+     - touch-action: pan-y lets the user scroll vertically over the handle by
+       default. Drag mode is opt-in via long-press in RollScreen, so brushing
+       past the handle while scrolling no longer hijacks the gesture.
+     - The .arming and .dragging classes are toggled by the parent to show
+       the press-hold progress and the active drag state. */
   .drag-handle {
     flex-shrink: 0;
-    cursor: grab;
-    font-size: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* WCAG 2.5.5 / iOS HIG recommend ≥44px tappable height. We get there
+       via padding + the SVG, so the visual column stays slim while the
+       touch target stays generous. */
+    width: 30px;
+    min-height: 44px;
+    /* Pull the handle slightly into the card's left padding so the visible
+       icon hugs the edge — the touch target still extends inward. */
+    margin-left: -0.4rem;
+    padding: 0.3rem 0.4rem;
     color: var(--muted, #8a95a5);
-    padding: 0.1rem 0;
-    line-height: 1.4;
-    touch-action: none;
+    cursor: grab;
+    touch-action: pan-y;
     user-select: none;
+    -webkit-user-select: none;
+    border-radius: 8px;
+    transition:
+      background 160ms ease,
+      color 160ms ease,
+      transform 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  .drag-handle:hover {
+    color: var(--ink, #182230);
+    background: var(--hover);
+  }
+
+  .drag-handle:active {
+    cursor: grabbing;
+  }
+
+  /* Arming: shown for the ~350ms long-press window before drag activates.
+     A pulsing accent ring + filled background telegraphs "keep holding".
+     Combined with the haptic tap when the timer fires, the user understands
+     they have entered drag mode. */
+  .drag-handle.arming {
+    color: var(--accent, #e15b37);
+    background: var(--accent-soft);
+    transform: scale(1.08);
+    animation: handle-arm 350ms ease-out;
+  }
+
+  /* Dragging: the handle becomes a solid accent badge so the user can clearly
+     see which card their finger is currently anchored to. */
+  .drag-handle.dragging {
+    color: var(--on-accent);
+    background: var(--accent, #e15b37);
+    transform: scale(1.12);
+    box-shadow: 0 4px 10px rgba(225, 91, 55, 0.35);
+    cursor: grabbing;
+  }
+
+  .grip-icon {
+    fill: currentColor;
+    pointer-events: none;
+  }
+
+  @keyframes handle-arm {
+    0% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(225, 91, 55, 0.45);
+    }
+    100% {
+      transform: scale(1.08);
+      box-shadow: 0 0 0 10px rgba(225, 91, 55, 0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .drag-handle.arming {
+      animation: none;
+    }
   }
 
   .card-body {

@@ -38,7 +38,7 @@
     <section class="help-section">
         <h2>After you roll</h2>
         <ul class="tips">
-            <li><strong>Drag to reorder</strong> — not happy with a song's position? Grab the handle and move it.</li>
+            <li><strong>Drag to reorder</strong> — not happy with a song's position? Press and hold the handle (or click and drag on desktop) to move it. The card lifts up so you can see exactly where it'll land.</li>
             <li><strong>Lock it in</strong> — prevents accidental re-rolls. You can still unlock and roll again.</li>
             <li><strong>Save to Greatest Hits</strong> — stores the setlist so you can view or print it later.</li>
             <li><strong>Print</strong> — from the <button type="button" class="inline-link" onclick={() => store.navigate("saved")}>Saved</button> tab, open a setlist and hit print. Big fonts, clean layout, made for the stage.</li>
