@@ -1659,7 +1659,10 @@ export function createAppStore(repo) {
     }
 
     function clearCurrentSetlist() {
-        if (!generatedSetlist && preRollPinnedIds.length === 0) return;
+        if (!generatedSetlist && preRollPinnedIds.length === 0 && !isGenerating) return;
+        terminateWorker();
+        generationId += 1;
+        isGenerating = false;
         clearGeneratedSetlist();
         preRollPinnedIds = [];
         setlistLocked = false;
