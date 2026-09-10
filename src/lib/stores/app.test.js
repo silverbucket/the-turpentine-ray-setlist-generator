@@ -557,6 +557,28 @@ describe("incremental remote sync", () => {
         teardown();
     });
 
+    it("starts a manual setlist from empty and clears it even when locked", async () => {
+        const repo = buildRepo();
+        const store = createAppStore(repo);
+        const teardown = store.init();
+        repo.fire("connected");
+        await settle();
+        repo.fireChange({ relativePath: "songs/s1", origin: "remote", newValue: { id: "s1", name: "Starter" } });
+
+        store.addSetlistSong("s1");
+        expect(store.generatedSetlist.songs.map((entry) => entry.songId)).toEqual(["s1"]);
+        expect(store.displayedSetlist.songs.map((song) => song.name)).toEqual(["Starter"]);
+
+        store.lockSetlist();
+        expect(store.setlistLocked).toBe(true);
+        store.clearCurrentSetlist();
+        expect(store.generatedSetlist).toBeNull();
+        expect(store.displayedSetlist).toBeNull();
+        expect(store.setlistLocked).toBe(false);
+        expect(globalThis.localStorage.getItem(accountSlot("user@example.com").key("current-set"))).toBeNull();
+        teardown();
+    });
+
     it("persists pin toggles on the working setlist", async () => {
         globalThis.localStorage.setItem(
             accountSlot("user@example.com").key("current-set"),

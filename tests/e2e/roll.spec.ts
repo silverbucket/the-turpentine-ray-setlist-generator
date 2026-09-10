@@ -371,6 +371,34 @@ test.describe("Roll screen — bass anxiety summary", () => {
 });
 
 test.describe("Roll screen — add song dialog", () => {
+    test("starts a manual setlist from empty and can clear it again", async ({ page, app }) => {
+        await app.seed(seedWithCatalog());
+        await app.goto();
+        await app.waitForReady();
+        await new AppShell(page).gotoRoll();
+
+        const roll = new RollPage(page);
+        await roll.addExistingSong("Africa");
+        await expect(roll.setlistSongs).toHaveCount(1);
+        await expect(roll.clearListButton).toBeVisible();
+
+        await roll.lockSetlist();
+        await roll.clearListButton.click();
+        await expect(roll.setlistSongs).toHaveCount(0);
+        await expect(roll.addSongButton).toBeVisible();
+
+        // Clearing must also invalidate an in-flight worker; otherwise its
+        // late result can repopulate the list after the user cleared it.
+        await roll.addExistingSong("Africa");
+        await roll.clickRoll();
+        await expect(roll.rollButton).toHaveClass(/rolling/);
+        await roll.clearListButton.click();
+        await expect(roll.rollButton).not.toHaveClass(/rolling/);
+        await page.waitForTimeout(500);
+        await expect(roll.setlistSongs).toHaveCount(0);
+        await expect(roll.addSongButton).toBeVisible();
+    });
+
     test("add-song dialog opens, lists catalog songs, and adds them to the setlist", async ({ page, app }) => {
         await app.seed(seedWithCatalog());
         await app.goto();
