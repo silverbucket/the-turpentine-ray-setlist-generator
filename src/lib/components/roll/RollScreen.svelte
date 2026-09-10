@@ -13,6 +13,7 @@
   let diceValue = $state(6);
   let landed = $state(false);
   let showAddSongPicker = $state(false);
+  let pinFromPicker = $state(false);
   let swapSongIndex = $state(null);
   let showExtendDialog = $state(false);
   let extendCount = $state(3);
@@ -154,6 +155,7 @@
 
   function closeSongPicker() {
     showAddSongPicker = false;
+    pinFromPicker = false;
     swapSongIndex = null;
     addSongSearch = "";
   }
@@ -587,7 +589,11 @@
           <h3>Pinned songs</h3>
           <p>These are guaranteed a place when you roll.</p>
         </div>
-        <button type="button" class="save-set-btn add-song-btn" onclick={() => { showAddSongPicker = true; }}>+ Pin song</button>
+        <div class="pre-roll-pins-actions">
+          <button type="button" class="save-set-btn add-song-btn" onclick={() => { pinFromPicker = false; showAddSongPicker = true; }}>+ Add song</button>
+          <button type="button" class="save-set-btn add-song-btn" onclick={() => { pinFromPicker = true; showAddSongPicker = true; }}>+ Pin song</button>
+          <button type="button" class="save-set-btn secondary" onclick={store.clearCurrentSetlist}>Clear list</button>
+        </div>
       </div>
       <div class="pre-roll-pin-list">
         {#each store.preRollPinnedSongs as song}
@@ -599,7 +605,10 @@
       </div>
     </section>
   {:else if !store.displayedSetlist && hasSongs}
-    <button type="button" class="pre-roll-add" onclick={() => { showAddSongPicker = true; }}>+ Pin songs before rolling</button>
+    <div class="pre-roll-actions">
+      <button type="button" class="pre-roll-add" onclick={() => { pinFromPicker = false; showAddSongPicker = true; }}>+ Add song</button>
+      <button type="button" class="pre-roll-add" onclick={() => { pinFromPicker = true; showAddSongPicker = true; }}>+ Pin songs before rolling</button>
+    </div>
   {/if}
 
   <!-- Getting Started -->
@@ -678,13 +687,14 @@
       </div>
 
       <div class="setlist-actions">
-        <button type="button" class="save-set-btn add-song-btn" onclick={() => { showAddSongPicker = true; }}>+ Add song</button>
+        <button type="button" class="save-set-btn add-song-btn" onclick={() => { pinFromPicker = false; showAddSongPicker = true; }}>+ Add song</button>
         <button
           type="button"
           class="save-set-btn add-song-btn"
           disabled={remainingSongCount === 0 || store.isGenerating}
           onclick={() => { extendCount = Math.min(3, remainingSongCount); showExtendDialog = true; }}
         >Extend setlist</button>
+        <button type="button" class="save-set-btn secondary" onclick={store.clearCurrentSetlist}>Clear list</button>
         {#if store.setlistLocked}
           <div class="locked-badge">🔒 Locked in</div>
           {#if store.setlistSaved}
@@ -734,8 +744,8 @@
               disabled={inSetlist}
               onclick={() => {
                 if (swapSongIndex !== null) store.swapSetlistSong(swapSongIndex, song.id);
-                else if (store.displayedSetlist) store.addSetlistSong(song.id);
-                else store.pinSongBeforeRoll(song.id);
+                else if (pinFromPicker) store.pinSongBeforeRoll(song.id);
+                else store.addSetlistSong(song.id);
                 closeSongPicker();
               }}
             >
@@ -798,6 +808,18 @@
     font-size: 0.9rem;
     font-weight: 700;
     cursor: pointer;
+  }
+
+  .pre-roll-actions,
+  .pre-roll-pins-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .pre-roll-pins-actions {
+    justify-content: flex-end;
   }
 
   .pre-roll-pins {

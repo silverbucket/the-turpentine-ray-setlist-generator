@@ -1616,20 +1616,55 @@ export function createAppStore(repo) {
         persistCurrentSetlist();
     }
 
-    function addSetlistSong(songId) {
-        if (!generatedSetlist) return;
-        if (generatedSetlist.songs.some((s) => s.songId === songId)) return;
-        const song = songsById.get(songId);
-        if (!song) return;
+    function setlistEntryForSong(song, pinned = true) {
         const performance = buildDefaultPerformance(
             { ...song, members: resolveSongMembers(song, bandMembers) },
             generationOptions?.show || {},
         );
+        return { songId: song.id, performance, pinned };
+    }
+
+    function addSetlistSong(songId) {
+        const song = songsById.get(songId);
+        if (!song) return;
+
+        // A manual set can start from an empty Roll screen. If songs were
+        // already queued as pre-roll pins, carry them into the new list so
+        // switching from "pin" to "build manually" never loses a choice.
+        if (!generatedSetlist) {
+            const queuedEntries = preRollPinnedIds
+                .map((id) => songsById.get(id))
+                .filter(Boolean)
+                .map((queuedSong) => setlistEntryForSong(queuedSong));
+            if (queuedEntries.some((entry) => entry.songId === songId)) return;
+            generatedSetlist = {
+                seed: generationOptions.seed || 0,
+                songs: [...queuedEntries, setlistEntryForSong(song)],
+            };
+            preRollPinnedIds = [];
+            loadedSavedId = "";
+            setlistLocked = false;
+            setlistSaved = false;
+            persistCurrentSetlist();
+            return;
+        }
+
+        if (generatedSetlist.songs.some((s) => s.songId === songId)) return;
         generatedSetlist = {
             ...generatedSetlist,
-            songs: [...generatedSetlist.songs, { songId, performance, pinned: true }],
+            songs: [...generatedSetlist.songs, setlistEntryForSong(song)],
         };
         setlistSaved = false;
+        persistCurrentSetlist();
+    }
+
+    function clearCurrentSetlist() {
+        if (!generatedSetlist && preRollPinnedIds.length === 0) return;
+        clearGeneratedSetlist();
+        preRollPinnedIds = [];
+        setlistLocked = false;
+        setlistSaved = false;
+        pendingRollConfirm = false;
         persistCurrentSetlist();
     }
 
@@ -2936,6 +2971,7 @@ export function createAppStore(repo) {
         reorderSetlistSong,
         removeSetlistSong,
         addSetlistSong,
+        clearCurrentSetlist,
         swapSetlistSong,
         pinSongBeforeRoll,
         unpinSongBeforeRoll,

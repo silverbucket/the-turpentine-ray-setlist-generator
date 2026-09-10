@@ -21,6 +21,7 @@ export class RollPage {
     readonly anxietyValue: Locator;
     readonly anxietyHint: Locator;
     readonly addSongButton: Locator;
+    readonly clearListButton: Locator;
     readonly lockButton: Locator;
     readonly lockedBadge: Locator;
     readonly savedBadge: Locator;
@@ -60,6 +61,7 @@ export class RollPage {
         this.anxietyValue = this.screen.locator(".roadie-val");
         this.anxietyHint = this.screen.locator(".roadie-hint");
         this.addSongButton = this.screen.getByRole("button", { name: "+ Add song" });
+        this.clearListButton = this.screen.getByRole("button", { name: "Clear list" });
         this.lockButton = this.screen.getByRole("button", { name: /Lock it in/ });
         this.lockedBadge = this.screen.locator(".locked-badge");
         this.savedBadge = this.screen.locator(".saved-badge");

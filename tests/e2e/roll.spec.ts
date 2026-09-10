@@ -371,6 +371,23 @@ test.describe("Roll screen — bass anxiety summary", () => {
 });
 
 test.describe("Roll screen — add song dialog", () => {
+    test("starts a manual setlist from empty and can clear it again", async ({ page, app }) => {
+        await app.seed(seedWithCatalog());
+        await app.goto();
+        await app.waitForReady();
+        await new AppShell(page).gotoRoll();
+
+        const roll = new RollPage(page);
+        await roll.addExistingSong("Africa");
+        await expect(roll.setlistSongs).toHaveCount(1);
+        await expect(roll.clearListButton).toBeVisible();
+
+        await roll.lockSetlist();
+        await roll.clearListButton.click();
+        await expect(roll.setlistSongs).toHaveCount(0);
+        await expect(roll.addSongButton).toBeVisible();
+    });
+
     test("add-song dialog opens, lists catalog songs, and adds them to the setlist", async ({ page, app }) => {
         await app.seed(seedWithCatalog());
         await app.goto();
